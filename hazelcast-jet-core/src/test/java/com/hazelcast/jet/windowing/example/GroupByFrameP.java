@@ -17,18 +17,18 @@
 package com.hazelcast.jet.windowing.example;
 
 import com.hazelcast.jet.AbstractProcessor;
+import com.hazelcast.jet.Distributed.LongUnaryOperator;
+import com.hazelcast.jet.Distributed.ToLongFunction;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
-import java.util.function.LongUnaryOperator;
-import java.util.function.ToLongFunction;
 
 import static com.hazelcast.jet.Util.entry;
 
 /**
  * Javadoc pending.
  */
-public class GroupByFrameP<T, B, F, R> extends AbstractProcessor {
+public class GroupByFrameP<T, B, R> extends AbstractProcessor {
     private final SnapshottingCollector<T, B, R> tc;
     private final ToLongFunction<? super T> extractTimestampF;
     private final LongUnaryOperator toFrameSeqF;

@@ -16,15 +16,55 @@
 
 package com.hazelcast.jet.windowing.example;
 
+import com.hazelcast.jet.Distributed.BiConsumer;
+import com.hazelcast.jet.Distributed.BinaryOperator;
+import com.hazelcast.jet.Distributed.Function;
+import com.hazelcast.jet.Distributed.Supplier;
+import com.hazelcast.jet.Distributed.UnaryOperator;
 import com.hazelcast.jet.stream.DistributedCollector;
 
-import java.util.function.BiConsumer;
-import java.util.function.BinaryOperator;
-import java.util.function.Function;
-import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
+import java.util.Set;
 
 public interface SnapshottingCollector<T, A, R> extends DistributedCollector<T, A, R> {
 
     UnaryOperator<A> copier();
+
+    static <T, A, R> SnapshottingCollector<T, A, R> of(Supplier<A> supplier,
+                                                      BiConsumer<A, T> accumulator,
+                                                      BinaryOperator<A> combiner,
+                                                      UnaryOperator<A> copier,
+                                                      Function<A, R> finisher) {
+        return new SnapshottingCollector<T, A, R>() {
+            @Override
+            public UnaryOperator<A> copier() {
+                return copier;
+            }
+
+            @Override
+            public Supplier<A> supplier() {
+                return supplier;
+            }
+
+            @Override
+            public BiConsumer<A, T> accumulator() {
+                return accumulator;
+            }
+
+            @Override
+            public BinaryOperator<A> combiner() {
+                return combiner;
+            }
+
+            @Override
+            public Function<A, R> finisher() {
+                return finisher;
+            }
+
+            @Override
+            public Set<Characteristics> characteristics() {
+                throw new UnsupportedOperationException();
+            }
+
+        };
+    }
 }

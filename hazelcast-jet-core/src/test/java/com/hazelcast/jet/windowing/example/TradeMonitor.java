@@ -30,7 +30,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static com.hazelcast.jet.Edge.between;
+import static com.hazelcast.jet.Edge.from;
 import static com.hazelcast.jet.Processors.readMap;
+import static com.hazelcast.jet.windowing.example.SnapshottingCollectors.summingLong;
 import static java.lang.Runtime.getRuntime;
 
 public class TradeMonitor {
@@ -58,9 +60,14 @@ public class TradeMonitor {
             Vertex tickers = dag.newVertex("tickers", readMap(initial.getName()));
             Vertex generator = dag.newVertex("event-generator", () -> new TradeGeneratorP(100));
             Vertex peek = dag.newVertex("peek", PeekP::new);
+            Vertex frame = dag.newVertex("frame",
+                    () -> new GroupByFrameP<>(4,
+                            t -> System.currentTimeMillis(), ts -> ts / 1_000, summingLong(Trade::getQuantity)));
 
             dag.edge(between(tickers, generator))
-               .edge(between(generator, peek));
+               .edge(between(generator, frame))
+               .edge(from(generator, 1).to(peek, 0))
+               .edge(from(frame).to(peek, 1));
 
             jet.newJob(dag).execute().get();
         } finally {
