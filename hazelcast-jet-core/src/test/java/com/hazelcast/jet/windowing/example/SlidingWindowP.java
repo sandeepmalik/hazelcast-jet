@@ -14,22 +14,20 @@
  * limitations under the License.
  */
 
-package com.hazelcast.jet.windows;
+package com.hazelcast.jet.windowing.example;
 
-import java.util.function.BiConsumer;
-import java.util.function.BinaryOperator;
-import java.util.function.Function;
-import java.util.function.Supplier;
+import com.hazelcast.jet.AbstractProcessor;
 
-public interface TwoTieredCollector<T, B, F, R> {
+import javax.annotation.Nonnull;
 
-    Supplier<B> bucketSupplier();
+/**
+ * Javadoc pending.
+ */
+public class SlidingWindowP extends AbstractProcessor {
 
-    BiConsumer<B, T> accumulator();
+    @Override
+    protected boolean tryProcess0(@Nonnull Object item) throws Exception {
 
-    Function<B, F> bucketToFrameTransformer();
-
-    BinaryOperator<F> combiner();
-
-    Function<F, R> finisher();
+        return true;
+    }
 }

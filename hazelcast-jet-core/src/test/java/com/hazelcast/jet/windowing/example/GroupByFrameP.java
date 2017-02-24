@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.hazelcast.jet.windows;
+package com.hazelcast.jet.windowing.example;
 
 import com.hazelcast.jet.AbstractProcessor;
 
