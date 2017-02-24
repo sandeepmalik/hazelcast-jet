@@ -30,25 +30,25 @@ import static com.hazelcast.jet.Util.entry;
 /**
  * Javadoc pending.
  */
-public class CombineFramesP<F, R> extends AbstractProcessor {
-    private final TwoTieredCollector<?, ?, F, R> tc;
+public class CombineFramesP<B, R> extends AbstractProcessor {
+    private final TwoTieredCollector<?, B, R> tc;
     private final int expectedGroupSize;
-    private final Map<Long, List<F>> seqToFrames = new HashMap<>();
+    private final Map<Long, List<B>> seqToFrames = new HashMap<>();
 
-    public CombineFramesP(TwoTieredCollector<?, ?, F, R> tc, int expectedGroupSize) {
+    public CombineFramesP(TwoTieredCollector<?, B, R> tc, int expectedGroupSize) {
         this.tc = tc;
         this.expectedGroupSize = expectedGroupSize;
     }
 
     @Override
     protected boolean tryProcess0(@Nonnull Object item) {
-        final Entry<Long, F> e = (Entry<Long, F>) item;
+        final Entry<Long, B> e = (Entry<Long, B>) item;
         final Long frameSeq = e.getKey();
-        final F frame = e.getValue();
-        final List<F> frameGroup = seqToFrames.computeIfAbsent(frameSeq, fs -> new ArrayList<>());
+        final B frame = e.getValue();
+        final List<B> frameGroup = seqToFrames.computeIfAbsent(frameSeq, fs -> new ArrayList<>());
         frameGroup.add(frame);
         if (frameGroup.size() == expectedGroupSize) {
-            F combined = frameGroup.get(0);
+            B combined = frameGroup.get(0);
             for (int i = 1; i < frameGroup.size(); i++) {
                 combined = tc.combiner().apply(combined, frameGroup.get(i));
             }
