@@ -23,26 +23,27 @@ public final class SnapshottingCollectors {
     private SnapshottingCollectors() {
     }
 
-    public static <T1, T2, A, R> SnapshottingCollector<T1, A, R> mapAndCollect(Function<T1, T2> mapper, SnapshottingCollector<T2, A, R> delegate) {
+    public static <T1, T2, A, R> SnapshottingCollector<T1, A, R> mapAndCollect(
+            Function<T1, T2> mapper, SnapshottingCollector<T2, A, R> downstream
+    ) {
         return SnapshottingCollector.of(
-                delegate.supplier(),
-                (a, v) -> delegate.accumulator().accept(a, mapper.apply(v)),
-                delegate.combiner(),
-                delegate.copier(),
-                delegate.finisher()
+                downstream.supplier(),
+                (A a, T1 v) -> downstream.accumulator().accept(a, mapper.apply(v)),
+                downstream.copier(),
+                downstream.combiner(),
+                downstream.finisher()
         );
     }
 
-    public static SnapshottingCollector<Number, long[], Long>
-    summingLong() {
+    public static SnapshottingCollector<Number, long[], Long> summingLong() {
         return SnapshottingCollector.of(
                 () -> new long[1],
                 (a, t) -> a[0] += t.longValue(),
+                long[]::clone,
                 (a, b) -> {
                     a[0] += b[0];
                     return a;
                 },
-                a -> new long[]{a[0]},
                 a -> a[0]);
     }
 }

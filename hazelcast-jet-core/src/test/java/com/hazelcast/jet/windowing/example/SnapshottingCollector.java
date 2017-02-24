@@ -29,11 +29,13 @@ public interface SnapshottingCollector<T, A, R> extends DistributedCollector<T, 
 
     UnaryOperator<A> copier();
 
-    static <T, A, R> SnapshottingCollector<T, A, R> of(Supplier<A> supplier,
-                                                      BiConsumer<A, T> accumulator,
-                                                      BinaryOperator<A> combiner,
-                                                      UnaryOperator<A> copier,
-                                                      Function<A, R> finisher) {
+    static <T, A, R> SnapshottingCollector<T, A, R> of(
+            Supplier<A> supplier,
+            BiConsumer<A, T> accumulator,
+            UnaryOperator<A> copier,
+            BinaryOperator<A> combiner,
+            Function<A, R> finisher
+    ) {
         return new SnapshottingCollector<T, A, R>() {
             @Override
             public UnaryOperator<A> copier() {
@@ -64,7 +66,6 @@ public interface SnapshottingCollector<T, A, R> extends DistributedCollector<T, 
             public Set<Characteristics> characteristics() {
                 throw new UnsupportedOperationException();
             }
-
         };
     }
 }
