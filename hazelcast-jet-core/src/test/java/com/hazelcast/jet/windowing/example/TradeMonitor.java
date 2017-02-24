@@ -20,8 +20,6 @@ import com.hazelcast.jet.AbstractProcessor;
 import com.hazelcast.jet.DAG;
 import com.hazelcast.jet.Jet;
 import com.hazelcast.jet.JetInstance;
-import com.hazelcast.jet.KeyExtractors;
-import com.hazelcast.jet.Partitioner;
 import com.hazelcast.jet.Vertex;
 import com.hazelcast.jet.config.InstanceConfig;
 import com.hazelcast.jet.config.JetConfig;
@@ -36,6 +34,7 @@ import static com.hazelcast.jet.Edge.from;
 import static com.hazelcast.jet.KeyExtractors.entryKey;
 import static com.hazelcast.jet.Partitioner.HASH_CODE;
 import static com.hazelcast.jet.Processors.readMap;
+import static com.hazelcast.jet.windowing.example.SnapshottingCollectors.mapAndCollect;
 import static com.hazelcast.jet.windowing.example.SnapshottingCollectors.summingLong;
 import static java.lang.Runtime.getRuntime;
 
@@ -66,7 +65,7 @@ public class TradeMonitor {
             Vertex peek = dag.newVertex("peek", PeekP::new);
             Vertex frame = dag.newVertex("frame",
                     () -> new GroupByFrameP<>(4, t -> System.currentTimeMillis(),
-                            ts -> ts / 1_000, summingLong(Trade::getQuantity)));
+                            ts -> ts / 1_000, mapAndCollect(Trade::getQuantity, summingLong())));
 
             dag.edge(between(tickers, generator).partitioned(entryKey()))
                .edge(between(generator, frame).partitioned(Trade::getTicker, HASH_CODE))
@@ -83,7 +82,7 @@ public class TradeMonitor {
 
         @Override
         protected boolean tryProcess(int ordinal, @Nonnull Object item) throws Exception {
-            System.out.println(item);
+            getLogger().info(item.toString());
             return true;
         }
     }

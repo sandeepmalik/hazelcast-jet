@@ -16,20 +16,28 @@
 
 package com.hazelcast.jet.windowing.example;
 
-import com.hazelcast.jet.Distributed;
+import com.hazelcast.jet.Distributed.Function;
 
 public final class SnapshottingCollectors {
 
     private SnapshottingCollectors() {
     }
 
-    public static <T> SnapshottingCollector<T, ?, Long>
-    summingLong(Distributed.ToLongFunction<? super T> mapper) {
+    public static <T1, T2, A, R> SnapshottingCollector<T1, A, R> mapAndCollect(Function<T1, T2> mapper, SnapshottingCollector<T2, A, R> delegate) {
+        return SnapshottingCollector.of(
+                delegate.supplier(),
+                (a, v) -> delegate.accumulator().accept(a, mapper.apply(v)),
+                delegate.combiner(),
+                delegate.copier(),
+                delegate.finisher()
+        );
+    }
+
+    public static SnapshottingCollector<Number, long[], Long>
+    summingLong() {
         return SnapshottingCollector.of(
                 () -> new long[1],
-                (a, t) -> {
-                    a[0] += mapper.applyAsLong(t);
-                },
+                (a, t) -> a[0] += t.longValue(),
                 (a, b) -> {
                     a[0] += b[0];
                     return a;
