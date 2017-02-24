@@ -42,7 +42,7 @@ public class TradeGeneratorP extends AbstractProcessor {
             String[] tickers = this.tickers.get();
             String ticker = tickers[r.nextInt(tickers.length)];
             int price = tickerToPrice.compute(ticker, (k, p) -> p + r.nextInt(200) - 100);
-            return new Trade(ticker, r.nextInt(100), price);
+            return new Trade(ticker, r.nextInt(100) + 1, price);
         }, periodMillis);
     }
 
