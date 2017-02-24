@@ -20,16 +20,17 @@ import java.util.function.BiConsumer;
 import java.util.function.BinaryOperator;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
-public interface TwoTieredCollector<T, B, F, R> {
+public interface TwoTieredCollector<T, A, R> {
 
-    Supplier<B> bucketSupplier();
+    Supplier<A> supplier();
 
-    BiConsumer<B, T> accumulator();
+    BiConsumer<A, T> accumulator();
 
-    Function<B, F> bucketToFrameTransformer();
+    UnaryOperator<A> copier();
 
-    BinaryOperator<F> combiner();
+    BinaryOperator<A> combiner();
 
-    Function<F, R> finisher();
+    Function<A, R> finisher();
 }

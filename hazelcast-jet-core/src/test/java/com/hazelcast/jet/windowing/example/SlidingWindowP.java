@@ -26,7 +26,7 @@ import javax.annotation.Nonnull;
 public class SlidingWindowP extends AbstractProcessor {
 
     @Override
-    protected boolean tryProcess0(@Nonnull Object item) throws Exception {
+    protected boolean tryProcess0(@Nonnull Object item) {
 
         return true;
     }

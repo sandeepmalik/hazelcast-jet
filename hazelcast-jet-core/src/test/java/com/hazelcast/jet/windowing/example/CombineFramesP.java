@@ -41,7 +41,7 @@ public class CombineFramesP<F, R> extends AbstractProcessor {
     }
 
     @Override
-    protected boolean tryProcess0(@Nonnull Object item) throws Exception {
+    protected boolean tryProcess0(@Nonnull Object item) {
         final Entry<Long, F> e = (Entry<Long, F>) item;
         final Long frameSeq = e.getKey();
         final F frame = e.getValue();

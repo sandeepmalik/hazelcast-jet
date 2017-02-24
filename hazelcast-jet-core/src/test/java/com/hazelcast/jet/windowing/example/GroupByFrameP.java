@@ -29,7 +29,7 @@ import static com.hazelcast.jet.Util.entry;
  * Javadoc pending.
  */
 public class GroupByFrameP<T, B, F, R> extends AbstractProcessor {
-    private final TwoTieredCollector<T, B, F, R> tc;
+    private final TwoTieredCollector<T, B, R> tc;
     private final ToLongFunction<? super T> extractTimestampF;
     private final LongUnaryOperator toFrameSeqF;
     private final int bucketCount;
@@ -39,14 +39,14 @@ public class GroupByFrameP<T, B, F, R> extends AbstractProcessor {
     public GroupByFrameP(int bucketCount,
                          ToLongFunction<? super T> extractTimestampF,
                          LongUnaryOperator toFrameSeqF,
-                         TwoTieredCollector<T, B, F, R> tc
+                         TwoTieredCollector<T, B, R> tc
     ) {
         this.tc = tc;
         this.extractTimestampF = extractTimestampF;
         this.toFrameSeqF = toFrameSeqF;
         this.bucketCount = bucketCount;
         this.buckets = (B[]) new Object[bucketCount];
-        Arrays.setAll(buckets, i -> tc.bucketSupplier().get());
+        Arrays.setAll(buckets, i -> tc.supplier().get());
     }
 
     @Override
@@ -71,8 +71,8 @@ public class GroupByFrameP<T, B, F, R> extends AbstractProcessor {
         for (long i = 0; i < bucketCountToEvict; i++) {
             final long frameSeqBeingEvicted = oldestFrameSeq + i;
             final int bucketIndex = toBucketIndex(frameSeqBeingEvicted);
-            emit(entry(frameSeqBeingEvicted, tc.bucketToFrameTransformer().apply(buckets[bucketIndex])));
-            buckets[bucketIndex] = tc.bucketSupplier().get();
+            emit(entry(frameSeqBeingEvicted, tc.copier().apply(buckets[bucketIndex])));
+            buckets[bucketIndex] = tc.supplier().get();
         }
         currentFrameSeq = itemFrameSeq;
     }
