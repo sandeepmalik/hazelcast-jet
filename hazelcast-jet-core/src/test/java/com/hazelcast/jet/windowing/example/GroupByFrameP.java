@@ -35,6 +35,7 @@ public class GroupByFrameP<T, B, F, R> extends AbstractProcessor {
     private final int bucketCount;
     private final B[] buckets;
     private long currentFrameSeq;
+    private long frameSeqBase;
 
     public GroupByFrameP(int bucketCount,
                          ToLongFunction<? super T> extractTimestampF,
@@ -66,24 +67,24 @@ public class GroupByFrameP<T, B, F, R> extends AbstractProcessor {
     }
 
     private void slideTo(long itemFrameSeq) {
-        final long bucketCountToEvict = itemFrameSeq - currentFrameSeq;
-        final long oldestFrameSeq = currentFrameSeq - bucketCount + 1;
-        for (long i = 0; i < bucketCountToEvict; i++) {
-            final long frameSeqBeingEvicted = oldestFrameSeq + i;
-            final int bucketIndex = toBucketIndex(frameSeqBeingEvicted);
-            emit(entry(frameSeqBeingEvicted, tc.copier().apply(buckets[bucketIndex])));
+        final long evictFrom = Math.max(frameSeqBase, currentFrameSeq - bucketCount + 1);
+        final long evictUntil = itemFrameSeq - bucketCount + 1;
+        for (long seq = evictFrom; seq < evictUntil; seq++) {
+            final int bucketIndex = toBucketIndex(seq);
+            emit(entry(seq, buckets[bucketIndex]));
             buckets[bucketIndex] = tc.supplier().get();
         }
         currentFrameSeq = itemFrameSeq;
     }
 
     private int toBucketIndex(long tsPeriod) {
-        return (int) (tsPeriod % bucketCount);
+        return (int) Math.floorMod(tsPeriod, bucketCount);
     }
 
     private void ensureFrameSeqInitialized(long frameSeq) {
         if (currentFrameSeq == 0) {
             currentFrameSeq = frameSeq;
+            frameSeqBase = frameSeq;
         }
     }
 }
