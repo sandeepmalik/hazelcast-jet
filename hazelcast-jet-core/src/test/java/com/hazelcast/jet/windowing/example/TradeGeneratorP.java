@@ -47,7 +47,7 @@ public class TradeGeneratorP extends AbstractProcessor {
     }
 
     @Override
-    protected boolean tryProcess(int ordinal, @Nonnull Object item) throws Exception {
+    protected boolean tryProcess(int ordinal, @Nonnull Object item) {
         Map.Entry<String, Integer> initial = (Entry<String, Integer>) item;
         tickerToPrice.put(initial.getKey(), initial.getValue());
         return true;
@@ -62,7 +62,7 @@ public class TradeGeneratorP extends AbstractProcessor {
         return false;
     }
 
-    public class PeriodicTraverser<T> implements Traverser<T> {
+    static class PeriodicTraverser<T> implements Traverser<T> {
 
         private final Traverser<T> traverser;
         private final int periodMillis;

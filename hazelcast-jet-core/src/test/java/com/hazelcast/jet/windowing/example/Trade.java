@@ -42,10 +42,6 @@ public class Trade {
 
     @Override
     public String toString() {
-        return "TradeEvent{" +
-                "ticker='" + ticker + '\'' +
-                ", quantity=" + quantity +
-                ", price=" + price +
-                '}';
+        return "TradeEvent{ticker='" + ticker + '\'' + ", quantity=" + quantity + ", price=" + price + '}';
     }
 }
