@@ -56,7 +56,7 @@ public class TradeMonitor {
 
             DAG dag = new DAG();
             Vertex tickers = dag.newVertex("tickers", readMap(initial.getName()));
-            Vertex generator = dag.newVertex("event-generator", () -> new EventGeneratorP(100));
+            Vertex generator = dag.newVertex("event-generator", () -> new TradeGeneratorP(100));
             Vertex peek = dag.newVertex("peek", PeekP::new);
 
             dag.edge(between(tickers, generator))

@@ -28,7 +28,7 @@ import java.util.function.Supplier;
 
 import static com.hazelcast.jet.impl.util.Util.memoize;
 
-public class EventGeneratorP extends AbstractProcessor {
+public class TradeGeneratorP extends AbstractProcessor {
 
     private final Random r = new Random();
     private final Traverser<Trade> traverser;
@@ -37,7 +37,7 @@ public class EventGeneratorP extends AbstractProcessor {
 
     private final Supplier<String[]> tickers = memoize(() -> tickerToPrice.keySet().toArray(new String[0]));
 
-    EventGeneratorP(int periodMillis) {
+    TradeGeneratorP(int periodMillis) {
         this.traverser = new PeriodicTraverser<>(() -> {
             String[] tickers = this.tickers.get();
             String ticker = tickers[r.nextInt(tickers.length)];
