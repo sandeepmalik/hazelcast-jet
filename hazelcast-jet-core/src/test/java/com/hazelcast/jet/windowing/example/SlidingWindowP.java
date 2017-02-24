@@ -36,9 +36,11 @@ public class SlidingWindowP<F> extends AbstractProcessor {
     private final BinaryOperator<F> combiner;
     private final int windowSize;
     private final Function<F, ?> finisher;
+    private long nextFrameSeqToEmit;
 
     public SlidingWindowP(int windowSize, SnapshottingCollector<?, F, ?> sc) {
         this.windowSize = windowSize;
+        this.nextFrameSeqToEmit = windowSize;
         this.combiner = sc.combiner();
         this.finisher = sc.finisher();
     }
@@ -47,14 +49,22 @@ public class SlidingWindowP<F> extends AbstractProcessor {
     protected boolean tryProcess0(@Nonnull Object item) {
         final Entry<Long, F> e = (Entry<Long, F>) item;
         final long frameSeq = e.getKey();
-        frames.put(frameSeq, e.getValue());
-        final long oldestFrameSeq = frames.firstKey();
-        if (frameSeq - oldestFrameSeq >= windowSize) {
+        if (frameSeq < nextFrameSeqToEmit - windowSize) {
+            System.err.println("SlidingWindowP got frameSeq=" + frameSeq + ", but expecting at least "
+                    + (nextFrameSeqToEmit - windowSize));
             return true;
         }
-        final SortedMap<Long, F> windowMap = frames.headMap(oldestFrameSeq + windowSize);
-        if (windowMap.size() == windowSize) {
+        frames.put(frameSeq, e.getValue());
+        if (frameSeq >= nextFrameSeqToEmit) {
+            return true;
+        }
+        for (; ; nextFrameSeqToEmit++) {
+            final SortedMap<Long, F> windowMap = frames.headMap(nextFrameSeqToEmit);
+            if (windowMap.size() < windowSize) {
+                break;
+            }
             emitWindow(windowMap);
+            frames.remove(nextFrameSeqToEmit - windowSize);
         }
         return true;
     }
