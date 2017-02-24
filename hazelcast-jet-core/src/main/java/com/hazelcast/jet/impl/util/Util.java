@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.function.Supplier;
 
 import static com.hazelcast.jet.impl.util.ExceptionUtil.rethrow;
 import static com.hazelcast.jet.impl.util.ExceptionUtil.sneakyThrow;
@@ -46,6 +47,10 @@ public final class Util {
     public static final int BUFFER_SIZE = 1 << 15;
 
     private Util() {
+    }
+
+    public static <T> Supplier<T> memoize(Supplier<T> onceSupplier) {
+        return new MemoizingSupplier<>(onceSupplier);
     }
 
     public static <T> T uncheckedGet(@Nonnull Future<T> f) {
