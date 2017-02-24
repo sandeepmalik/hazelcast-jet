@@ -66,6 +66,10 @@ public final class ArrayDequeOutbox implements Outbox {
         return false;
     }
 
+    @Override
+    public String toString() {
+        return Arrays.toString(buckets);
+    }
 
     // Private API that exposes the ArrayDeques to the ProcessorTasklet
 
