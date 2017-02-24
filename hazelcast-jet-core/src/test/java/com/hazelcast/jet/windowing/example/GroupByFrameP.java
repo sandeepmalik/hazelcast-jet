@@ -29,7 +29,7 @@ import static com.hazelcast.jet.Util.entry;
  * Javadoc pending.
  */
 public class GroupByFrameP<T, B, F, R> extends AbstractProcessor {
-    private final TwoTieredCollector<T, B, R> tc;
+    private final SnapshottingCollector<T, B, R> tc;
     private final ToLongFunction<? super T> extractTimestampF;
     private final LongUnaryOperator toFrameSeqF;
     private final int bucketCount;
@@ -39,7 +39,7 @@ public class GroupByFrameP<T, B, F, R> extends AbstractProcessor {
     public GroupByFrameP(int bucketCount,
                          ToLongFunction<? super T> extractTimestampF,
                          LongUnaryOperator toFrameSeqF,
-                         TwoTieredCollector<T, B, R> tc
+                         SnapshottingCollector<T, B, R> tc
     ) {
         this.tc = tc;
         this.extractTimestampF = extractTimestampF;

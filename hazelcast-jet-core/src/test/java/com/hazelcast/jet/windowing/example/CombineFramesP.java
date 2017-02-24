@@ -31,11 +31,11 @@ import static com.hazelcast.jet.Util.entry;
  * Javadoc pending.
  */
 public class CombineFramesP<B, R> extends AbstractProcessor {
-    private final TwoTieredCollector<?, B, R> tc;
+    private final SnapshottingCollector<?, B, R> tc;
     private final int expectedGroupSize;
     private final Map<Long, List<B>> seqToFrames = new HashMap<>();
 
-    public CombineFramesP(TwoTieredCollector<?, B, R> tc, int expectedGroupSize) {
+    public CombineFramesP(SnapshottingCollector<?, B, R> tc, int expectedGroupSize) {
         this.tc = tc;
         this.expectedGroupSize = expectedGroupSize;
     }
