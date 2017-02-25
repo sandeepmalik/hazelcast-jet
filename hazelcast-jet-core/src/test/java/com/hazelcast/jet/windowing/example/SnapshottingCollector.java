@@ -35,7 +35,7 @@ public interface SnapshottingCollector<T, A, R> extends DistributedCollector<T, 
     static <T, A, R> SnapshottingCollector<T, A, R> of(
             Supplier<A> supplier,
             BiConsumer<A, T> accumulator,
-            UnaryOperator<A> copier,
+            UnaryOperator<A> snapshotter,
             BinaryOperator<A> combiner,
             Function<A, R> finisher
     ) {
@@ -52,7 +52,7 @@ public interface SnapshottingCollector<T, A, R> extends DistributedCollector<T, 
 
             @Override
             public UnaryOperator<A> snapshotter() {
-                return copier;
+                return snapshotter;
             }
 
             @Override

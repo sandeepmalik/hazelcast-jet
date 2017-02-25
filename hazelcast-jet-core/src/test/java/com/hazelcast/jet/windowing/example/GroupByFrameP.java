@@ -33,48 +33,53 @@ import java.util.function.Function;
  * @param <B> Accumulator type
  * @param <R> Accumulator result type
  */
-public class GroupByFrameP<T, B, R> extends AbstractProcessor {
+public class GroupByFrameP<T, K, B, R> extends AbstractProcessor {
     private final SnapshottingCollector<T, B, R> tc;
     private final ToLongFunction<? super T> extractTimestampF;
-    private final Function<? super T, ?> extractKeyF;
+    private final Function<? super T, K> extractKeyF;
     private final LongUnaryOperator toFrameSeqF;
     private final int bucketCount;
-    private final Map<Object, B[]> keyToBucket;
+    private final Map<K, B>[] keyToBucketMaps;
     private long currentFrameSeq;
     private long frameSeqBase;
 
-    public GroupByFrameP(int bucketCount,
+    private GroupByFrameP(
+            int bucketCount,
             ToLongFunction<? super T> extractTimestampF,
+            Function<? super T, K> extractKeyF,
             LongUnaryOperator toFrameSeqF,
             SnapshottingCollector<T, B, R> tc
-    ) {
-        this(bucketCount, extractTimestampF, t -> true, toFrameSeqF, tc);
-    }
-
-    public GroupByFrameP(int bucketCount,
-                         ToLongFunction<? super T> extractTimestampF,
-                         Function<? super T, ?> extractKeyF,
-                         LongUnaryOperator toFrameSeqF,
-                         SnapshottingCollector<T, B, R> tc
     ) {
         this.tc = tc;
         this.extractTimestampF = extractTimestampF;
         this.extractKeyF = extractKeyF;
         this.toFrameSeqF = toFrameSeqF;
         this.bucketCount = bucketCount;
-        this.keyToBucket = new HashMap<>();
+        this.keyToBucketMaps = new Map[bucketCount];
+        Arrays.setAll(keyToBucketMaps, i -> new HashMap<>());
     }
 
-    private B[] newBuckets(Object key) {
-        B[] res = (B[]) new Object[bucketCount];
-        Arrays.setAll(res, i -> tc.supplier().get());
-        return res;
+    public static <T, B, R> GroupByFrameP groupByFrame(
+            int bucketCount,
+            ToLongFunction<? super T> extractTimestampF,
+            LongUnaryOperator toFrameSeqF,
+            SnapshottingCollector<T, B, R> tc) {
+        return new GroupByFrameP<>(bucketCount, extractTimestampF, x -> true, toFrameSeqF, tc);
+    }
+
+    public static <T, K, B, R> GroupByFrameP groupByFrameAndKey(
+            int bucketCount,
+            ToLongFunction<? super T> extractTimestampF,
+            Function<? super T, K> extractKeyF,
+            LongUnaryOperator toFrameSeqF,
+            SnapshottingCollector<T, B, R> tc) {
+        return new GroupByFrameP<>(bucketCount, extractTimestampF, extractKeyF, toFrameSeqF, tc);
     }
 
     @Override
     protected boolean tryProcess0(@Nonnull Object item) {
         T t = (T) item;
-        Object key = extractKeyF.apply(t);
+        K key = extractKeyF.apply(t);
         final long itemFrameSeq = toFrameSeqF.applyAsLong(extractTimestampF.applyAsLong(t));
         ensureFrameSeqInitialized(itemFrameSeq);
         if (itemFrameSeq <= currentFrameSeq - bucketCount) {
@@ -84,8 +89,8 @@ public class GroupByFrameP<T, B, R> extends AbstractProcessor {
         if (itemFrameSeq > currentFrameSeq) {
             slideTo(itemFrameSeq);
         }
-        B[] buckets = keyToBucket.computeIfAbsent(key, this::newBuckets);
-        tc.accumulator().accept(buckets[toBucketIndex(itemFrameSeq)], t);
+        B bucket = keyToBucketMaps[toBucketIndex(itemFrameSeq)].computeIfAbsent(key, x -> tc.supplier().get());
+        tc.accumulator().accept(bucket, t);
         return true;
     }
 
@@ -94,11 +99,11 @@ public class GroupByFrameP<T, B, R> extends AbstractProcessor {
         final long evictUntil = itemFrameSeq - bucketCount + 1;
         for (long seq = evictFrom; seq < evictUntil; seq++) {
             final int bucketIndex = toBucketIndex(seq);
-            for (Entry<Object, B[]> entry : keyToBucket.entrySet()) {
-                B[] buckets = entry.getValue();
-                emit(new KeyedFrame<>(seq, entry.getKey(), buckets[bucketIndex]));
-                buckets[bucketIndex] = tc.supplier().get();
+            for (Entry<K, B> e : keyToBucketMaps[bucketIndex].entrySet()) {
+                B bucket = e.getValue();
+                emit(new KeyedFrame<>(seq, e.getKey(), bucket));
             }
+           keyToBucketMaps[bucketIndex] = new HashMap<>();
         }
         currentFrameSeq = itemFrameSeq;
     }
