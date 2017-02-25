@@ -17,6 +17,7 @@
 package com.hazelcast.jet.windowing.example;
 
 import com.hazelcast.jet.Distributed.BiConsumer;
+import com.hazelcast.jet.Distributed.BiFunction;
 import com.hazelcast.jet.Distributed.BinaryOperator;
 import com.hazelcast.jet.Distributed.Function;
 import com.hazelcast.jet.Distributed.Supplier;
@@ -25,9 +26,11 @@ import com.hazelcast.jet.stream.DistributedCollector;
 
 import java.util.Set;
 
+import static java.util.Collections.emptySet;
+
 public interface SnapshottingCollector<T, A, R> extends DistributedCollector<T, A, R> {
 
-    UnaryOperator<A> copier();
+    UnaryOperator<A> snapshotter();
 
     static <T, A, R> SnapshottingCollector<T, A, R> of(
             Supplier<A> supplier,
@@ -38,11 +41,6 @@ public interface SnapshottingCollector<T, A, R> extends DistributedCollector<T, 
     ) {
         return new SnapshottingCollector<T, A, R>() {
             @Override
-            public UnaryOperator<A> copier() {
-                return copier;
-            }
-
-            @Override
             public Supplier<A> supplier() {
                 return supplier;
             }
@@ -50,6 +48,11 @@ public interface SnapshottingCollector<T, A, R> extends DistributedCollector<T, 
             @Override
             public BiConsumer<A, T> accumulator() {
                 return accumulator;
+            }
+
+            @Override
+            public UnaryOperator<A> snapshotter() {
+                return copier;
             }
 
             @Override
@@ -64,7 +67,7 @@ public interface SnapshottingCollector<T, A, R> extends DistributedCollector<T, 
 
             @Override
             public Set<Characteristics> characteristics() {
-                throw new UnsupportedOperationException();
+                return emptySet();
             }
         };
     }

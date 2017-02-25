@@ -36,10 +36,10 @@ import java.util.function.Function;
 public class GroupByFrameP<T, B, R> extends AbstractProcessor {
     private final SnapshottingCollector<T, B, R> tc;
     private final ToLongFunction<? super T> extractTimestampF;
+    private final Function<? super T, ?> extractKeyF;
     private final LongUnaryOperator toFrameSeqF;
     private final int bucketCount;
-    private final Map<Object, B[]> bucketsForKey;
-    private final Function<? super T, ?> keyExtractor;
+    private final Map<Object, B[]> keyToBucket;
     private long currentFrameSeq;
     private long frameSeqBase;
 
@@ -48,21 +48,21 @@ public class GroupByFrameP<T, B, R> extends AbstractProcessor {
             LongUnaryOperator toFrameSeqF,
             SnapshottingCollector<T, B, R> tc
     ) {
-        this(bucketCount, extractTimestampF, toFrameSeqF, tc, t -> true);
+        this(bucketCount, extractTimestampF, t -> true, toFrameSeqF, tc);
     }
 
     public GroupByFrameP(int bucketCount,
-            ToLongFunction<? super T> extractTimestampF,
-            LongUnaryOperator toFrameSeqF,
-            SnapshottingCollector<T, B, R> tc,
-            Function<? super T, ?> keyExtractor
+                         ToLongFunction<? super T> extractTimestampF,
+                         Function<? super T, ?> extractKeyF,
+                         LongUnaryOperator toFrameSeqF,
+                         SnapshottingCollector<T, B, R> tc
     ) {
         this.tc = tc;
         this.extractTimestampF = extractTimestampF;
+        this.extractKeyF = extractKeyF;
         this.toFrameSeqF = toFrameSeqF;
         this.bucketCount = bucketCount;
-        this.bucketsForKey = new HashMap<>();
-        this.keyExtractor = keyExtractor;
+        this.keyToBucket = new HashMap<>();
     }
 
     private B[] newBuckets(Object key) {
@@ -74,7 +74,7 @@ public class GroupByFrameP<T, B, R> extends AbstractProcessor {
     @Override
     protected boolean tryProcess0(@Nonnull Object item) {
         T t = (T) item;
-        Object key = keyExtractor.apply(t);
+        Object key = extractKeyF.apply(t);
         final long itemFrameSeq = toFrameSeqF.applyAsLong(extractTimestampF.applyAsLong(t));
         ensureFrameSeqInitialized(itemFrameSeq);
         if (itemFrameSeq <= currentFrameSeq - bucketCount) {
@@ -84,7 +84,7 @@ public class GroupByFrameP<T, B, R> extends AbstractProcessor {
         if (itemFrameSeq > currentFrameSeq) {
             slideTo(itemFrameSeq);
         }
-        B[] buckets = bucketsForKey.computeIfAbsent(key, this::newBuckets);
+        B[] buckets = keyToBucket.computeIfAbsent(key, this::newBuckets);
         tc.accumulator().accept(buckets[toBucketIndex(itemFrameSeq)], t);
         return true;
     }
@@ -94,9 +94,9 @@ public class GroupByFrameP<T, B, R> extends AbstractProcessor {
         final long evictUntil = itemFrameSeq - bucketCount + 1;
         for (long seq = evictFrom; seq < evictUntil; seq++) {
             final int bucketIndex = toBucketIndex(seq);
-            for (Entry<Object, B[]> entry : bucketsForKey.entrySet()) {
+            for (Entry<Object, B[]> entry : keyToBucket.entrySet()) {
                 B[] buckets = entry.getValue();
-                emit(new KeyedWindowEntry<>(seq, entry.getKey(), buckets[bucketIndex]));
+                emit(new KeyedFrame<>(seq, entry.getKey(), buckets[bucketIndex]));
                 buckets[bucketIndex] = tc.supplier().get();
             }
         }
@@ -114,12 +114,12 @@ public class GroupByFrameP<T, B, R> extends AbstractProcessor {
         }
     }
 
-    public static final class KeyedWindowEntry<K, V> {
+    public static final class KeyedFrame<K, V> {
         private final long seq;
         private final K key;
         private final V value;
 
-        public KeyedWindowEntry(long seq, K key, V value) {
+        KeyedFrame(long seq, K key, V value) {
             this.seq = seq;
             this.key = key;
             this.value = value;
@@ -139,11 +139,7 @@ public class GroupByFrameP<T, B, R> extends AbstractProcessor {
 
         @Override
         public String toString() {
-            return "KeyedWindowEntry{" +
-                    "seq=" + seq +
-                    ", key=" + key +
-                    ", value=" + value +
-                    '}';
+            return "KeyedWindowEntry{seq=" + seq + ", key=" + key + ", value=" + value + '}';
         }
     }
 }

@@ -23,8 +23,12 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayDeque;
+import java.util.List;
+import java.util.stream.LongStream;
 
 import static com.hazelcast.jet.Util.entry;
+import static java.util.Collections.shuffle;
+import static java.util.stream.Collectors.toList;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
 
@@ -42,11 +46,16 @@ public class SlidingWindowPTest {
 
     @Test
     public void when_receiveAscendingSeqs_then_emitAscending() {
+        // Given
         MockInbox inbox = new MockInbox();
         for (long i = 0; i <= 4; i++) {
             inbox.add(entry(i, 1L));
         }
+
+        // When
         swp.process(0, inbox);
+
+        // Then
         assertEquals(entry(3L, 4L), outbox.queueWithOrdinal(0).poll());
         assertEquals(entry(4L, 4L), outbox.queueWithOrdinal(0).poll());
         assertEquals(null, outbox.queueWithOrdinal(0).poll());
@@ -54,13 +63,39 @@ public class SlidingWindowPTest {
 
     @Test
     public void when_receiveDescendingSeqs_then_emitAscending() {
+        // Given
         MockInbox inbox = new MockInbox();
         for (long i = 4; i >= 0; i--) {
             inbox.add(entry(i, 1L));
         }
+
+        // When
         swp.process(0, inbox);
+
+        // Then
         assertEquals(entry(3L, 4L), outbox.queueWithOrdinal(0).poll());
         assertEquals(entry(4L, 4L), outbox.queueWithOrdinal(0).poll());
+        assertEquals(null, outbox.queueWithOrdinal(0).poll());
+    }
+
+    @Test
+    public void when_receiveRandomSeqs_then_emitAscending() {
+        // Given
+        final List<Long> streamSeqsToAdd = LongStream.range(0, 100).boxed().collect(toList());
+        shuffle(streamSeqsToAdd);
+        MockInbox inbox = new MockInbox();
+        for (Long i : streamSeqsToAdd) {
+            inbox.add(entry(i, 1L));
+        }
+
+        // When
+        swp.process(0, inbox);
+
+        // Then
+        for (long i = 3; i < 100; i++) {
+            assertEquals(entry(i, 4L), outbox.queueWithOrdinal(0).poll());
+
+        }
         assertEquals(null, outbox.queueWithOrdinal(0).poll());
     }
 

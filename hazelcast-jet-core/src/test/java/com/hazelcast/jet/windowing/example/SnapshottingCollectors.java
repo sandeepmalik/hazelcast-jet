@@ -29,7 +29,7 @@ public final class SnapshottingCollectors {
         return SnapshottingCollector.of(
                 downstream.supplier(),
                 (A a, T1 v) -> downstream.accumulator().accept(a, mapper.apply(v)),
-                downstream.copier(),
+                downstream.snapshotter(),
                 downstream.combiner(),
                 downstream.finisher()
         );
