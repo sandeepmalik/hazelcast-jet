@@ -34,7 +34,7 @@ import static com.hazelcast.jet.Edge.from;
 import static com.hazelcast.jet.KeyExtractors.entryKey;
 import static com.hazelcast.jet.Partitioner.HASH_CODE;
 import static com.hazelcast.jet.Processors.readMap;
-import static com.hazelcast.jet.windowing.example.SnapshottingCollectors.mapAndCollect;
+import static com.hazelcast.jet.windowing.example.SnapshottingCollectors.mapping;
 import static com.hazelcast.jet.windowing.example.SnapshottingCollectors.summingLong;
 import static java.lang.Runtime.getRuntime;
 

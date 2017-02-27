@@ -18,6 +18,7 @@ package com.hazelcast.jet.windowing.example;
 
 import com.hazelcast.jet.AbstractProcessor;
 import com.hazelcast.jet.Distributed.LongUnaryOperator;
+import com.hazelcast.jet.Distributed.Supplier;
 import com.hazelcast.jet.Distributed.ToLongFunction;
 
 import javax.annotation.Nonnull;
@@ -34,7 +35,7 @@ import java.util.function.Function;
  * @param <R> Accumulator result type
  */
 public class GroupByFrameP<T, K, B, R> extends AbstractProcessor {
-    private final SnapshottingCollector<T, B, R> tc;
+    private final SnapshottingCollector<? super T, B, R> tc;
     private final ToLongFunction<? super T> extractTimestampF;
     private final Function<? super T, K> extractKeyF;
     private final LongUnaryOperator toFrameSeqF;
@@ -45,10 +46,10 @@ public class GroupByFrameP<T, K, B, R> extends AbstractProcessor {
 
     private GroupByFrameP(
             int bucketCount,
-            ToLongFunction<? super T> extractTimestampF,
             Function<? super T, K> extractKeyF,
+            ToLongFunction<? super T> extractTimestampF,
             LongUnaryOperator toFrameSeqF,
-            SnapshottingCollector<T, B, R> tc
+            SnapshottingCollector<? super T, B, R> tc
     ) {
         this.tc = tc;
         this.extractTimestampF = extractTimestampF;
@@ -59,21 +60,21 @@ public class GroupByFrameP<T, K, B, R> extends AbstractProcessor {
         Arrays.setAll(keyToBucketMaps, i -> new HashMap<>());
     }
 
-    public static <T, B, R> GroupByFrameP groupByFrame(
+    public static <T, B, R> Supplier<GroupByFrameP> groupByFrame(
             int bucketCount,
             ToLongFunction<? super T> extractTimestampF,
             LongUnaryOperator toFrameSeqF,
             SnapshottingCollector<T, B, R> tc) {
-        return new GroupByFrameP<>(bucketCount, extractTimestampF, x -> null, toFrameSeqF, tc);
+        return groupByFrameAndKey(bucketCount, t -> null, extractTimestampF, toFrameSeqF, tc);
     }
 
-    public static <T, K, B, R> GroupByFrameP groupByFrameAndKey(
+    public static <T, K, B, R> Supplier<GroupByFrameP> groupByFrameAndKey(
             int bucketCount,
-            ToLongFunction<? super T> extractTimestampF,
             Function<? super T, K> extractKeyF,
+            ToLongFunction<? super T> extractTimestampF,
             LongUnaryOperator toFrameSeqF,
             SnapshottingCollector<T, B, R> tc) {
-        return new GroupByFrameP<>(bucketCount, extractTimestampF, extractKeyF, toFrameSeqF, tc);
+        return () -> new GroupByFrameP<>(bucketCount, extractKeyF, extractTimestampF, toFrameSeqF, tc);
     }
 
     @Override

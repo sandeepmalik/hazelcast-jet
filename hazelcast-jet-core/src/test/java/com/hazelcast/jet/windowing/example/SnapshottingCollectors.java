@@ -23,12 +23,12 @@ public final class SnapshottingCollectors {
     private SnapshottingCollectors() {
     }
 
-    public static <T1, T2, A, R> SnapshottingCollector<T1, A, R> mapAndCollect(
-            Function<T1, T2> mapper, SnapshottingCollector<T2, A, R> downstream
+    public static <T, U, A, R> SnapshottingCollector<T, A, R> mapping(
+            Function<? super T, ? extends U> mapper, SnapshottingCollector<? super U, A, R> downstream
     ) {
         return SnapshottingCollector.of(
                 downstream.supplier(),
-                (A a, T1 v) -> downstream.accumulator().accept(a, mapper.apply(v)),
+                (A a, T t) -> downstream.accumulator().accept(a, mapper.apply(t)),
                 downstream.snapshotter(),
                 downstream.combiner(),
                 downstream.finisher()
