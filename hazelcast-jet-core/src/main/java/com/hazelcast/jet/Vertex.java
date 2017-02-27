@@ -73,7 +73,7 @@ public class Vertex implements IdentifiedDataSerializable {
      * @param name the unique name of the vertex
      * @param processorSupplier the simple, parameterless supplier of {@code Processor} instances
      */
-    public Vertex(@Nonnull String name, @Nonnull Supplier<Processor> processorSupplier) {
+    public Vertex(@Nonnull String name, @Nonnull Supplier<? extends Processor> processorSupplier) {
         checkNotNull(name, "name");
         checkNotNull(processorSupplier, "supplier");
 

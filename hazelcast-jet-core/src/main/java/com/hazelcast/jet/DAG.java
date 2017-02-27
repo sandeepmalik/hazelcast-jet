@@ -86,7 +86,7 @@ public class DAG implements IdentifiedDataSerializable, Iterable<Vertex> {
      * @param name the unique name of the vertex
      * @param simpleSupplier the simple, parameterless supplier of {@code Processor} instances
      */
-    public Vertex newVertex(String name, Supplier<Processor> simpleSupplier) {
+    public Vertex newVertex(String name, Supplier<? extends Processor> simpleSupplier) {
         return addVertex(new Vertex(name, simpleSupplier));
     }
 
