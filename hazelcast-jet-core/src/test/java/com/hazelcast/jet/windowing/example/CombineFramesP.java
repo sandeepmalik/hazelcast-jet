@@ -17,6 +17,7 @@
 package com.hazelcast.jet.windowing.example;
 
 import com.hazelcast.jet.AbstractProcessor;
+import com.hazelcast.jet.Distributed;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
@@ -35,9 +36,15 @@ public class CombineFramesP<B, R> extends AbstractProcessor {
     private final int expectedGroupSize;
     private final Map<Long, List<B>> seqToFrames = new HashMap<>();
 
-    public CombineFramesP(SnapshottingCollector<?, B, R> tc, int expectedGroupSize) {
+    private CombineFramesP(SnapshottingCollector<?, B, R> tc, int expectedGroupSize) {
         this.tc = tc;
         this.expectedGroupSize = expectedGroupSize;
+    }
+
+    public static <B, R> Distributed.Supplier<CombineFramesP<B, R>> combineFrames(
+            SnapshottingCollector<?, B, R> tc, int expectedGroupSize
+    ) {
+        return () -> new CombineFramesP<>(tc, expectedGroupSize);
     }
 
     @Override

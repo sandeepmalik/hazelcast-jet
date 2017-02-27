@@ -34,6 +34,8 @@ import static com.hazelcast.jet.Edge.from;
 import static com.hazelcast.jet.KeyExtractors.entryKey;
 import static com.hazelcast.jet.Partitioner.HASH_CODE;
 import static com.hazelcast.jet.Processors.readMap;
+import static com.hazelcast.jet.windowing.example.CombineFramesP.combineFrames;
+import static com.hazelcast.jet.windowing.example.GroupByFrameP.groupByFrame;
 import static com.hazelcast.jet.windowing.example.SnapshottingCollectors.mapping;
 import static com.hazelcast.jet.windowing.example.SnapshottingCollectors.summingLong;
 import static java.lang.Runtime.getRuntime;
@@ -50,8 +52,8 @@ public class TradeMonitor {
         System.setProperty("hazelcast.logging.type", "log4j");
         try {
             JetConfig cfg = new JetConfig();
-            cfg.setInstanceConfig(new InstanceConfig().setCooperativeThreadCount(
-                    Math.max(1, getRuntime().availableProcessors() / 2)));
+            final int defaultLocalParallelism = Math.max(1, getRuntime().availableProcessors() / 2);
+            cfg.setInstanceConfig(new InstanceConfig().setCooperativeThreadCount(defaultLocalParallelism));
 
             Jet.newJetInstance();
             JetInstance jet = Jet.newJetInstance(cfg);
@@ -60,17 +62,21 @@ public class TradeMonitor {
             initial.putAll(TICKERS);
 
             DAG dag = new DAG();
-            Vertex tickers = dag.newVertex("tickers", readMap(initial.getName()));
-            Vertex generator = dag.newVertex("event-generator", () -> new TradeGeneratorP(100));
+            Vertex tickerSource = dag.newVertex("ticker-source", readMap(initial.getName()));
+            Vertex generateEvents = dag.newVertex("generate-events", () -> new TradeGeneratorP(100));
             Vertex peek = dag.newVertex("peek", PeekP::new);
-            Vertex frame = dag.newVertex("frame",
-                    GroupByFrameP.groupByFrame(4, t -> System.currentTimeMillis(),
+            Vertex groupByFrame = dag.newVertex("group-by-frame",
+                    groupByFrame(4, t -> System.currentTimeMillis(),
                             ts -> ts / 1_000, mapping(Trade::getQuantity, summingLong())));
+            Vertex combineFrames = dag.newVertex("combine-frames",
+                    combineFrames(summingLong(), defaultLocalParallelism * 2));
 
-            dag.edge(between(tickers, generator).partitioned(entryKey()))
-               .edge(between(generator, frame).partitioned(Trade::getTicker, HASH_CODE))
-               .edge(from(generator, 1).to(peek, 0))
-               .edge(from(frame).to(peek, 1));
+            dag.edge(between(tickerSource, generateEvents).partitioned(entryKey()))
+               .edge(between(generateEvents, groupByFrame).partitioned(Trade::getTicker, HASH_CODE))
+               .edge(between(groupByFrame, combineFrames.localParallelism(1)).allToOne().distributed())
+
+               .edge(from(generateEvents, 1).to(peek))
+               .edge(from(groupByFrame, 1).to(peek, 1));
 
             jet.newJob(dag).execute().get();
         } finally {
@@ -79,12 +85,10 @@ public class TradeMonitor {
     }
 
     public static class PeekP extends AbstractProcessor {
-
         @Override
         protected boolean tryProcess(int ordinal, @Nonnull Object item) throws Exception {
             getLogger().info(item.toString());
             return true;
         }
     }
-
 }

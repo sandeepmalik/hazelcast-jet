@@ -17,16 +17,17 @@
 package com.hazelcast.jet.windowing.example;
 
 import com.hazelcast.jet.AbstractProcessor;
+import com.hazelcast.jet.Distributed;
 import com.hazelcast.jet.Distributed.LongUnaryOperator;
-import com.hazelcast.jet.Distributed.Supplier;
 import com.hazelcast.jet.Distributed.ToLongFunction;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.function.Function;
+
+import static com.hazelcast.jet.Util.entry;
 
 /**
  * TODO javadoc
@@ -60,7 +61,7 @@ public class GroupByFrameP<T, K, B, R> extends AbstractProcessor {
         Arrays.setAll(keyToBucketMaps, i -> new HashMap<>());
     }
 
-    public static <T, B, R> Supplier<GroupByFrameP> groupByFrame(
+    public static <T, B, R> Distributed.Supplier<GroupByFrameP> groupByFrame(
             int bucketCount,
             ToLongFunction<? super T> extractTimestampF,
             LongUnaryOperator toFrameSeqF,
@@ -68,7 +69,7 @@ public class GroupByFrameP<T, K, B, R> extends AbstractProcessor {
         return groupByFrameAndKey(bucketCount, t -> null, extractTimestampF, toFrameSeqF, tc);
     }
 
-    public static <T, K, B, R> Supplier<GroupByFrameP> groupByFrameAndKey(
+    public static <T, K, B, R> Distributed.Supplier<GroupByFrameP> groupByFrameAndKey(
             int bucketCount,
             Function<? super T, K> extractKeyF,
             ToLongFunction<? super T> extractTimestampF,
@@ -117,35 +118,6 @@ public class GroupByFrameP<T, K, B, R> extends AbstractProcessor {
         if (currentFrameSeq == 0) {
             currentFrameSeq = frameSeq;
             frameSeqBase = frameSeq;
-        }
-    }
-
-    public static final class KeyedFrame<K, V> {
-        private final long seq;
-        private final K key;
-        private final V value;
-
-        KeyedFrame(long seq, K key, V value) {
-            this.seq = seq;
-            this.key = key;
-            this.value = value;
-        }
-
-        public long getSeq() {
-            return seq;
-        }
-
-        public K getKey() {
-            return key;
-        }
-
-        public V getValue() {
-            return value;
-        }
-
-        @Override
-        public String toString() {
-            return "KeyedFrame{seq=" + seq + ", key=" + key + ", value=" + value + '}';
         }
     }
 }
