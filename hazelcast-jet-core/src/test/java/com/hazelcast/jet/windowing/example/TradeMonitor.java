@@ -64,7 +64,7 @@ public class TradeMonitor {
             Vertex generator = dag.newVertex("event-generator", () -> new TradeGeneratorP(100));
             Vertex peek = dag.newVertex("peek", PeekP::new);
             Vertex frame = dag.newVertex("frame",
-                    () -> new GroupByFrameP<>(4, t -> System.currentTimeMillis(),
+                    () -> GroupByFrameP.groupByFrame(4, t -> System.currentTimeMillis(),
                             ts -> ts / 1_000, mapAndCollect(Trade::getQuantity, summingLong())));
 
             dag.edge(between(tickers, generator).partitioned(entryKey()))

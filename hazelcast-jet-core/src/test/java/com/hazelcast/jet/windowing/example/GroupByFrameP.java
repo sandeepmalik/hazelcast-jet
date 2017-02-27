@@ -64,7 +64,7 @@ public class GroupByFrameP<T, K, B, R> extends AbstractProcessor {
             ToLongFunction<? super T> extractTimestampF,
             LongUnaryOperator toFrameSeqF,
             SnapshottingCollector<T, B, R> tc) {
-        return new GroupByFrameP<>(bucketCount, extractTimestampF, x -> true, toFrameSeqF, tc);
+        return new GroupByFrameP<>(bucketCount, extractTimestampF, x -> null, toFrameSeqF, tc);
     }
 
     public static <T, K, B, R> GroupByFrameP groupByFrameAndKey(
@@ -103,7 +103,7 @@ public class GroupByFrameP<T, K, B, R> extends AbstractProcessor {
                 B bucket = e.getValue();
                 emit(new KeyedFrame<>(seq, e.getKey(), bucket));
             }
-           keyToBucketMaps[bucketIndex] = new HashMap<>();
+            keyToBucketMaps[bucketIndex] = new HashMap<>();
         }
         currentFrameSeq = itemFrameSeq;
     }
@@ -144,7 +144,7 @@ public class GroupByFrameP<T, K, B, R> extends AbstractProcessor {
 
         @Override
         public String toString() {
-            return "KeyedWindowEntry{seq=" + seq + ", key=" + key + ", value=" + value + '}';
+            return "KeyedFrame{seq=" + seq + ", key=" + key + ", value=" + value + '}';
         }
     }
 }
