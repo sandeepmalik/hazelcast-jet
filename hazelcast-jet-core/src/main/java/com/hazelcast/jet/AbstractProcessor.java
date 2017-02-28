@@ -91,9 +91,9 @@ public abstract class AbstractProcessor implements Processor {
      * Method that can be overridden to perform any necessary initialization for
      * the processor. It is called exactly once and strictly before any of the
      * processing methods ({@link #process(int, Inbox) process()},
-     * {@link #completeEdge(int) completeEdge()}, {@link #complete() complete()}),
-     * but after the {@link #getOutbox() outbox} and {@link #getLogger() logger}
-     * have been initialized.
+     * {@link #tryProcessWatermark(int, Watermark) tryProcessWatermark()},
+     * {@link #complete() complete()}), but after the {@link #getOutbox() outbox}
+     * and {@link #getLogger() logger} have been initialized.
      *
      * @param context the {@link Context context} associated with this processor
      */
@@ -141,17 +141,17 @@ public abstract class AbstractProcessor implements Processor {
     }
 
     /**
-     * Tries to process the supplied input item, which was received over
-     * the supplied ordinal. May choose to process only partially and return
-     * {@code false}, in which case it will be called again later with the
-     * same {@code (ordinal, item)} combination.
+     * Tries to process the supplied input item, which was received from the
+     * edge with the supplied ordinal. May choose to process only partially
+     * and return {@code false}, in which case it will be called again later
+     * with the same {@code (ordinal, item)} combination.
      * <p>
      * The default implementation throws an {@code UnsupportedOperationException}.
      * <p>
-     * <strong>NOTE:</strong> unless the processor doesn't differentiate
-     * between its inbound edges, the first choice should be leaving this method
-     * alone and instead overriding the specific {@code tryProcessN()} methods
-     * for each ordinal the processor expects.
+     * <strong>NOTE:</strong> unless the processor doesn't differentiate between
+     * its inbound edges, the first choice should be leaving this method alone
+     * and instead overriding the specific {@code tryProcessN()} methods for
+     * each ordinal the processor expects.
      *
      * @param ordinal ordinal of the edge that delivered the item
      * @param item    item to be processed

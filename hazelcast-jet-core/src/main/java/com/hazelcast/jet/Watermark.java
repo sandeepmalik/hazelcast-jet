@@ -14,23 +14,13 @@
  * limitations under the License.
  */
 
-package com.hazelcast.jet.impl.util;
+package com.hazelcast.jet;
 
-import com.hazelcast.jet.Watermark;
-
-import java.io.Serializable;
-
-public class DoneItem implements Watermark, Serializable {
-
-    public static final DoneItem DONE_ITEM = new DoneItem();
-
-    @Override
-    public String toString() {
-        return "DONE_ITEM";
-    }
-
-    protected Object readResolve() {
-        return DONE_ITEM;
-    }
-
+/**
+ * Marker interface for a watermark item. Since each processor of a
+ * vertex will emit its own item for a given watermark event, the
+ * subtypes of this interface must implement {@link #equals(Object)}
+ * such that all these items come out as equal.
+ */
+public interface Watermark {
 }
