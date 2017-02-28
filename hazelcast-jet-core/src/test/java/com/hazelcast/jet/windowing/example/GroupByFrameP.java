@@ -25,9 +25,8 @@ import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.function.Function;
-
-import static com.hazelcast.jet.Util.entry;
 
 /**
  * TODO javadoc

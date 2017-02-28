@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 
 import static com.hazelcast.jet.Util.entry;
 
@@ -49,8 +48,8 @@ public class CombineFramesP<B, R> extends AbstractProcessor {
 
     @Override
     protected boolean tryProcess0(@Nonnull Object item) {
-        final Entry<Long, B> e = (Entry<Long, B>) item;
-        final Long frameSeq = e.getKey();
+        final KeyedFrame<Void, B> e = (KeyedFrame<Void, B>) item;
+        final Long frameSeq = e.getSeq();
         final B frame = e.getValue();
         final List<B> frameGroup = seqToFrames.computeIfAbsent(frameSeq, fs -> new ArrayList<>());
         frameGroup.add(frame);
