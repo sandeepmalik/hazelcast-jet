@@ -17,6 +17,7 @@
 package com.hazelcast.jet.impl.execution;
 
 import com.hazelcast.internal.util.concurrent.ConcurrentConveyor;
+import com.hazelcast.jet.Watermark;
 import com.hazelcast.jet.impl.util.ProgressState;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
@@ -35,18 +36,22 @@ public class ConveyorCollector implements OutboundCollector {
 
     @Override
     public ProgressState offer(Object item) {
-        return conveyor.offer(queueIndex, item) ? ProgressState.DONE : ProgressState.NO_PROGRESS;
+        return offerToConveyor(item);
     }
 
     @Override
-    public ProgressState broadcast(Object item) {
-        return offer(item);
+    public ProgressState offer(Watermark wm) {
+        return offerToConveyor(wm);
     }
 
     @Override
     @SuppressFBWarnings("EI_EXPOSE_REP")
     public int[] getPartitions() {
         return partitions;
+    }
+
+    protected ProgressState offerToConveyor(Object item) {
+        return conveyor.offer(queueIndex, item) ? ProgressState.DONE : ProgressState.NO_PROGRESS;
     }
 }
 

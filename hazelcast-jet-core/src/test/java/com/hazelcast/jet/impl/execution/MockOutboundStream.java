@@ -16,6 +16,7 @@
 
 package com.hazelcast.jet.impl.execution;
 
+import com.hazelcast.jet.Watermark;
 import com.hazelcast.jet.impl.util.ProgressState;
 
 import java.util.ArrayList;
@@ -54,8 +55,8 @@ public class MockOutboundStream extends OutboundEdgeStream {
         }
 
         @Override
-        public ProgressState broadcast(Object item) {
-            return offer(item);
+        public ProgressState offer(Watermark item) {
+            return offer((Object)item);
         }
 
         @Override

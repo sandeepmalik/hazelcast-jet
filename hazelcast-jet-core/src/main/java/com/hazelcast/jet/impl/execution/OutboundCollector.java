@@ -17,6 +17,7 @@
 package com.hazelcast.jet.impl.execution;
 
 import com.hazelcast.jet.Partitioner;
+import com.hazelcast.jet.Watermark;
 import com.hazelcast.jet.impl.execution.init.EdgeDef;
 import com.hazelcast.jet.impl.util.CircularListCursor;
 import com.hazelcast.jet.impl.util.ProgressState;
@@ -35,7 +36,11 @@ public interface OutboundCollector {
      */
     ProgressState offer(Object item);
 
-    ProgressState broadcast(Object item);
+    /**
+     * Offer a watermark to this collector. Watermarks will be propagated to all sub-collectors
+     * if the collector is a composite one.
+     */
+    ProgressState offer(Watermark wm);
 
     /**
      * Offers an item with a known partition id
@@ -69,10 +74,8 @@ public interface OutboundCollector {
 
         protected final OutboundCollector[] collectors;
         protected final int[] partitions;
-
-        private final BitSet broadcastTracker;
-
-        private final ProgressTracker progTracker = new ProgressTracker();
+        protected final ProgressTracker progTracker = new ProgressTracker();
+        protected final BitSet broadcastTracker;
 
         Composite(OutboundCollector[] collectors) {
             this.collectors = collectors;
@@ -83,14 +86,13 @@ public interface OutboundCollector {
         }
 
         @Override
-        public ProgressState broadcast(Object item) {
-            System.out.println(Thread.currentThread().getName() + " " + " broadcast: " + item);
+        public ProgressState offer(Watermark wm) {
             progTracker.reset();
             for (int i = 0; i < collectors.length; i++) {
                 if (broadcastTracker.get(i)) {
                     continue;
                 }
-                ProgressState result = collectors[i].broadcast(item);
+                ProgressState result = collectors[i].offer(wm);
                 progTracker.mergeWith(result);
                 if (result.isDone()) {
                     broadcastTracker.set(i);
@@ -137,13 +139,28 @@ public interface OutboundCollector {
     }
 
     class Broadcast extends Composite {
+
         Broadcast(OutboundCollector[] collectors) {
             super(collectors);
         }
 
         @Override
         public ProgressState offer(Object item) {
-            return broadcast(item);
+            progTracker.reset();
+            for (int i = 0; i < collectors.length; i++) {
+                if (broadcastTracker.get(i)) {
+                    continue;
+                }
+                ProgressState result = collectors[i].offer(item);
+                progTracker.mergeWith(result);
+                if (result.isDone()) {
+                    broadcastTracker.set(i);
+                }
+            }
+            if (progTracker.isDone()) {
+                broadcastTracker.clear();
+            }
+            return progTracker.toProgressState();
         }
     }
 
