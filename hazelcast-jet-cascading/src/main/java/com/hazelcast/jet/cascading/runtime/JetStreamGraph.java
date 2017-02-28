@@ -202,12 +202,12 @@ class JetStreamGraph extends NodeStreamGraph {
         }
 
         @Override
-        public boolean isHighWater(int ordinal) {
+        public boolean hasReachedLimit(int ordinal) {
             if (ordinal != -1) {
                 throw new UnsupportedOperationException();
             }
             for (int ord : ordinals) {
-                if (outbox.isHighWater(ord)) {
+                if (outbox.hasReachedLimit(ord)) {
                     return true;
                 }
             }

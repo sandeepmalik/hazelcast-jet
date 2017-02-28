@@ -29,10 +29,10 @@ import java.util.Queue;
 public final class ArrayDequeOutbox implements Outbox {
 
     private final ArrayDeque<Object>[] buckets;
-    private final int[] highWaterMarks;
+    private final int[] outboxLimits;
 
-    public ArrayDequeOutbox(int size, int[] highWaterMarks) {
-        this.highWaterMarks = highWaterMarks.clone();
+    public ArrayDequeOutbox(int size, int[] outboxLimits) {
+        this.outboxLimits = outboxLimits.clone();
         this.buckets = new ArrayDeque[size];
         Arrays.setAll(buckets, i -> new ArrayDeque());
     }
@@ -54,12 +54,12 @@ public final class ArrayDequeOutbox implements Outbox {
     }
 
     @Override
-    public boolean isHighWater(int ordinal) {
+    public boolean hasReachedLimit(int ordinal) {
         if (ordinal != -1) {
-            return buckets[ordinal].size() >= highWaterMarks[ordinal];
+            return buckets[ordinal].size() >= outboxLimits[ordinal];
         }
         for (int i = 0; i < buckets.length; i++) {
-            if (buckets[i].size() >= highWaterMarks[i]) {
+            if (buckets[i].size() >= outboxLimits[i]) {
                 return true;
             }
         }

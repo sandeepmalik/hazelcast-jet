@@ -72,8 +72,8 @@ public class ProcessorTasklet implements Tasklet {
                                     .sorted(comparing(OutboundEdgeStream::ordinal))
                                     .toArray(OutboundEdgeStream[]::new);
 
-        int[] highWaterMarks = Stream.of(this.outstreams).mapToInt(OutboundEdgeStream::getHighWaterMark).toArray();
-        this.outbox = new ArrayDequeOutbox(outstreams.size(), highWaterMarks);
+        int[] outboxLimits = Stream.of(this.outstreams).mapToInt(OutboundEdgeStream::getOutboxLimit).toArray();
+        this.outbox = new ArrayDequeOutbox(outstreams.size(), outboxLimits);
         this.context = context;
         this.instreamCursor = popInstreamGroup();
     }
@@ -139,7 +139,7 @@ public class ProcessorTasklet implements Tasklet {
     }
 
     private void tryProcessInbox() {
-        if (outbox.isHighWater()) {
+        if (outbox.hasReachedLimit()) {
             progTracker.notDone();
             return;
         }
@@ -155,7 +155,7 @@ public class ProcessorTasklet implements Tasklet {
         if (processorCompleted) {
             return;
         }
-        if (outbox.isHighWater()) {
+        if (outbox.hasReachedLimit()) {
             progTracker.notDone();
             return;
         }
@@ -175,9 +175,8 @@ public class ProcessorTasklet implements Tasklet {
         for (int i = 0; i < outbox.bucketCount(); i++) {
             final Queue q = outbox.queueWithOrdinal(i);
             for (Object item; (item = q.peek()) != null; ) {
-                final ProgressState state =
-                        item != DONE_ITEM ? outstreams[i].getCollector().offer(item)
-                                : outstreams[i].getCollector().broadcast(item);
+                final OutboundCollector c = outstreams[i].getCollector();
+                final ProgressState state = (item != DONE_ITEM ? c.offer(item) : c.broadcast(item));
                 progTracker.madeProgress(state.isMadeProgress());
                 if (!state.isDone()) {
                     progTracker.notDone();

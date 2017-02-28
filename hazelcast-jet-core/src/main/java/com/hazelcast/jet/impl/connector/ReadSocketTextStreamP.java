@@ -68,7 +68,7 @@ public class ReadSocketTextStreamP extends AbstractProcessor implements Closeabl
     private boolean tryComplete() throws IOException {
         for (String inputLine; (inputLine = bufferedReader.readLine()) != null; ) {
             emit(inputLine);
-            if (getOutbox().isHighWater()) {
+            if (getOutbox().hasReachedLimit()) {
                 return false;
             }
         }

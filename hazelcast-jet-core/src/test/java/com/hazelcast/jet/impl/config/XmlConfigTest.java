@@ -106,7 +106,7 @@ public class XmlConfigTest {
         // Then
         EdgeConfig edgeConfig = jetConfig.getDefaultEdgeConfig();
         assertEquals("queueSize", 999, edgeConfig.getQueueSize());
-        assertEquals("highWaterMark", 998, edgeConfig.getHighWaterMark());
+        assertEquals("outboxLimit", 998, edgeConfig.getOutboxLimit());
         assertEquals("packetSizeLimit", 997, edgeConfig.getPacketSizeLimit());
         assertEquals("receiveWindowMultiplier", 996, edgeConfig.getReceiveWindowMultiplier());
     }

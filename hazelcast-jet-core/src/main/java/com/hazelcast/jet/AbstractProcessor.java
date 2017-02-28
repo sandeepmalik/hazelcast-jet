@@ -271,8 +271,8 @@ public abstract class AbstractProcessor implements Processor {
 
     /**
      * Emits the items obtained from the traverser to the outbox bucket with the
-     * supplied ordinal, in a cooperative fashion: if the outbox reports a
-     * high-water condition, backs off and returns {@code false}.
+     * supplied ordinal, in a cooperative fashion: if the outbox reports it has
+     * reached the limit, backs off and returns {@code false}.
      * <p>
      * If this method returns {@code false}, then the same traverser must be
      * retained by the caller and passed again in the subsequent invocation of
@@ -291,7 +291,7 @@ public abstract class AbstractProcessor implements Processor {
             item = traverser.next();
         }
         for (; item != null; item = traverser.next()) {
-            if (outbox.isHighWater(ordinal)) {
+            if (outbox.hasReachedLimit(ordinal)) {
                 pendingItem = item;
                 return false;
             }

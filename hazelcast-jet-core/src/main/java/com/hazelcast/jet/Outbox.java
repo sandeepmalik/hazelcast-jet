@@ -27,7 +27,7 @@ import javax.annotation.Nonnull;
  * <p>
  * The execution engine will not try to flush the outbox into downstream
  * queues until the processing method returns. Therefore the processor is
- * advised to check {@link #isHighWater()} or {@link #isHighWater(int)}
+ * advised to check {@link #hasReachedLimit()} or {@link #hasReachedLimit(int)}
  * regularly and refrain from outputting more data when it returns true.
  */
 public interface Outbox {
@@ -52,21 +52,20 @@ public interface Outbox {
     void add(int ordinal, @Nonnull Object item);
 
     /**
-     * Returns {@code true} if any of this outbox's buckets is above its
-     * high water mark (i.e., {@link #isHighWater(int)} would return true
-     * for it).
+     * Returns {@code true} if any of this outbox's buckets has reached its
+     * limit ({@link #hasReachedLimit(int)} would return true for it).
      */
-    default boolean isHighWater() {
-        return isHighWater(-1);
+    default boolean hasReachedLimit() {
+        return hasReachedLimit(-1);
     }
 
     /**
-     * Returns {@code true} if the bucket with the given ordinal is above
-     * its high water mark. When {@code true}, no more data should be added
+     * Returns {@code true} if the bucket with the given ordinal has reached
+     * its item count limit. When {@code true}, no more data should be added
      * to the bucket during the current invocation of the {@code Processor}
      * method that made the inquiry.
      * <p>
-     * If {@code ordinal == -1}, behaves identically to {@link #isHighWater()}.
+     * If {@code ordinal == -1}, behaves identically to {@link #hasReachedLimit()}.
      */
-    boolean isHighWater(int ordinal);
+    boolean hasReachedLimit(int ordinal);
 }

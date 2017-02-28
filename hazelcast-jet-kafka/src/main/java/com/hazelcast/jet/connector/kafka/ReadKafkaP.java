@@ -114,7 +114,7 @@ public final class ReadKafkaP<K, V> extends AbstractProcessor implements Closeab
 
             partitionOffsets[record.partition()] = record.offset();
             emit(new AbstractMap.SimpleImmutableEntry<>(key, value));
-            if (getOutbox().isHighWater()) {
+            if (getOutbox().hasReachedLimit()) {
                 for (int p = 0; p < partitionOffsets.length; p++) {
                     long offset = partitionOffsets[p];
                     if (offset != -1) {
