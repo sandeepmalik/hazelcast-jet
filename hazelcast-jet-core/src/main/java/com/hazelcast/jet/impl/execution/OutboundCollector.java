@@ -35,18 +35,14 @@ public interface OutboundCollector {
      */
     ProgressState offer(Object item);
 
+    ProgressState broadcast(Object item);
+
     /**
      * Offers an item with a known partition id
      */
     default ProgressState offer(Object item, int partitionId) {
         return offer(item);
     }
-
-    /**
-     * Tries to close this collector.
-     * If the collector didn't complete the operation now, the call must be retried later.
-     */
-    ProgressState close();
 
     /**
      * Returns the list of partitions handled by this collector.
@@ -72,28 +68,36 @@ public interface OutboundCollector {
     abstract class Composite implements OutboundCollector {
 
         protected final OutboundCollector[] collectors;
-        protected final ProgressTracker progTracker = new ProgressTracker();
         protected final int[] partitions;
+
+        private final BitSet broadcastTracker;
+
+        private final ProgressTracker progTracker = new ProgressTracker();
 
         Composite(OutboundCollector[] collectors) {
             this.collectors = collectors;
+            this.broadcastTracker = new BitSet(collectors.length);
             this.partitions = Stream.of(collectors)
                                     .flatMapToInt(c -> IntStream.of(c.getPartitions()))
                                     .sorted().toArray();
         }
 
         @Override
-        public ProgressState close() {
+        public ProgressState broadcast(Object item) {
+            System.out.println(Thread.currentThread().getName() + " " + " broadcast: " + item);
             progTracker.reset();
             for (int i = 0; i < collectors.length; i++) {
-                if (collectors[i] == null) {
+                if (broadcastTracker.get(i)) {
                     continue;
                 }
-                ProgressState result = collectors[i].close();
+                ProgressState result = collectors[i].broadcast(item);
                 progTracker.mergeWith(result);
                 if (result.isDone()) {
-                    collectors[i] = null;
+                    broadcastTracker.set(i);
                 }
+            }
+            if (progTracker.isDone()) {
+                broadcastTracker.clear();
             }
             return progTracker.toProgressState();
         }
@@ -133,31 +137,13 @@ public interface OutboundCollector {
     }
 
     class Broadcast extends Composite {
-        private final ProgressTracker progTracker = new ProgressTracker();
-        private final BitSet isItemSentTo;
-
         Broadcast(OutboundCollector[] collectors) {
             super(collectors);
-            this.isItemSentTo = new BitSet(collectors.length);
         }
 
         @Override
         public ProgressState offer(Object item) {
-            progTracker.reset();
-            for (int i = 0; i < collectors.length; i++) {
-                if (isItemSentTo.get(i)) {
-                    continue;
-                }
-                ProgressState result = collectors[i].offer(item);
-                progTracker.mergeWith(result);
-                if (result.isDone()) {
-                    isItemSentTo.set(i);
-                }
-            }
-            if (progTracker.isDone()) {
-                isItemSentTo.clear();
-            }
-            return progTracker.toProgressState();
+            return broadcast(item);
         }
     }
 

@@ -37,7 +37,7 @@ public class ConveyorCollectorWithPartition extends ConveyorCollector {
     }
 
     @Override
-    public ProgressState close() {
-        return super.offer(doneItem);
+    public ProgressState broadcast(Object item) {
+        return super.offer(item);
     }
 }

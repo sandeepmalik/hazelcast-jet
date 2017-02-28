@@ -22,8 +22,6 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 public class ConveyorCollector implements OutboundCollector {
 
-    protected final Object doneItem;
-
     private final ConcurrentConveyor<Object> conveyor;
     private final int queueIndex;
     private final int[] partitions;
@@ -33,7 +31,6 @@ public class ConveyorCollector implements OutboundCollector {
         this.conveyor = conveyor;
         this.queueIndex = queueIndex;
         this.partitions = partitions;
-        this.doneItem = conveyor.submitterGoneItem();
     }
 
     @Override
@@ -42,8 +39,8 @@ public class ConveyorCollector implements OutboundCollector {
     }
 
     @Override
-    public ProgressState close() {
-        return offer(doneItem);
+    public ProgressState broadcast(Object item) {
+        return offer(item);
     }
 
     @Override

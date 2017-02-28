@@ -54,9 +54,8 @@ public class MockOutboundStream extends OutboundEdgeStream {
         }
 
         @Override
-        public ProgressState close() {
-            buffer.add(DONE_ITEM);
-            return ProgressState.DONE;
+        public ProgressState broadcast(Object item) {
+            return offer(item);
         }
 
         @Override
