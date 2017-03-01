@@ -18,9 +18,9 @@ package com.hazelcast.jet.impl.execution.init;
 
 import com.hazelcast.core.Member;
 import com.hazelcast.internal.cluster.ClusterService;
-import com.hazelcast.internal.util.concurrent.ConcurrentConveyor;
-import com.hazelcast.internal.util.concurrent.OneToOneConcurrentArrayQueue;
-import com.hazelcast.internal.util.concurrent.QueuedPipe;
+import com.hazelcast.internal.util.concurrent.update.ConcurrentConveyor;
+import com.hazelcast.internal.util.concurrent.update.OneToOneConcurrentArrayQueue;
+import com.hazelcast.internal.util.concurrent.update.QueuedPipe;
 import com.hazelcast.jet.DAG;
 import com.hazelcast.jet.Edge;
 import com.hazelcast.jet.JetException;
@@ -70,7 +70,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.function.Function;
 
-import static com.hazelcast.internal.util.concurrent.ConcurrentConveyor.concurrentConveyor;
+import static com.hazelcast.internal.util.concurrent.update.ConcurrentConveyor.concurrentConveyor;
 import static com.hazelcast.jet.impl.execution.OutboundCollector.compositeCollector;
 import static com.hazelcast.jet.impl.util.DoneItem.DONE_ITEM;
 import static com.hazelcast.jet.impl.util.Util.getRemoteMembers;

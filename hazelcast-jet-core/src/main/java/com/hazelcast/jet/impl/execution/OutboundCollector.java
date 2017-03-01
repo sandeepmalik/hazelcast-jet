@@ -40,7 +40,7 @@ public interface OutboundCollector {
      * Offer a watermark to this collector. Watermarks will be propagated to all sub-collectors
      * if the collector is a composite one.
      */
-    ProgressState offer(Watermark wm);
+    ProgressState offerWatermark(Watermark wm);
 
     /**
      * Offers an item with a known partition id
@@ -86,13 +86,13 @@ public interface OutboundCollector {
         }
 
         @Override
-        public ProgressState offer(Watermark wm) {
+        public ProgressState offerWatermark(Watermark wm) {
             progTracker.reset();
             for (int i = 0; i < collectors.length; i++) {
                 if (broadcastTracker.get(i)) {
                     continue;
                 }
-                ProgressState result = collectors[i].offer(wm);
+                ProgressState result = collectors[i].offerWatermark(wm);
                 progTracker.mergeWith(result);
                 if (result.isDone()) {
                     broadcastTracker.set(i);

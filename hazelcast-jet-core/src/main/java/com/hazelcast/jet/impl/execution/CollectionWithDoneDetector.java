@@ -25,13 +25,14 @@ import java.util.Iterator;
 import static com.hazelcast.jet.impl.util.DoneItem.DONE_ITEM;
 
 /**
- * Decorator around a {@link Collection} which detects an attempt to add the {@link DoneItem#DONE_ITEM}.
- * It doesn't add it to the wrapped collection and raises its {@link #done} flag. It is an error to attempt to
- * add any elements after the {@code DONE_ITEM}.
+ * Decorator around a {@link Collection} which detects an attempt to add the
+ * {@link DoneItem#DONE_ITEM}. It doesn't add it to the wrapped collection and
+ * raises its {@link #done} flag. It is an error to attempt to add any elements
+ * after the {@code DONE_ITEM}.
  * <p>
- * <strong>NOTE:</strong> this collection breaks the contract of {@link #add(Object)} by refusing to add the
- * {@code DONE_ITEM} without throwing an exception. It has a very narrow use case and must not be used as a general
- * collection.
+ * <strong>NOTE:</strong> this collection breaks the contract of {@link #add(Object)}
+ * because it refuses to add the {@code DONE_ITEM}, but doesn't throw an exception.
+ * It has a very narrow use case and must not be used as a general collection.
  */
 final class CollectionWithDoneDetector extends AbstractCollection<Object> {
     boolean done;
@@ -51,12 +52,13 @@ final class CollectionWithDoneDetector extends AbstractCollection<Object> {
     }
 
     /**
-     * Adds the supplied item to the wrapped collection unless the item is {@link DoneItem#DONE_ITEM}.
-     * In that case raises the {@link #done} flag and returns {@code false}, but doesn't fail with an exception.
-     * Must not be called when {@code done == true}.
+     * Adds the supplied item to the wrapped collection unless the item is
+     * {@link DoneItem#DONE_ITEM}. In that case raises the {@link #done} flag
+     * and returns {@code false}, but doesn't fail with an exception. Must not
+     * be called when {@code done == true}.
      * @param o the item to add
-     * @return {@code false} if the item is the {@code DONE_ITEM}; otherwise the result of {@code add(o)} called on the
-     * wrapped collection
+     * @return {@code false} if the item is the {@code DONE_ITEM};
+     *         otherwise the result of {@code add(o)} called on the wrapped collection
      */
     @Override
     public boolean add(Object o) {

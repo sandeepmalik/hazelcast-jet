@@ -126,7 +126,7 @@ public class ReceiverTasklet implements Tasklet {
             ackItem(o.senderId, o.estimatedMemoryFootprint);
         }
         if (remainingSenders == 0) {
-            tracker.mergeWith(collector.offer(DONE_ITEM));
+            tracker.mergeWith(collector.offerWatermark(DONE_ITEM));
         } else {
             tracker.notDone();
         }

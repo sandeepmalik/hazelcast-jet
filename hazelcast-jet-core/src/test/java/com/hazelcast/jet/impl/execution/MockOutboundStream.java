@@ -55,7 +55,7 @@ public class MockOutboundStream extends OutboundEdgeStream {
         }
 
         @Override
-        public ProgressState offer(Watermark item) {
+        public ProgressState offerWatermark(Watermark item) {
             return offer((Object)item);
         }
 
