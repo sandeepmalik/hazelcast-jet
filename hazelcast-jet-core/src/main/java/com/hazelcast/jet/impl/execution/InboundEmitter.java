@@ -20,5 +20,5 @@ import com.hazelcast.jet.impl.util.ProgressState;
 import com.hazelcast.util.function.Predicate;
 
 public interface InboundEmitter {
-    ProgressState drainTo(Predicate<Object> itemHandler);
+    ProgressState drain(Predicate<Object> itemHandler);
 }

@@ -32,7 +32,7 @@ public class ConveyorEmitter implements InboundEmitter {
     }
 
     @Override
-    public ProgressState drainTo(Predicate<Object> itemHandler) {
+    public ProgressState drain(Predicate<Object> itemHandler) {
         doneDetector.wrapped = itemHandler;
         try {
             int drainedCount = conveyor.drain(queueIndex, itemHandler);

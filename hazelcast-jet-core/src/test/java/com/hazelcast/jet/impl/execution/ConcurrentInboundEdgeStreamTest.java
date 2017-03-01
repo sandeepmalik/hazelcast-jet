@@ -179,7 +179,7 @@ public class ConcurrentInboundEdgeStreamTest {
         }
 
         @Override
-        public ProgressState drainTo(Predicate<Object> itemHandler) {
+        public ProgressState drain(Predicate<Object> itemHandler) {
             boolean shouldContinue = true;
             while (shouldContinue && currentValue < endValue) {
                 if (watermarkPos < watermarksAfter.length && watermarksAfter[watermarkPos] < currentValue) {
@@ -213,7 +213,7 @@ public class ConcurrentInboundEdgeStreamTest {
         }
 
         @Override
-        public ProgressState drainTo(Predicate<Object> itemHandler) {
+        public ProgressState drain(Predicate<Object> itemHandler) {
             int i;
             for (i = 0; i < drainSize && currentValue < endValue; i++, currentValue++)
                 if ( ! itemHandler.test(currentValue))
@@ -228,7 +228,7 @@ public class ConcurrentInboundEdgeStreamTest {
         boolean done;
 
         @Override
-        public ProgressState drainTo(Predicate<Object> itemHandler) {
+        public ProgressState drain(Predicate<Object> itemHandler) {
             return done ? ProgressState.WAS_ALREADY_DONE : ProgressState.NO_PROGRESS;
         }
     }
