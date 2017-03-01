@@ -34,8 +34,8 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
     private final int priority;
     private final InboundEmitter[] emitters;
     private final ProgressTracker tracker;
-    private Watermark lastWm;
-    private final BitSet wmFound;
+    private Watermark currentWm;
+    private final BitSet wmReceived;
     private final CollectionWithWatermarkDetector wmDetector = new CollectionWithWatermarkDetector();
 
     public ConcurrentInboundEdgeStream(InboundEmitter[] emitters, int ordinal, int priority) {
@@ -43,7 +43,7 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
         this.ordinal = ordinal;
         this.priority = priority;
         this.tracker = new ProgressTracker();
-        this.wmFound = new BitSet(emitters.length);
+        this.wmReceived = new BitSet(emitters.length);
     }
 
     @Override
@@ -69,12 +69,12 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
                 continue;
             }
             validateWatermark();
-            wmFound.set(i);
-            lastWm = wmDetector.wm;
+            wmReceived.set(i);
+            currentWm = wmDetector.wm;
             if (allWatermarksReceived()) {
-                dest.add(lastWm);
-                lastWm = null;
-                wmFound.clear();
+                dest.add(currentWm);
+                currentWm = null;
+                wmReceived.clear();
                 return tracker.toProgressState();
             }
         }
@@ -82,17 +82,17 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
     }
 
     private boolean alreadyAtWatermark(int i) {
-        return lastWm != null && wmFound.get(i);
+        return currentWm != null && wmReceived.get(i);
     }
 
     private boolean allWatermarksReceived() {
-        return wmFound.nextClearBit(0) == emitters.length;
+        return wmReceived.nextClearBit(0) == emitters.length;
     }
 
     private void validateWatermark() {
-        if (lastWm != null && !wmDetector.wm.equals(lastWm))
+        if (currentWm != null && !wmDetector.wm.equals(currentWm))
             throw new JetException("Watermark emitted by one processor not equal to watermark emitted by "
-                    + "another processor, wm1=" + lastWm + ", wm2=" + wmDetector.wm
+                    + "another processor, wm1=" + currentWm + ", wm2=" + wmDetector.wm
                     + ", all processors must emit equal watermarks in the same order");
     }
 
