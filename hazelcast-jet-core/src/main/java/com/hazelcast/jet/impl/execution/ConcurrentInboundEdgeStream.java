@@ -21,7 +21,7 @@ import com.hazelcast.jet.Watermark;
 import com.hazelcast.jet.impl.util.ProgressState;
 import com.hazelcast.jet.impl.util.ProgressTracker;
 
-import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Collection;
 
 /**
@@ -34,57 +34,60 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
     private final int priority;
     private final InboundEmitter[] producers;
     private final ProgressTracker tracker;
-    private Watermark lastWatermark;
-    private final boolean[] watermarkFound;
-    private int watermarkFoundCount;
-    private final CollectionWithWatermarkDetector watermarkDetector = new CollectionWithWatermarkDetector();
+    private Watermark lastWm;
+    private final BitSet wmFound;
+    private final CollectionWithWatermarkDetector wmDetector = new CollectionWithWatermarkDetector();
 
     public ConcurrentInboundEdgeStream(InboundEmitter[] producers, int ordinal, int priority) {
         this.producers = producers.clone();
         this.ordinal = ordinal;
         this.priority = priority;
         this.tracker = new ProgressTracker();
-        watermarkFound = new boolean[producers.length];
+        this.wmFound = new BitSet(producers.length);
     }
 
     @Override
     public ProgressState drainTo(Collection<Object> dest) {
         tracker.reset();
-        watermarkDetector.wrapped = dest;
+        wmDetector.wrapped = dest;
         for (int i = 0; i < producers.length; i++) {
             InboundEmitter producer = producers[i];
-            if (producer != null && (lastWatermark == null || ! watermarkFound[i])) {
-                watermarkDetector.watermark = null;
-                ProgressState result = producer.drainTo(watermarkDetector::add);
-                if (watermarkDetector.watermark != null) {
-                    if (lastWatermark != null && ! watermarkDetector.watermark.equals(lastWatermark))
-                        throw new JetException("Watermark emitted by one producer not in order to watermark produced by "
-                                + "another producer, wm1=" + lastWatermark + ", wm2=" + watermarkDetector.watermark
-                                + ", all producers must produce equal watermarks in the same order");
-                    watermarkFound[i] = true;
-                    watermarkFoundCount++;
-                    lastWatermark = watermarkDetector.watermark;
-
-                    if (watermarkFoundCount == producers.length) {
-                        // we encountered equal watermark from all producers. Now add it to dest and get ready for next one.
-                        dest.add(lastWatermark);
-                        lastWatermark = null;
-                        watermarkFoundCount = 0;
-                        Arrays.fill(watermarkFound, false);
-
-                        // restart the for loop - drain the producers again, possibly make them done
-                        tracker.markDone();
-                        i = -1;
-                        continue;
-                    }
-                }
-                if (result.isDone()) {
-                    producers[i] = null;
-                }
-                tracker.mergeWith(result);
+            if (producer == null || (lastWm != null && wmFound.get(i))) {
+                continue;
             }
+            wmDetector.wm = null;
+            ProgressState result = producer.drain(wmDetector::add);
+            if (wmDetector.wm != null) {
+                validateWatermark();
+                wmFound.set(i);
+                lastWm = wmDetector.wm;
+                if (allWatermarksReceived()) {
+                    // We encountered the same watermark from all upstream processors.
+                    // Add it to dest and reset the state.
+                    dest.add(lastWm);
+                    lastWm = null;
+                    wmFound.clear();
+                    tracker.markDone();
+                    break;
+                }
+            }
+            if (result.isDone()) {
+                producers[i] = null;
+            }
+            tracker.mergeWith(result);
         }
         return tracker.toProgressState();
+    }
+
+    private void validateWatermark() {
+        if (lastWm != null && ! wmDetector.wm.equals(lastWm))
+            throw new JetException("Watermark emitted by one processor not equal to watermark emitted by "
+                    + "another processor, wm1=" + lastWm + ", wm2=" + wmDetector.wm
+                    + ", all processors must emit equal watermarks in the same order");
+    }
+
+    private boolean allWatermarksReceived() {
+        return wmFound.nextClearBit(0) == producers.length;
     }
 
     @Override

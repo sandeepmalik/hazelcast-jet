@@ -9,7 +9,7 @@ import java.util.Iterator;
 final class CollectionWithWatermarkDetector extends AbstractCollection<Object> {
 
     Collection<Object> wrapped;
-    Watermark watermark;
+    Watermark wm;
 
     @Override
     public Iterator<Object> iterator() {
@@ -24,7 +24,7 @@ final class CollectionWithWatermarkDetector extends AbstractCollection<Object> {
     @Override
     public boolean add(Object o) {
         if (o instanceof Watermark) {
-            watermark = (Watermark) o;
+            wm = (Watermark) o;
             return false;
         } else {
             return wrapped.add(o);
