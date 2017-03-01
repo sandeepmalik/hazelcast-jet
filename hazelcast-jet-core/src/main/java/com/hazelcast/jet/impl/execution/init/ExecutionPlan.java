@@ -72,7 +72,6 @@ import java.util.function.Function;
 
 import static com.hazelcast.internal.util.concurrent.update.ConcurrentConveyor.concurrentConveyor;
 import static com.hazelcast.jet.impl.execution.OutboundCollector.compositeCollector;
-import static com.hazelcast.jet.impl.util.DoneItem.DONE_ITEM;
 import static com.hazelcast.jet.impl.util.Util.getRemoteMembers;
 import static com.hazelcast.jet.impl.util.Util.readList;
 import static com.hazelcast.jet.impl.util.Util.writeList;

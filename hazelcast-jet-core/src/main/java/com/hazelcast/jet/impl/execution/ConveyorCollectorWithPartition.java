@@ -17,7 +17,6 @@
 package com.hazelcast.jet.impl.execution;
 
 import com.hazelcast.internal.util.concurrent.update.ConcurrentConveyor;
-import com.hazelcast.jet.Watermark;
 import com.hazelcast.jet.impl.util.ObjectWithPartitionId;
 import com.hazelcast.jet.impl.util.ProgressState;
 

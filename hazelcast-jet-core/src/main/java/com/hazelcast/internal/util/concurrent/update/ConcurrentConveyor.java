@@ -20,6 +20,7 @@ package com.hazelcast.internal.util.concurrent.update;
 import com.hazelcast.internal.util.concurrent.ConcurrentConveyorException;
 import com.hazelcast.util.concurrent.BackoffIdleStrategy;
 import com.hazelcast.util.concurrent.IdleStrategy;
+import com.hazelcast.util.function.Predicate;
 
 import java.util.Collection;
 import java.util.Queue;
@@ -270,7 +271,7 @@ public class ConcurrentConveyor<E> {
      *
      * @return the number of items drained
      */
-    public final int drain(int queueIndex, ToBooleanFunction<? super E> itemHandler) {
+    public final int drain(int queueIndex, Predicate<? super E> itemHandler) {
         return queues[queueIndex].drain(itemHandler);
     }
 

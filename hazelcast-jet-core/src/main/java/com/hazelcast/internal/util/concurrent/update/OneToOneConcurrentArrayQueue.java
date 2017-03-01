@@ -17,6 +17,8 @@
 
 package com.hazelcast.internal.util.concurrent.update;
 
+import com.hazelcast.util.function.Predicate;
+
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -70,7 +72,7 @@ public class OneToOneConcurrentArrayQueue<E> extends AbstractConcurrentArrayQueu
 
     @Override
     @SuppressWarnings("unchecked")
-    public int drain(ToBooleanFunction<? super E> elementHandler) {
+    public int drain(Predicate<? super E> elementHandler) {
         final AtomicReferenceArray<E> buffer = this.buffer;
         final long mask = this.capacity - 1;
         final long acquiredHead = head;
@@ -86,7 +88,7 @@ public class OneToOneConcurrentArrayQueue<E> extends AbstractConcurrentArrayQueu
             buffer.lazySet(arrayIndex, null);
             nextSequence++;
             HEAD.lazySet(this, nextSequence);
-            if (!elementHandler.applyAsBoolean(item)) {
+            if (!elementHandler.test(item)) {
                 break;
             }
         }
