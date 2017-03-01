@@ -17,6 +17,7 @@
 package com.hazelcast.jet.impl.execution;
 
 import com.hazelcast.jet.JetException;
+import com.hazelcast.jet.Watermark;
 import com.hazelcast.jet.impl.util.ProgressState;
 import com.hazelcast.jet.windowing.example.WatermarkWithTime;
 import com.hazelcast.util.function.Predicate;
@@ -29,6 +30,7 @@ import java.util.Arrays;
 import java.util.Collections;
 
 import static com.hazelcast.jet.impl.util.ProgressState.DONE;
+import static com.hazelcast.jet.impl.util.ProgressState.MADE_PROGRESS;
 import static org.junit.Assert.assertEquals;
 
 public class ConcurrentInboundEdgeStreamTest {
@@ -131,7 +133,7 @@ public class ConcurrentInboundEdgeStreamTest {
     }
 
     @Test
-    public void when_watermark_then_drainOthers() {
+    public void when_watermarkFromAllEmittersInSingleDrain_then_emitAtWm() {
         IntegerSequenceWithWatermarksEmitter emitter1 = new IntegerSequenceWithWatermarksEmitter(0, 3, 1);
         IntegerSequenceWithWatermarksEmitter emitter2 = new IntegerSequenceWithWatermarksEmitter(0, 3, 1);
 
@@ -139,9 +141,42 @@ public class ConcurrentInboundEdgeStreamTest {
                 new InboundEmitter[]{emitter1, emitter2}, 0, 0);
 
         ArrayList<Object> list = new ArrayList<>();
-        ProgressState progressState = stream.drainTo(list);
 
-        assertEquals(Arrays.asList(0, 1, 0, 1, new WatermarkWithTime(1), 2, 2), list);
+        ProgressState progressState = stream.drainTo(list);
+        assertEquals(Arrays.asList(0, 1, 0, 1, new WatermarkWithTime(1)), list);
+        assertEquals(MADE_PROGRESS, progressState);
+
+        list.clear();
+        progressState = stream.drainTo(list);
+        assertEquals(Arrays.asList(2, 2), list);
+        assertEquals(DONE, progressState);
+    }
+
+    @Test
+    public void when_watermarkFromSomeEmitter_then_dontEmit() {
+        // This one will emit: [0, 1, WM(1)], [2]
+        IntegerSequenceWithWatermarksEmitter emitter1 = new IntegerSequenceWithWatermarksEmitter(0, 3, 1);
+        // This one will emit: [3, 4], [5, 6]
+        IntegerSequenceEmitter emitter2 = new IntegerSequenceEmitter(3, 2, 2);
+
+        ConcurrentInboundEdgeStream stream = new ConcurrentInboundEdgeStream(
+                new InboundEmitter[]{emitter1, emitter2}, 0, 0);
+
+        ArrayList<Object> list = new ArrayList<>();
+
+        ProgressState progressState = stream.drainTo(list);
+        assertEquals(Arrays.asList(0, 1, 3, 4), list);
+        assertEquals(MADE_PROGRESS, progressState);
+
+        list.clear();
+        emitter2.wmAfterNextDrain = new WatermarkWithTime(1);
+        progressState = stream.drainTo(list);
+        assertEquals(Arrays.asList(5, 6, new WatermarkWithTime(1)), list);
+        assertEquals(MADE_PROGRESS, progressState);
+
+        list.clear();
+        progressState = stream.drainTo(list);
+        assertEquals(Collections.singletonList(2), list);
         assertEquals(DONE, progressState);
     }
 
@@ -201,6 +236,8 @@ public class ConcurrentInboundEdgeStreamTest {
         private int drainSize;
         private int endValue;
 
+        private Watermark wmAfterNextDrain;
+
         /**
          * @param startAt Value to start at
          * @param drainSize Number of items to emit in one {@code drainTo} call
@@ -218,6 +255,11 @@ public class ConcurrentInboundEdgeStreamTest {
             for (i = 0; i < drainSize && currentValue < endValue; i++, currentValue++)
                 if ( ! itemHandler.test(currentValue))
                     break;
+
+            if (wmAfterNextDrain != null) {
+                itemHandler.test(wmAfterNextDrain);
+                wmAfterNextDrain = null;
+            }
 
             return ProgressState.valueOf(i > 0, currentValue >= endValue);
         }

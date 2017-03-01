@@ -52,19 +52,20 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
         wmDetector.wrapped = dest;
         for (int i = 0; i < emitters.length; i++) {
             InboundEmitter emitter = emitters[i];
-            if (emitter == null || alreadyAtWatermark(i)) {
+            if (emitter == null) {
+                continue;
+            }
+            if (alreadyAtWatermark(i)) {
+                tracker.notDone();
                 continue;
             }
             wmDetector.wm = null;
             ProgressState result = emitter.drain(wmDetector::add);
+            tracker.mergeWith(result);
             if (result.isDone()) {
                 emitters[i] = null;
-            } else {
-                tracker.notDone();
             }
-            if (result.isMadeProgress()) {
-                tracker.madeProgress();
-            }
+            // No watermark was detected
             if (wmDetector.wm == null) {
                 continue;
             }
