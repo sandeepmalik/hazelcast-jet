@@ -26,8 +26,11 @@ final class CollectionWithWatermarkDetector extends AbstractCollection<Object> {
         if (o instanceof Watermark) {
             wm = (Watermark) o;
             return false;
-        } else {
-            return wrapped.add(o);
         }
+        return wrapped.add(o);
+    }
+
+    boolean hasDetected() {
+        return wm != null;
     }
 }

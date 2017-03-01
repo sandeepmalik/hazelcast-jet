@@ -65,8 +65,7 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
             if (result.isDone()) {
                 emitters[i] = null;
             }
-            // No watermark was detected
-            if (wmDetector.wm == null) {
+            if (!wmDetector.hasDetected()) {
                 continue;
             }
             validateWatermark();
