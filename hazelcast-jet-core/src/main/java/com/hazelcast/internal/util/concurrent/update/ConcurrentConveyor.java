@@ -267,7 +267,8 @@ public class ConcurrentConveyor<E> {
 
     /**
      * Drains a batch of items from the queue at the supplied index to the
-     * supplied item handler.
+     * supplied {@code itemHandler}. Stops draining, after the {@code itemHandler}
+     * returns false;
      *
      * @return the number of items drained
      */

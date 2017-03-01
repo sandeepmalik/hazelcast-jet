@@ -68,6 +68,10 @@ public class ProgressTracker {
         isDone = false;
     }
 
+    public void markDone() {
+        isDone = true;
+    }
+
     public boolean isDone() {
         return isDone;
     }

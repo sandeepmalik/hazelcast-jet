@@ -16,9 +16,12 @@
 
 package com.hazelcast.jet.impl.execution;
 
+import com.hazelcast.jet.JetException;
+import com.hazelcast.jet.Watermark;
 import com.hazelcast.jet.impl.util.ProgressState;
 import com.hazelcast.jet.impl.util.ProgressTracker;
 
+import java.util.Arrays;
 import java.util.Collection;
 
 /**
@@ -31,21 +34,50 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
     private final int priority;
     private final InboundEmitter[] producers;
     private final ProgressTracker tracker;
+    private Watermark lastWatermark;
+    private final boolean[] watermarkFound;
+    private int watermarkFoundCount;
+    private final CollectionWithWatermarkDetector watermarkDetector = new CollectionWithWatermarkDetector();
 
     public ConcurrentInboundEdgeStream(InboundEmitter[] producers, int ordinal, int priority) {
         this.producers = producers.clone();
         this.ordinal = ordinal;
         this.priority = priority;
         this.tracker = new ProgressTracker();
+        watermarkFound = new boolean[producers.length];
     }
 
     @Override
     public ProgressState drainTo(Collection<Object> dest) {
         tracker.reset();
+        watermarkDetector.wrapped = dest;
         for (int i = 0; i < producers.length; i++) {
             InboundEmitter producer = producers[i];
-            if (producer != null) {
-                ProgressState result = producer.drainTo(dest);
+            if (producer != null && (lastWatermark == null || ! watermarkFound[i])) {
+                watermarkDetector.watermark = null;
+                ProgressState result = producer.drainTo(watermarkDetector::add);
+                if (watermarkDetector.watermark != null) {
+                    if (lastWatermark != null && ! watermarkDetector.watermark.equals(lastWatermark))
+                        throw new JetException("Watermark emitted by one producer not in order to watermark produced by "
+                                + "another producer, wm1=" + lastWatermark + ", wm2=" + watermarkDetector.watermark
+                                + ", all producers must produce equal watermarks in the same order");
+                    watermarkFound[i] = true;
+                    watermarkFoundCount++;
+                    lastWatermark = watermarkDetector.watermark;
+
+                    if (watermarkFoundCount == producers.length) {
+                        // we encountered equal watermark from all producers. Now add it to dest and get ready for next one.
+                        dest.add(lastWatermark);
+                        lastWatermark = null;
+                        watermarkFoundCount = 0;
+                        Arrays.fill(watermarkFound, false);
+
+                        // restart the for loop - drain the producers again, possibly make them done
+                        tracker.markDone();
+                        i = -1;
+                        continue;
+                    }
+                }
                 if (result.isDone()) {
                     producers[i] = null;
                 }
@@ -64,6 +96,5 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
     public int priority() {
         return priority;
     }
-
 }
 

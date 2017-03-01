@@ -31,7 +31,7 @@ import static com.hazelcast.jet.impl.util.ProgressState.WAS_ALREADY_DONE;
 public class MockInboundStream implements InboundEdgeStream {
     private final int chunkSize;
     private final List<Object> mockData;
-    private final CollectionWithDoneDetector doneDetector = new CollectionWithDoneDetector();
+    private final ItemHandlerWithDoneDetector doneDetector = new ItemHandlerWithDoneDetector();
     private final int ordinal;
     private int dataIndex;
     private boolean done;
@@ -56,11 +56,11 @@ public class MockInboundStream implements InboundEdgeStream {
         if (limit == dataIndex) {
             return NO_PROGRESS;
         }
-        doneDetector.wrapped = dest;
+        doneDetector.wrapped = dest::add;
         try {
             for (; dataIndex < limit; dataIndex++) {
                 final Object item = mockData.get(dataIndex);
-                if (!doneDetector.add(item)) {
+                if (!doneDetector.test(item)) {
                     done = true;
                 }
             }

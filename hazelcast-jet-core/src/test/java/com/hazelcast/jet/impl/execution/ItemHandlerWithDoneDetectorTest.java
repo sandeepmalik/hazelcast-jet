@@ -22,80 +22,82 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import java.util.ArrayList;
+import java.util.List;
 
 import static com.hazelcast.jet.impl.util.DoneItem.DONE_ITEM;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class CollectionWithDoneDetectorTest {
+public class ItemHandlerWithDoneDetectorTest {
 
     @Rule
     public ExpectedException exception = ExpectedException.none();
 
-    private CollectionWithDoneDetector coll = new CollectionWithDoneDetector();
+    private ItemHandlerWithDoneDetector handler = new ItemHandlerWithDoneDetector();
+    private List<Object> list = new ArrayList<>();
 
     @Before
     public void setUp() {
-        coll.wrapped = new ArrayList<>();
+        handler.wrapped = list::add;
     }
 
     @Test
     public void when_addNormalItem_then_acceptIt() {
-        assertFalse(coll.done);
+        assertFalse(handler.done);
 
-        assertTrue(coll.add("a"));
-        assertFalse(coll.done);
-        assertEquals(coll.size(), 1);
+        assertTrue(handler.test("a"));
+        assertFalse(handler.done);
+        assertEquals(list.size(), 1);
 
-        assertTrue(coll.add("b"));
-        assertFalse(coll.done);
-        assertEquals(coll.size(), 2);
+        assertTrue(handler.test("b"));
+        assertFalse(handler.done);
+        assertEquals(list.size(), 2);
     }
 
     @Test
     public void when_addDoneItem_then_refuseItAndBecomeDone() {
-        assertFalse(coll.done);
+        assertFalse(handler.done);
 
-        assertTrue(coll.add("a"));
-        assertFalse(coll.done);
-        assertEquals(coll.size(), 1);
+        assertTrue(handler.test("a"));
+        assertFalse(handler.done);
+        assertEquals(list.size(), 1);
 
-        assertFalse(coll.add(DONE_ITEM));
-        assertTrue(coll.done);
-        assertEquals(coll.size(), 1);
+        assertFalse(handler.test(DONE_ITEM));
+        assertTrue(handler.done);
+        assertEquals(list.size(), 1);
     }
 
     @Test
     public void when_addAfterDone_then_fail() {
-        assertFalse(coll.done);
+        assertFalse(handler.done);
 
-        assertTrue(coll.add("a"));
-        assertFalse(coll.done);
-        assertEquals(coll.size(), 1);
+        assertTrue(handler.test("a"));
+        assertFalse(handler.done);
+        assertEquals(list.size(), 1);
 
-        assertFalse(coll.add(DONE_ITEM));
-        assertTrue(coll.done);
-        assertEquals(coll.size(), 1);
+        assertFalse(handler.test(DONE_ITEM));
+        assertTrue(handler.done);
+        assertEquals(list.size(), 1);
 
         exception.expect(AssertionError.class);
-        coll.add("c");
+        handler.test("c");
     }
 
     @Test
     public void when_addMultipleDoneItems_then_fail() {
-        assertFalse(coll.done);
+        assertFalse(handler.done);
 
-        assertTrue(coll.add("a"));
-        assertFalse(coll.done);
-        assertEquals(coll.size(), 1);
+        assertTrue(handler.test("a"));
+        assertFalse(handler.done);
+        assertEquals(list.size(), 1);
 
-        assertFalse(coll.add(DONE_ITEM));
-        assertTrue(coll.done);
-        assertEquals(coll.size(), 1);
+        assertFalse(handler.test(DONE_ITEM));
+        assertTrue(handler.done);
+        assertEquals(list.size(), 1);
 
         exception.expect(AssertionError.class);
-        coll.add(DONE_ITEM);
+        handler.test(DONE_ITEM);
     }
 
 }

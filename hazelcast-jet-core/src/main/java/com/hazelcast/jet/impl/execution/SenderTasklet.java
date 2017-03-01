@@ -137,7 +137,7 @@ public class SenderTasklet implements Tasklet {
     }
 
     /**
-     * Given an uncompressed {@code sentSeq} and a compressed {@code sendSeqLimit}, tells
+     * Given an uncompressed {@code sentSeq} and a compressed {@code sendSeqLimitCompressed}, tells
      * whether the {@code sentSeq} is within the limit specified by the compressed seq.
      */
     // The operations and types in this method must be carefully chosen to properly

@@ -16,17 +16,25 @@
 
 package com.hazelcast.jet.impl.execution;
 
+import com.hazelcast.jet.JetException;
 import com.hazelcast.jet.impl.util.ProgressState;
+import com.hazelcast.jet.windowing.example.WatermarkWithTime;
+import com.hazelcast.util.function.Predicate;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 
+import static com.hazelcast.jet.impl.util.ProgressState.DONE;
 import static org.junit.Assert.assertEquals;
 
 public class ConcurrentInboundEdgeStreamTest {
+
+    @Rule
+    public ExpectedException exception = ExpectedException.none();
 
     @Test
     public void when_twoEmittersOneDoneFirst_then_madeProgress() {
@@ -48,7 +56,7 @@ public class ConcurrentInboundEdgeStreamTest {
         progressState = stream.drainTo(list);
         // emitter2 returned 7 and now both emitters are done
         assertEquals(Collections.singletonList(7), list);
-        assertEquals(ProgressState.DONE, progressState);
+        assertEquals(DONE, progressState);
 
         // both emitters are now done and made no progress since last call
         list.clear();
@@ -71,7 +79,7 @@ public class ConcurrentInboundEdgeStreamTest {
         // emitter1 returned 1 and 2; emitter2 returned 6
         // both are now done
         assertEquals(Arrays.asList(1, 2, 6), list);
-        assertEquals(ProgressState.DONE, progressState);
+        assertEquals(DONE, progressState);
     }
 
     @Test
@@ -122,6 +130,71 @@ public class ConcurrentInboundEdgeStreamTest {
         assertEquals(ProgressState.WAS_ALREADY_DONE, progressState);
     }
 
+    @Test
+    public void when_watermark_then_drainOthers() {
+        IntegerSequenceWithWatermarksEmitter emitter1 = new IntegerSequenceWithWatermarksEmitter(0, 3, 1);
+        IntegerSequenceWithWatermarksEmitter emitter2 = new IntegerSequenceWithWatermarksEmitter(0, 3, 1);
+
+        ConcurrentInboundEdgeStream stream = new ConcurrentInboundEdgeStream(
+                new InboundEmitter[]{emitter1, emitter2}, 0, 0);
+
+        ArrayList<Object> list = new ArrayList<>();
+        ProgressState progressState = stream.drainTo(list);
+
+        assertEquals(Arrays.asList(0, 1, 0, 1, new WatermarkWithTime(1), 2, 2), list);
+        assertEquals(DONE, progressState);
+    }
+
+    @Test
+    public void when_watermarkDontMatch_then_error() {
+        IntegerSequenceWithWatermarksEmitter emitter1 = new IntegerSequenceWithWatermarksEmitter(0, 3, 0);
+        IntegerSequenceWithWatermarksEmitter emitter2 = new IntegerSequenceWithWatermarksEmitter(0, 3, 1);
+
+        ConcurrentInboundEdgeStream stream = new ConcurrentInboundEdgeStream(
+                new InboundEmitter[]{emitter1, emitter2}, 0, 0);
+
+        ArrayList<Object> list = new ArrayList<>();
+        exception.expect(JetException.class);
+        exception.expectMessage("Watermark");
+        ProgressState progressState = stream.drainTo(list);
+    }
+
+    private static final class IntegerSequenceWithWatermarksEmitter implements InboundEmitter {
+
+        private int currentValue;
+        private final int endValue;
+        private final int[] watermarksAfter;
+        private int watermarkPos;
+
+        /**
+         * @param startAt Value to start at
+         * @param endValue Value to end before
+         * @param watermarksAfter After this values, there will be a watermark
+         */
+        IntegerSequenceWithWatermarksEmitter(int startAt, int endValue, int ... watermarksAfter) {
+            currentValue = startAt;
+            this.endValue = endValue;
+            this.watermarksAfter = watermarksAfter;
+            Arrays.sort(watermarksAfter); // for sure
+        }
+
+        @Override
+        public ProgressState drainTo(Predicate<Object> itemHandler) {
+            boolean shouldContinue = true;
+            while (shouldContinue && currentValue < endValue) {
+                if (watermarkPos < watermarksAfter.length && watermarksAfter[watermarkPos] < currentValue) {
+                    shouldContinue = itemHandler.test(new WatermarkWithTime(watermarksAfter[watermarkPos]));
+                    watermarkPos++;
+                }
+                else {
+                    shouldContinue = itemHandler.test(currentValue++);
+                }
+            }
+
+            return ProgressState.valueOf(true, currentValue >= endValue);
+        }
+    }
+
     private static final class IntegerSequenceEmitter implements InboundEmitter {
 
         private int currentValue;
@@ -140,10 +213,11 @@ public class ConcurrentInboundEdgeStreamTest {
         }
 
         @Override
-        public ProgressState drainTo(Collection<Object> dest) {
+        public ProgressState drainTo(Predicate<Object> itemHandler) {
             int i;
             for (i = 0; i < drainSize && currentValue < endValue; i++, currentValue++)
-                dest.add(currentValue);
+                if ( ! itemHandler.test(currentValue))
+                    break;
 
             return ProgressState.valueOf(i > 0, currentValue >= endValue);
         }
@@ -154,7 +228,7 @@ public class ConcurrentInboundEdgeStreamTest {
         boolean done;
 
         @Override
-        public ProgressState drainTo(Collection<Object> dest) {
+        public ProgressState drainTo(Predicate<Object> itemHandler) {
             return done ? ProgressState.WAS_ALREADY_DONE : ProgressState.NO_PROGRESS;
         }
     }

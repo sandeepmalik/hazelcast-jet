@@ -17,9 +17,8 @@
 package com.hazelcast.jet.impl.execution;
 
 import com.hazelcast.jet.impl.util.ProgressState;
-
-import java.util.Collection;
+import com.hazelcast.util.function.Predicate;
 
 public interface InboundEmitter {
-    ProgressState drainTo(Collection<Object> dest);
+    ProgressState drainTo(Predicate<Object> itemHandler);
 }
