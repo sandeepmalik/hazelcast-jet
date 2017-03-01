@@ -348,7 +348,7 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
         Arrays.setAll(concurrentConveyors, i -> {
             QueuedPipe<Object>[] queues = new QueuedPipe[queueCount];
             Arrays.setAll(queues, j -> new OneToOneConcurrentArrayQueue<>(queueSize));
-            return concurrentConveyor(DONE_ITEM, queues);
+            return concurrentConveyor(null, queues);
         });
         return concurrentConveyors;
     }
