@@ -17,6 +17,8 @@
 
 package com.hazelcast.internal.util.concurrent.update;
 
+import com.hazelcast.util.function.Predicate;
+
 import java.util.Collection;
 
 /**
@@ -63,7 +65,7 @@ public interface Pipe<E> {
      * @param itemHandler the element handler
      * @return the number of drained items
      */
-    int drain(ToBooleanFunction<? super E> itemHandler);
+    int drain(Predicate<? super E> itemHandler);
 
     /**
      * Drain available items into the provided {@link Collection} up to a
