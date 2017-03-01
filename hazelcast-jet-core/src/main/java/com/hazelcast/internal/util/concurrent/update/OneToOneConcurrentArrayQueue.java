@@ -69,7 +69,7 @@ public class OneToOneConcurrentArrayQueue<E> extends AbstractConcurrentArrayQueu
 
     @Override
     @SuppressWarnings("unchecked")
-    public int drain(ToBooleanFunction<E> elementHandler) {
+    public int drain(ToBooleanFunction<? super E> elementHandler) {
         final AtomicReferenceArray<E> buffer = this.buffer;
         final long mask = this.capacity - 1;
         final long acquiredHead = head;
