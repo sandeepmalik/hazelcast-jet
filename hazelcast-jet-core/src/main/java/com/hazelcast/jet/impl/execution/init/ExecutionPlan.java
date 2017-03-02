@@ -81,8 +81,8 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
     private static final ILogger LOGGER = Logger.getLogger(ExecutionPlan.class);
 
     private final List<Tasklet> tasklets = new ArrayList<>();
-    // vertex id --> ordinal --> receiver tasklet
-    private final Map<Integer, Map<Integer, ReceiverTasklet>> receiverMap = new HashMap<>();
+    // dest vertex id --> dest ordinal --> sender addr -> receiver tasklet
+    private final Map<Integer, Map<Integer, Map<Address, ReceiverTasklet>>> receiverMap = new HashMap<>();
     // dest vertex id --> dest ordinal --> dest addr --> sender tasklet
     private final Map<Integer, Map<Integer, Map<Address, SenderTasklet>>> senderMap = new HashMap<>();
 
@@ -144,7 +144,7 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
     }
 
     private static void initPartitionOwnersAndMembers(NodeEngine nodeEngine, Collection<Member> members,
-            Address[] partitionOwners) {
+                                                      Address[] partitionOwners) {
         ClusterService clusterService = nodeEngine.getClusterService();
         IPartitionService partitionService = nodeEngine.getPartitionService();
         for (int partitionId = 0; partitionId < partitionOwners.length; partitionId++) {
@@ -189,14 +189,19 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
                 tasklets.add(new ProcessorTasklet(srcVertex.name(), context, p, inboundStreams, outboundStreams));
             }
         }
-        tasklets.addAll(receiverMap.values().stream().map(Map::values).flatMap(Collection::stream).collect(toList()));
+        List<ReceiverTasklet> allReceivers = receiverMap.values().stream()
+                                                        .flatMap(o -> o.values().stream())
+                                                        .flatMap(a -> a.values().stream())
+                                                        .collect(toList());
+
+        tasklets.addAll(allReceivers);
     }
 
     public List<ProcessorSupplier> getProcessorSuppliers() {
         return vertices.stream().map(VertexDef::processorSupplier).collect(toList());
     }
 
-    public Map<Integer, Map<Integer, ReceiverTasklet>> getReceiverMap() {
+    public Map<Integer, Map<Integer, Map<Address, ReceiverTasklet>>> getReceiverMap() {
         return receiverMap;
     }
 
@@ -295,13 +300,19 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
      */
     private List<OutboundEdgeStream> createOutboundEdgeStreams(VertexDef srcVertex, int processorIdx) {
         final List<OutboundEdgeStream> outboundStreams = new ArrayList<>();
+        int numRemoteMembers = partitionOwners.length - 1; // exclude self
         for (EdgeDef edge : srcVertex.outboundEdges()) {
-            // each edge has an array of conveyors
-            // one conveyor per consumer - each conveyor has one queue per producer
-            // giving the total number of queues = producers * consumers
+            /*
+             * Each edge is represented by an array of conveyors between the producers and consumers
+             * There are as many conveyors as there are consumers.
+             * Each conveyor has one queue per producer.
+             *
+             * For a distributed edge, there is one additional producer per member represented
+             * by the ReceiverTasklet.
+             */
             localConveyorMap.computeIfAbsent(edge.edgeId(),
                     e -> createConveyorArray(edge.destVertex().parallelism(),
-                            srcVertex.parallelism() + (edge.isDistributed() ? 1 : 0),
+                            srcVertex.parallelism() + (edge.isDistributed() ? numRemoteMembers : 0),
                             edge.getConfig().getQueueSize()));
             final Map<Address, ConcurrentConveyor<Object>> memberToSenderConveyorMap =
                     edge.isDistributed() ? memberToSenderConveyorMap(edgeSenderConveyorMap, edge) : null;
@@ -383,15 +394,28 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
 
     private void createIfAbsentReceiverTasklet(EdgeDef edge, int[][] ptionsPerProcessor, int totalPtionCount) {
         final ConcurrentConveyor<Object>[] localConveyors = localConveyorMap.get(edge.edgeId());
+
         receiverMap.computeIfAbsent(edge.destVertex().vertexId(), x -> new HashMap<>())
                    .computeIfAbsent(edge.destOrdinal(), x -> {
-                       final OutboundCollector[] collectors = new OutboundCollector[ptionsPerProcessor.length];
-                       Arrays.setAll(collectors, n -> new ConveyorCollector(
-                               localConveyors[n], localConveyors[n].queueCount() - 1, ptionsPerProcessor[n]));
-                       final OutboundCollector collector = compositeCollector(collectors, edge, totalPtionCount);
-                       final int senderCount = nodeEngine.getClusterService().getSize() - 1;
-                       return new ReceiverTasklet(collector, edge.getConfig().getReceiveWindowMultiplier(),
-                               getConfig().getInstanceConfig().getFlowControlPeriodMs(), senderCount);
+                       Map<Address, ReceiverTasklet> addrToTasklet = new HashMap<>();
+                       //create a receiver per address
+                       for (int i = 0; i < partitionOwners.length; i++) {
+                           Address addr = partitionOwners[i];
+                           if (addr.equals(nodeEngine.getThisAddress())) {
+                               continue;
+                           }
+                           final OutboundCollector[] collectors = new OutboundCollector[ptionsPerProcessor.length];
+                           // each receiver per member gets a queue in each conveyor, and start counting from the end
+                           final int queueOffset = - i - 1;
+                           Arrays.setAll(collectors, n -> new ConveyorCollector(
+                                   localConveyors[n], localConveyors[n].queueCount() + queueOffset, ptionsPerProcessor[n]));
+                           final OutboundCollector collector = compositeCollector(collectors, edge, totalPtionCount);
+                           final int senderCount = nodeEngine.getClusterService().getSize() - 1;
+                           ReceiverTasklet receiverTasklet = new ReceiverTasklet(collector, edge.getConfig().getReceiveWindowMultiplier(),
+                                   getConfig().getInstanceConfig().getFlowControlPeriodMs(), senderCount);
+                           addrToTasklet.put(addr, receiverTasklet);
+                       }
+                       return addrToTasklet;
                    });
     }
 
