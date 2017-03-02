@@ -51,6 +51,16 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
         this.queueDone = new BitSet(conveyor.queueCount());
     }
 
+    /**
+     * Drains all inbound queues into the {@code dest} collection.
+     *
+     * <p>Non-watermarks are drained directly. When a {@link Watermark} is encountered in particular queue,
+     * we stop draining from that queue and drain other queues, until we receive {@link Object#equals(Object) equal}
+     * watermarks from all of them. Only then we insert the watermark to {@code dest} collection.
+     *
+     * <p>Receiving non-equal watermark produces an error. So does receiving a new watermark, when some
+     * queue is already done or a when queue becomes done without emitting expected watermark.
+     */
     @Override
     public ProgressState drainTo(Collection<Object> dest) {
         tracker.reset();

@@ -26,24 +26,36 @@ import java.util.Collection;
 
 import static com.hazelcast.jet.impl.execution.DoneWatermark.DONE_WM;
 
-final class WatermarkDetector implements Predicate<Object> {
+/**
+ * Utility to drain queues in the conveyor, while watching for {@link Watermark}s.
+ */
+final class WatermarkDetector {
     private Collection<Object> dest;
     private Watermark wm;
 
-    @Override
-    public boolean test(Object o) {
+    private Predicate<Object> itemHandler = o -> {
         if (o instanceof Watermark) {
+            assert wm == null;
             wm = (Watermark) o;
             return false;
         }
         return dest.add(o);
-    }
+    };
 
-    Watermark drainWithWatermarkDetection(ConcurrentConveyor<Object> conveyor, int queueIndex, ProgressTracker tracker, Collection<Object> dest) {
+    /**
+     * Drains the queue at {@code queueIndex} into a {@code dest} collection, up to the next
+     * {@link Watermark}. Also updates the {@code tracker} with new status.
+     *
+     * @return Watermark, if found, or null
+     */
+    Watermark drainWithWatermarkDetection(ConcurrentConveyor<Object> conveyor, int queueIndex, ProgressTracker tracker,
+            Collection<Object> dest) {
         this.dest = dest;
         wm = null;
 
-        int drainedCount = conveyor.drain(queueIndex, this);
+        int drainedCount = conveyor.drain(queueIndex, itemHandler);
+
+        // note: progress is reported even if only DONE_ITEM is drained
         tracker.mergeWith(ProgressState.valueOf(drainedCount > 0, wm == DONE_WM));
 
         this.dest = null;
