@@ -20,9 +20,10 @@ package com.hazelcast.internal.util.concurrent.update;
 import java.util.Queue;
 
 /**
- * Composed interface for concurrent queues and sequenced containers.
+ * Interface that composes the JDK standard {@link Queue} with the
+ * custom {@link Pipe}.
  *
- * @param <E> type of the elements stored in the {@link Queue}.
+ * @param <E> type of the items stored in the queue.
  */
 public interface QueuedPipe<E> extends Queue<E>, Pipe<E> {
 }
