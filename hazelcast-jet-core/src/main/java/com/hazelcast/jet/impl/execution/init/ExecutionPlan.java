@@ -408,11 +408,12 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
                            // each receiver per member gets a queue in each conveyor, and start counting from the end
                            final int queueOffset = - i - 1;
                            Arrays.setAll(collectors, n -> new ConveyorCollector(
-                                   localConveyors[n], localConveyors[n].queueCount() + queueOffset, ptionsPerProcessor[n]));
+                                   localConveyors[n], localConveyors[n].queueCount() + queueOffset,
+                                   ptionsPerProcessor[n]));
                            final OutboundCollector collector = compositeCollector(collectors, edge, totalPtionCount);
-                           final int senderCount = nodeEngine.getClusterService().getSize() - 1;
-                           ReceiverTasklet receiverTasklet = new ReceiverTasklet(collector, edge.getConfig().getReceiveWindowMultiplier(),
-                                   getConfig().getInstanceConfig().getFlowControlPeriodMs(), senderCount);
+                           ReceiverTasklet receiverTasklet = new ReceiverTasklet(
+                                   collector, edge.getConfig().getReceiveWindowMultiplier(),
+                                   getConfig().getInstanceConfig().getFlowControlPeriodMs());
                            addrToTasklet.put(addr, receiverTasklet);
                        }
                        return addrToTasklet;
