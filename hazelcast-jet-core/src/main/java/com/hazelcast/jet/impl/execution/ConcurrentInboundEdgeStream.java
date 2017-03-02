@@ -21,6 +21,7 @@ import com.hazelcast.jet.JetException;
 import com.hazelcast.jet.Watermark;
 import com.hazelcast.jet.impl.util.ProgressState;
 import com.hazelcast.jet.impl.util.ProgressTracker;
+import com.hazelcast.util.function.Predicate;
 
 import java.util.BitSet;
 import java.util.Collection;
@@ -72,7 +73,7 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
                 tracker.notDone();
                 continue;
             }
-            Watermark wm = wmDetector.drainWithWatermarkDetection(conveyor, queueIndex, tracker, dest);
+            Watermark wm = drainWithWatermarkDetection(queueIndex, dest);
             if (wm == null) {
                 continue;
             }
@@ -120,6 +121,25 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
         }
     }
 
+    /**
+     * Drains the queue at {@code queueIndex} into a {@code dest} collection, up to the next
+     * {@link Watermark}. Also updates the {@code tracker} with new status.
+     *
+     * @return Watermark, if found, or null
+     */
+    private Watermark drainWithWatermarkDetection(int queueIndex, Collection<Object> dest) {
+        wmDetector.dest = dest;
+        wmDetector.wm = null;
+
+        int drainedCount = conveyor.drain(queueIndex, wmDetector);
+
+        // note: progress is reported even if only DONE_ITEM is drained
+        tracker.mergeWith(ProgressState.valueOf(drainedCount > 0, wmDetector.wm == DONE_WM));
+
+        wmDetector.dest = null;
+        return wmDetector.wm;
+    }
+
     @Override
     public int ordinal() {
         return ordinal;
@@ -128,6 +148,24 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
     @Override
     public int priority() {
         return priority;
+    }
+
+    /**
+     * Utility to drain queues in the conveyor, while watching for {@link Watermark}s.
+     */
+    private static final class WatermarkDetector implements Predicate<Object> {
+        Collection<Object> dest;
+        Watermark wm;
+
+        @Override
+        public boolean test(Object o) {
+            if (o instanceof Watermark) {
+                assert wm == null;
+                wm = (Watermark) o;
+                return false;
+            }
+            return dest.add(o);
+        }
     }
 }
 
