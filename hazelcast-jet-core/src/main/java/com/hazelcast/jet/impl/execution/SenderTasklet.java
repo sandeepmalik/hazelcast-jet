@@ -34,7 +34,7 @@ import java.util.Queue;
 import static com.hazelcast.jet.impl.Networking.createStreamPacketHeader;
 import static com.hazelcast.jet.impl.execution.ReceiverTasklet.compressSeq;
 import static com.hazelcast.jet.impl.execution.ReceiverTasklet.estimatedMemoryFootprint;
-import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
+import static com.hazelcast.jet.impl.execution.DoneWatermark.DONE_WM;
 import static com.hazelcast.jet.impl.util.Util.createObjectDataOutput;
 import static com.hazelcast.jet.impl.util.Util.getMemberConnection;
 import static com.hazelcast.jet.impl.util.Util.uncheckRun;
@@ -96,7 +96,7 @@ public class SenderTasklet implements Tasklet {
         progTracker.madeProgress(result.isMadeProgress());
         instreamExhausted = result.isDone();
         if (instreamExhausted) {
-            inbox.add(new ObjectWithPartitionId(DONE_ITEM, -1));
+            inbox.add(new ObjectWithPartitionId(DONE_WM, -1));
         }
     }
 

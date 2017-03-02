@@ -30,7 +30,7 @@ import java.util.Arrays;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicLongArray;
 
-import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
+import static com.hazelcast.jet.impl.execution.DoneWatermark.DONE_WM;
 import static com.hazelcast.jet.impl.util.ExceptionUtil.rethrow;
 import static java.lang.Math.ceil;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -112,7 +112,7 @@ public class ReceiverTasklet implements Tasklet {
         tryFillInbox();
         for (ObjPtionAndSenderId o; (o = inbox.peek()) != null; ) {
             final Object item = o.getItem();
-            if (item == DONE_ITEM) {
+            if (item == DONE_WM) {
                 remainingSenders--;
             } else {
                 ProgressState outcome = collector.offer(item, o.getPartitionId());
@@ -126,7 +126,7 @@ public class ReceiverTasklet implements Tasklet {
             ackItem(o.senderId, o.estimatedMemoryFootprint);
         }
         if (remainingSenders == 0) {
-            tracker.mergeWith(collector.offerWatermark(DONE_ITEM));
+            tracker.mergeWith(collector.offerWatermark(DONE_WM));
         } else {
             tracker.notDone();
         }

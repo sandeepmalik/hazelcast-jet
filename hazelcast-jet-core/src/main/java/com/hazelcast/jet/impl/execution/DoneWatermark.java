@@ -20,17 +20,16 @@ import com.hazelcast.jet.Watermark;
 
 import java.io.Serializable;
 
-class DoneItem implements Watermark, Serializable {
+class DoneWatermark implements Watermark, Serializable {
 
-    static final DoneItem DONE_ITEM = new DoneItem();
+    static final DoneWatermark DONE_WM = new DoneWatermark();
 
     @Override
     public String toString() {
-        return "DONE_ITEM";
+        return "DONE_WM";
     }
 
     protected Object readResolve() {
-        return DONE_ITEM;
+        return DONE_WM;
     }
-
 }

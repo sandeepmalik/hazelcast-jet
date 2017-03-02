@@ -31,7 +31,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 
-import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
+import static com.hazelcast.jet.impl.execution.DoneWatermark.DONE_WM;
 import static com.hazelcast.jet.impl.util.ProgressState.DONE;
 import static com.hazelcast.jet.impl.util.ProgressState.MADE_PROGRESS;
 import static org.junit.Assert.assertEquals;
@@ -59,7 +59,7 @@ public class ConcurrentInboundEdgeStreamTest {
         ArrayList<Object> list = new ArrayList<>();
         q1.add(1);
         q1.add(2);
-        q1.add(DONE_ITEM);
+        q1.add(DONE_WM);
         q2.add(6);
         ProgressState progressState = stream.drainTo(list);
         assertEquals(Arrays.asList(1, 2, 6), list);
@@ -67,7 +67,7 @@ public class ConcurrentInboundEdgeStreamTest {
 
         list.clear();
         q2.add(7);
-        q2.add(DONE_ITEM);
+        q2.add(DONE_WM);
         progressState = stream.drainTo(list);
         // emitter2 returned 7 and now both emitters are done
         assertEquals(Collections.singletonList(7), list);
@@ -85,9 +85,9 @@ public class ConcurrentInboundEdgeStreamTest {
         ArrayList<Object> list = new ArrayList<>();
         q1.add(1);
         q1.add(2);
-        q1.add(DONE_ITEM);
+        q1.add(DONE_WM);
         q2.add(6);
-        q2.add(DONE_ITEM);
+        q2.add(DONE_WM);
         ProgressState progressState = stream.drainTo(list);
 
         // emitter1 returned 1 and 2; emitter2 returned 6
@@ -99,8 +99,8 @@ public class ConcurrentInboundEdgeStreamTest {
     @Test
     public void when_allEmittersInitiallyDone_then_firstCallDone() {
         ArrayList<Object> list = new ArrayList<>();
-        q1.add(DONE_ITEM);
-        q2.add(DONE_ITEM);
+        q1.add(DONE_WM);
+        q2.add(DONE_WM);
         ProgressState progressState = stream.drainTo(list);
 
         assertEquals(0, list.size());
@@ -116,7 +116,7 @@ public class ConcurrentInboundEdgeStreamTest {
     public void when_oneEmitterWithNoProgress_then_noProgress() {
         ArrayList<Object> list = new ArrayList<>();
         q2.add(1);
-        q2.add(DONE_ITEM);
+        q2.add(DONE_WM);
         ProgressState progressState = stream.drainTo(list);
 
         assertEquals(Collections.singletonList(1), list);
@@ -128,7 +128,7 @@ public class ConcurrentInboundEdgeStreamTest {
         assertEquals(ProgressState.NO_PROGRESS, progressState);
 
         // now make emitter1 done, without returning anything
-        q1.add(DONE_ITEM);
+        q1.add(DONE_WM);
 
         list.clear();
         progressState = stream.drainTo(list);
@@ -149,7 +149,7 @@ public class ConcurrentInboundEdgeStreamTest {
             q.add(1);
             q.add(new WatermarkWithTime(1));
             q.add(2);
-            q.add(DONE_ITEM);
+            q.add(DONE_WM);
         }
 
         ProgressState progressState = stream.drainTo(list);
@@ -169,7 +169,7 @@ public class ConcurrentInboundEdgeStreamTest {
         q1.add(1);
         q1.add(new WatermarkWithTime(1));
         q1.add(2);
-        q1.add(DONE_ITEM);
+        q1.add(DONE_WM);
         q2.add(3);
         q2.add(4);
         ProgressState progressState = stream.drainTo(list);
@@ -180,7 +180,7 @@ public class ConcurrentInboundEdgeStreamTest {
         q2.add(5);
         q2.add(6);
         q2.add(new WatermarkWithTime(1));
-        q2.add(DONE_ITEM);
+        q2.add(DONE_WM);
         progressState = stream.drainTo(list);
         assertEquals(Arrays.asList(5, 6, new WatermarkWithTime(1)), list);
         assertEquals(MADE_PROGRESS, progressState);
@@ -198,9 +198,9 @@ public class ConcurrentInboundEdgeStreamTest {
 
         ArrayList<Object> list = new ArrayList<>();
         q1.add(wm1);
-        q1.add(DONE_ITEM);
+        q1.add(DONE_WM);
         q2.add(wm2);
-        q2.add(DONE_ITEM);
+        q2.add(DONE_WM);
 
         exception.expect(JetException.class);
         exception.expectMessage("Watermark emitted by one processor not equal to watermark emitted by another one");
@@ -214,8 +214,8 @@ public class ConcurrentInboundEdgeStreamTest {
         ArrayList<Object> list = new ArrayList<>();
         WatermarkWithTime wm = new WatermarkWithTime(0);
         q1.add(wm);
-        q1.add(DONE_ITEM);
-        q2.add(DONE_ITEM);
+        q1.add(DONE_WM);
+        q2.add(DONE_WM);
 
         exception.expect(JetException.class);
         exception.expectMessage("Processor completed without first emitting a watermark, that was already emitted by "
@@ -227,9 +227,9 @@ public class ConcurrentInboundEdgeStreamTest {
     public void when_oneDoneOtherWithWm_then_error() {
         ArrayList<Object> list = new ArrayList<>();
         WatermarkWithTime wm = new WatermarkWithTime(0);
-        q1.add(DONE_ITEM);
+        q1.add(DONE_WM);
         q2.add(wm);
-        q2.add(DONE_ITEM);
+        q2.add(DONE_WM);
 
         exception.expect(JetException.class);
         exception.expectMessage("Received a new watermark after some processor already completed (wm=" + wm + ")");

@@ -36,7 +36,7 @@ import java.util.Queue;
 import java.util.TreeMap;
 import java.util.stream.Stream;
 
-import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
+import static com.hazelcast.jet.impl.execution.DoneWatermark.DONE_WM;
 import static java.util.Comparator.comparing;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toCollection;
@@ -100,7 +100,7 @@ public class ProcessorTasklet implements Tasklet {
             tryProcessInbox();
         } else if (currInstreamExhausted) {
             progTracker.madeProgress(true);
-            if (processor.tryProcessWatermark(currInstream.ordinal(), DONE_ITEM)) {
+            if (processor.tryProcessWatermark(currInstream.ordinal(), DONE_WM)) {
                 currInstream = null;
             }
         }
@@ -167,7 +167,7 @@ public class ProcessorTasklet implements Tasklet {
         }
         processorCompleted = true;
         for (OutboundEdgeStream outstream : outstreams) {
-            outbox.add(outstream.ordinal(), DONE_ITEM);
+            outbox.add(outstream.ordinal(), DONE_WM);
         }
     }
 

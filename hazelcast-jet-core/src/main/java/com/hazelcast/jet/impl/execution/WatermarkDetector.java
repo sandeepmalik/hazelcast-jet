@@ -24,7 +24,7 @@ import com.hazelcast.util.function.Predicate;
 
 import java.util.Collection;
 
-import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
+import static com.hazelcast.jet.impl.execution.DoneWatermark.DONE_WM;
 
 final class WatermarkDetector implements Predicate<Object> {
     private Collection<Object> dest;
@@ -44,7 +44,7 @@ final class WatermarkDetector implements Predicate<Object> {
         wm = null;
 
         int drainedCount = conveyor.drain(queueIndex, this);
-        tracker.mergeWith(ProgressState.valueOf(drainedCount > 0, wm == DONE_ITEM));
+        tracker.mergeWith(ProgressState.valueOf(drainedCount > 0, wm == DONE_WM));
 
         this.dest = null;
         return wm;

@@ -25,7 +25,7 @@ import com.hazelcast.jet.impl.util.ProgressTracker;
 import java.util.BitSet;
 import java.util.Collection;
 
-import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
+import static com.hazelcast.jet.impl.execution.DoneWatermark.DONE_WM;
 
 /**
  * {@code InboundEdgeStream} implemented in terms of a {@code ConcurrentConveyor}. The conveyor has as many
@@ -68,7 +68,7 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
             }
             // we've got watermark, handle it
             validateWatermark(wm);
-            if (wm == DONE_ITEM) {
+            if (wm == DONE_WM) {
                 queueDone.set(queueIndex);
                 continue;
             }
@@ -94,14 +94,14 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
 
     private void validateWatermark(Watermark wm) {
         if (currentWm == null) {
-            if (wm != null && wm != DONE_ITEM && queueDone.nextSetBit(0) >= 0) {
-                throw new JetException("Received a new watermark after some processor already completed (wm=" + wm + ")");
+            if (wm != null && wm != DONE_WM && queueDone.nextSetBit(0) >= 0) {
+                throw new JetException("Received a new watermark after some processor already completed (wm=" + wm + ')');
             }
             return;
         }
-        if (wm == DONE_ITEM) {
+        if (wm == DONE_WM) {
             throw new JetException("Processor completed without first emitting a watermark, that was already emitted by "
-                    + "another processor (wm=" + currentWm + ")");
+                    + "another processor (wm=" + currentWm + ')');
         }
         if (!wm.equals(currentWm)) {
             throw new JetException("Watermark emitted by one processor not equal to watermark emitted by "

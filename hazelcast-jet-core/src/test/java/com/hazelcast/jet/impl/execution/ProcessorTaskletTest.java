@@ -33,7 +33,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.stream.IntStream;
 
-import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
+import static com.hazelcast.jet.impl.execution.DoneWatermark.DONE_WM;
 import static com.hazelcast.jet.impl.util.ProgressState.DONE;
 import static com.hazelcast.jet.impl.util.ProgressState.NO_PROGRESS;
 import static java.util.stream.Collectors.toList;
@@ -65,7 +65,7 @@ public class ProcessorTaskletTest {
     @Test
     public void when_singleInstreamAndOutstream_then_outstreamGetsAll() throws Exception {
         // Given
-        mockInput.add(DONE_ITEM);
+        mockInput.add(DONE_WM);
         MockInboundStream instream1 = new MockInboundStream(0, mockInput, mockInput.size());
         MockOutboundStream outstream1 = new MockOutboundStream(0, mockInput.size());
         instreams.add(instream1);
@@ -82,7 +82,7 @@ public class ProcessorTaskletTest {
     @Test
     public void when_oneInstreamAndTwoOutstreams_then_allOutstreamsGetAllItems() throws Exception {
         // Given
-        mockInput.add(DONE_ITEM);
+        mockInput.add(DONE_WM);
         MockInboundStream instream1 = new MockInboundStream(0, mockInput, mockInput.size());
         MockOutboundStream outstream1 = new MockOutboundStream(0, mockInput.size());
         MockOutboundStream outstream2 = new MockOutboundStream(1, mockInput.size());
@@ -102,7 +102,7 @@ public class ProcessorTaskletTest {
     @Test
     public void when_instreamChunked_then_processAllEventually() throws Exception {
         // Given
-        mockInput.add(DONE_ITEM);
+        mockInput.add(DONE_WM);
         MockInboundStream instream1 = new MockInboundStream(0, mockInput, 4);
         MockOutboundStream outstream1 = new MockOutboundStream(0, mockInput.size());
         instreams.add(instream1);
@@ -122,9 +122,9 @@ public class ProcessorTaskletTest {
         MockInboundStream instream1 = new MockInboundStream(0, mockInput.subList(0, 4), 4);
         MockInboundStream instream2 = new MockInboundStream(1, mockInput.subList(4, 8), 4);
         MockInboundStream instream3 = new MockInboundStream(2, mockInput.subList(8, 10), 4);
-        instream1.push(DONE_ITEM);
-        instream2.push(DONE_ITEM);
-        instream3.push(DONE_ITEM);
+        instream1.push(DONE_WM);
+        instream2.push(DONE_WM);
+        instream3.push(DONE_WM);
         MockOutboundStream outstream1 = new MockOutboundStream(0, 20);
         instreams.add(instream1);
         instreams.add(instream2);
@@ -136,7 +136,7 @@ public class ProcessorTaskletTest {
         callUntil(tasklet, DONE);
 
         // Then
-        mockInput.add(DONE_ITEM);
+        mockInput.add(DONE_WM);
         assertEquals(new HashSet<>(mockInput), new HashSet<>(outstream1.getBuffer()));
     }
 
