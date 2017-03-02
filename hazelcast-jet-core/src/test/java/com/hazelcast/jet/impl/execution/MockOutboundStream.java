@@ -22,8 +22,6 @@ import com.hazelcast.jet.impl.util.ProgressState;
 import java.util.ArrayList;
 import java.util.List;
 
-import static com.hazelcast.jet.impl.util.DoneItem.DONE_ITEM;
-
 public class MockOutboundStream extends OutboundEdgeStream {
 
     public MockOutboundStream(int ordinal, int capacity) {

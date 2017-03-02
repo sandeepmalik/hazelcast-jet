@@ -36,7 +36,7 @@ import java.util.Queue;
 import java.util.TreeMap;
 import java.util.stream.Stream;
 
-import static com.hazelcast.jet.impl.util.DoneItem.DONE_ITEM;
+import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
 import static java.util.Comparator.comparing;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toCollection;

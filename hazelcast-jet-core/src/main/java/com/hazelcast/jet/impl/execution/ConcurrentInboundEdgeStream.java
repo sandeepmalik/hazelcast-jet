@@ -16,6 +16,7 @@
 
 package com.hazelcast.jet.impl.execution;
 
+import com.hazelcast.internal.util.concurrent.update.ConcurrentConveyor;
 import com.hazelcast.jet.JetException;
 import com.hazelcast.jet.Watermark;
 import com.hazelcast.jet.impl.util.ProgressState;
@@ -23,6 +24,8 @@ import com.hazelcast.jet.impl.util.ProgressTracker;
 
 import java.util.BitSet;
 import java.util.Collection;
+
+import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
 
 /**
  * {@code InboundEdgeStream} implemented in terms of a {@code ConcurrentConveyor}. The conveyor has as many
@@ -32,50 +35,50 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
 
     private final int ordinal;
     private final int priority;
-    private final InboundEmitter[] emitters;
+    private final ConcurrentConveyor<Object> conveyor;
     private final ProgressTracker tracker;
     private Watermark currentWm;
     private final BitSet wmReceived;
-    private final CollectionWithWatermarkDetector wmDetector = new CollectionWithWatermarkDetector();
+    private final BitSet queueDone;
+    private final WatermarkDetector wmDetector = new WatermarkDetector();
 
-    public ConcurrentInboundEdgeStream(InboundEmitter[] emitters, int ordinal, int priority) {
-        this.emitters = emitters;
+    public ConcurrentInboundEdgeStream(ConcurrentConveyor<Object> conveyor, int ordinal, int priority) {
+        this.conveyor = conveyor;
         this.ordinal = ordinal;
         this.priority = priority;
         this.tracker = new ProgressTracker();
-        this.wmReceived = new BitSet(emitters.length);
+        this.wmReceived = new BitSet(conveyor.queueCount());
+        this.queueDone = new BitSet(conveyor.queueCount());
     }
 
     @Override
     public ProgressState drainTo(Collection<Object> dest) {
         tracker.reset();
-        wmDetector.wrapped = dest;
-        for (int i = 0; i < emitters.length; i++) {
-            InboundEmitter emitter = emitters[i];
-            if (emitter == null) {
+        for (int queueIndex = 0; queueIndex < conveyor.queueCount(); queueIndex++) {
+            if (queueDone.get(queueIndex)) {
                 continue;
             }
-            if (alreadyAtWatermark(i)) {
+            if (alreadyAtWatermark(queueIndex)) {
                 tracker.notDone();
                 continue;
             }
-            wmDetector.wm = null;
-            ProgressState result = emitter.drain(wmDetector::add);
-            tracker.mergeWith(result);
-            if (result.isDone()) {
-                emitters[i] = null;
-            }
-            if (!wmDetector.hasDetected()) {
+            Watermark wm = wmDetector.drainWithWatermarkDetection(conveyor, queueIndex, tracker, dest);
+            if (wm == null) {
                 continue;
             }
-            validateWatermark();
-            wmReceived.set(i);
-            currentWm = wmDetector.wm;
+            // we've got watermark, handle it
+            validateWatermark(wm);
+            if (wm == DONE_ITEM) {
+                queueDone.set(queueIndex);
+                continue;
+            }
+            wmReceived.set(queueIndex);
+            currentWm = wm;
             if (allWatermarksReceived()) {
                 dest.add(currentWm);
                 currentWm = null;
                 wmReceived.clear();
-                return tracker.toProgressState();
+                break;
             }
         }
         return tracker.toProgressState();
@@ -86,14 +89,25 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
     }
 
     private boolean allWatermarksReceived() {
-        return wmReceived.nextClearBit(0) == emitters.length;
+        return wmReceived.nextClearBit(0) == conveyor.queueCount();
     }
 
-    private void validateWatermark() {
-        if (currentWm != null && !wmDetector.wm.equals(currentWm))
+    private void validateWatermark(Watermark wm) {
+        if (currentWm == null) {
+            if (wm != null && wm != DONE_ITEM && queueDone.nextSetBit(0) >= 0) {
+                throw new JetException("Received a new watermark after some processor already completed (wm=" + wm + ")");
+            }
+            return;
+        }
+        if (wm == DONE_ITEM) {
+            throw new JetException("Processor completed without first emitting a watermark, that was already emitted by "
+                    + "another processor (wm=" + currentWm + ")");
+        }
+        if (!wm.equals(currentWm)) {
             throw new JetException("Watermark emitted by one processor not equal to watermark emitted by "
-                    + "another processor, wm1=" + currentWm + ", wm2=" + wmDetector.wm
+                    + "another one, wm1=" + currentWm + ", wm2=" + wm
                     + ", all processors must emit equal watermarks in the same order");
+        }
     }
 
     @Override

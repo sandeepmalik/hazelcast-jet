@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
+import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
 import static com.hazelcast.jet.impl.util.ProgressState.DONE;
 import static com.hazelcast.jet.impl.util.ProgressState.MADE_PROGRESS;
 import static com.hazelcast.jet.impl.util.ProgressState.NO_PROGRESS;
@@ -31,7 +32,6 @@ import static com.hazelcast.jet.impl.util.ProgressState.WAS_ALREADY_DONE;
 public class MockInboundStream implements InboundEdgeStream {
     private final int chunkSize;
     private final List<Object> mockData;
-    private final ItemHandlerWithDoneDetector doneDetector = new ItemHandlerWithDoneDetector();
     private final int ordinal;
     private int dataIndex;
     private boolean done;
@@ -56,16 +56,13 @@ public class MockInboundStream implements InboundEdgeStream {
         if (limit == dataIndex) {
             return NO_PROGRESS;
         }
-        doneDetector.wrapped = dest::add;
-        try {
-            for (; dataIndex < limit; dataIndex++) {
-                final Object item = mockData.get(dataIndex);
-                if (!doneDetector.test(item)) {
-                    done = true;
-                }
+        for (; dataIndex < limit; dataIndex++) {
+            final Object item = mockData.get(dataIndex);
+            if (item == DONE_ITEM) {
+                done = true;
+            } else {
+                dest.add(item);
             }
-        } finally {
-            doneDetector.wrapped = null;
         }
         return done ? DONE : MADE_PROGRESS;
     }
@@ -78,9 +75,5 @@ public class MockInboundStream implements InboundEdgeStream {
     @Override
     public int priority() {
         return 0;
-    }
-
-    boolean isDone() {
-        return done;
     }
 }

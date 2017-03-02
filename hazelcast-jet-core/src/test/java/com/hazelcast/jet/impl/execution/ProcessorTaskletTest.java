@@ -33,7 +33,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.stream.IntStream;
 
-import static com.hazelcast.jet.impl.util.DoneItem.DONE_ITEM;
+import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
 import static com.hazelcast.jet.impl.util.ProgressState.DONE;
 import static com.hazelcast.jet.impl.util.ProgressState.NO_PROGRESS;
 import static java.util.stream.Collectors.toList;
@@ -184,7 +184,6 @@ public class ProcessorTaskletTest {
     private static void callUntil(Tasklet tasklet, ProgressState expectedState) throws Exception {
         int iterCount = 0;
         for (ProgressState r; (r = tasklet.call()) != expectedState; ) {
-            System.out.println(r);
             assertTrue("Failed to make progress: " + r, r.isMadeProgress());
             assertTrue(String.format(
                     "tasklet.call() invoked %d times without reaching %s. Last state was %s",

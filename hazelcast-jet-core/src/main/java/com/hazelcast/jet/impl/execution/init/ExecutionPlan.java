@@ -36,9 +36,7 @@ import com.hazelcast.jet.impl.JetService;
 import com.hazelcast.jet.impl.execution.ConcurrentInboundEdgeStream;
 import com.hazelcast.jet.impl.execution.ConveyorCollector;
 import com.hazelcast.jet.impl.execution.ConveyorCollectorWithPartition;
-import com.hazelcast.jet.impl.execution.ConveyorEmitter;
 import com.hazelcast.jet.impl.execution.InboundEdgeStream;
-import com.hazelcast.jet.impl.execution.InboundEmitter;
 import com.hazelcast.jet.impl.execution.OutboundCollector;
 import com.hazelcast.jet.impl.execution.OutboundEdgeStream;
 import com.hazelcast.jet.impl.execution.ProcessorTasklet;
@@ -416,9 +414,7 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
     private static ConcurrentInboundEdgeStream createInboundEdgeStream(
             int ordinal, int priority, ConcurrentConveyor<Object> conveyor
     ) {
-        final InboundEmitter[] emitters = new InboundEmitter[conveyor.queueCount()];
-        Arrays.setAll(emitters, n -> new ConveyorEmitter(conveyor, n));
-        return new ConcurrentInboundEdgeStream(emitters, ordinal, priority);
+        return new ConcurrentInboundEdgeStream(conveyor, ordinal, priority);
     }
 }
 

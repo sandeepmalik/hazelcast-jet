@@ -16,9 +16,21 @@
 
 package com.hazelcast.jet.impl.execution;
 
-import com.hazelcast.jet.impl.util.ProgressState;
-import com.hazelcast.util.function.Predicate;
+import com.hazelcast.jet.Watermark;
 
-public interface InboundEmitter {
-    ProgressState drain(Predicate<Object> itemHandler);
+import java.io.Serializable;
+
+class DoneItem implements Watermark, Serializable {
+
+    static final DoneItem DONE_ITEM = new DoneItem();
+
+    @Override
+    public String toString() {
+        return "DONE_ITEM";
+    }
+
+    protected Object readResolve() {
+        return DONE_ITEM;
+    }
+
 }

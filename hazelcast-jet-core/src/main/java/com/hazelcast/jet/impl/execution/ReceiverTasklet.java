@@ -30,7 +30,7 @@ import java.util.Arrays;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicLongArray;
 
-import static com.hazelcast.jet.impl.util.DoneItem.DONE_ITEM;
+import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
 import static com.hazelcast.jet.impl.util.ExceptionUtil.rethrow;
 import static java.lang.Math.ceil;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;

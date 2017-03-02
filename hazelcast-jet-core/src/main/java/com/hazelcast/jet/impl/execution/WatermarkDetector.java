@@ -17,29 +17,36 @@
 package com.hazelcast.jet.impl.execution;
 
 import com.hazelcast.internal.util.concurrent.update.ConcurrentConveyor;
+import com.hazelcast.jet.Watermark;
 import com.hazelcast.jet.impl.util.ProgressState;
+import com.hazelcast.jet.impl.util.ProgressTracker;
 import com.hazelcast.util.function.Predicate;
 
-public class ConveyorEmitter implements InboundEmitter {
+import java.util.Collection;
 
-    private final ItemHandlerWithDoneDetector doneDetector = new ItemHandlerWithDoneDetector();
-    private final ConcurrentConveyor<Object> conveyor;
-    private final int queueIndex;
+import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
 
-    public ConveyorEmitter(ConcurrentConveyor<Object> conveyor, int queueIndex) {
-        this.conveyor = conveyor;
-        this.queueIndex = queueIndex;
-    }
+final class WatermarkDetector implements Predicate<Object> {
+    private Collection<Object> dest;
+    private Watermark wm;
 
     @Override
-    public ProgressState drain(Predicate<Object> itemHandler) {
-        doneDetector.wrapped = itemHandler;
-        try {
-            int drainedCount = conveyor.drain(queueIndex, itemHandler);
-            return ProgressState.valueOf(drainedCount > 0, doneDetector.done);
-        } finally {
-            doneDetector.wrapped = null;
+    public boolean test(Object o) {
+        if (o instanceof Watermark) {
+            wm = (Watermark) o;
+            return false;
         }
+        return dest.add(o);
     }
 
+    Watermark drainWithWatermarkDetection(ConcurrentConveyor<Object> conveyor, int queueIndex, ProgressTracker tracker, Collection<Object> dest) {
+        this.dest = dest;
+        wm = null;
+
+        int drainedCount = conveyor.drain(queueIndex, this);
+        tracker.mergeWith(ProgressState.valueOf(drainedCount > 0, wm == DONE_ITEM));
+
+        this.dest = null;
+        return wm;
+    }
 }
