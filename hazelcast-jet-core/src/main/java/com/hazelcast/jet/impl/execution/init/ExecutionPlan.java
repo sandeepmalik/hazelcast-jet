@@ -400,10 +400,7 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
                        Map<Address, ReceiverTasklet> addrToTasklet = new HashMap<>();
                        //create a receiver per address
                        int offset = 0;
-                       for (Address addr : partitionOwners) {
-                           if (addr.equals(nodeEngine.getThisAddress())) {
-                               continue;
-                           }
+                       for (Address addr : ptionArrgmt.remotePartitionAssignment.get().keySet()) {
                            final OutboundCollector[] collectors = new OutboundCollector[ptionsPerProcessor.length];
                            // count the queues backwards
                            final int queueOffset = --offset;
