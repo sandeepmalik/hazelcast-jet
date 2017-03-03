@@ -300,7 +300,7 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
      */
     private List<OutboundEdgeStream> createOutboundEdgeStreams(VertexDef srcVertex, int processorIdx) {
         final List<OutboundEdgeStream> outboundStreams = new ArrayList<>();
-        int numRemoteMembers = partitionOwners.length - 1; // exclude self
+        int numRemoteMembers = ptionArrgmt.remotePartitionAssignment.get().size();
         for (EdgeDef edge : srcVertex.outboundEdges()) {
             /*
              * Each edge is represented by an array of conveyors between the producers and consumers
