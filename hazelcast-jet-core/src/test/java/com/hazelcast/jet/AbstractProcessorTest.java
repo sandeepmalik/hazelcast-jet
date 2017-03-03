@@ -166,10 +166,10 @@ public class AbstractProcessorTest {
     public void test() {
         final Object item1 = 1;
         final Object item2 = 2;
-        final FlatMapper<Object> flatMapper = p.new FlatMapper<Object>();
+        final FlatMapper<String, Object> flatMapper = p.flatMapper(x -> Traverser.over(item1, item2));
 
         // When
-        boolean done = flatMapper.tryProcess(MOCK_ITEM, x -> Traverser.over(item1, item2));
+        boolean done = flatMapper.tryProcess(MOCK_ITEM);
 
         // Then
         assertFalse(done);
@@ -179,7 +179,7 @@ public class AbstractProcessorTest {
         }
 
         // When
-        done = flatMapper.tryProcess(MOCK_ITEM, x -> Traverser.over(item1, item2));
+        done = flatMapper.tryProcess(MOCK_ITEM);
 
         // Then
         assertTrue(done);
