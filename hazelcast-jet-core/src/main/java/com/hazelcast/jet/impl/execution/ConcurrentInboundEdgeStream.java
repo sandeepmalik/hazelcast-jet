@@ -29,8 +29,9 @@ import java.util.Collection;
 import static com.hazelcast.jet.impl.execution.DoneWatermark.DONE_WM;
 
 /**
- * {@code InboundEdgeStream} implemented in terms of a {@code ConcurrentConveyor}. The conveyor has as many
- * 1-to-1 concurrent queues as there are upstream tasklets contributing to it.
+ * {@code InboundEdgeStream} implemented in terms of a {@code ConcurrentConveyor}.
+ * The conveyor has as many 1-to-1 concurrent queues as there are upstream tasklets
+ * contributing to it.
  */
 public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
 
@@ -38,10 +39,10 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
     private final int priority;
     private final ConcurrentConveyor<Object> conveyor;
     private final ProgressTracker tracker;
-    private Watermark currentWm;
     private final BitSet wmReceived;
     private final BitSet queueDone;
     private final WatermarkDetector wmDetector = new WatermarkDetector();
+    private Watermark currentWm;
 
     public ConcurrentInboundEdgeStream(ConcurrentConveyor<Object> conveyor, int ordinal, int priority) {
         this.conveyor = conveyor;
@@ -53,14 +54,15 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
     }
 
     /**
-     * Drains all inbound queues into the {@code dest} collection.
-     *
-     * <p>Non-watermarks are drained directly. When a {@link Watermark} is encountered in particular queue,
-     * we stop draining from that queue and drain other queues, until we receive {@link Object#equals(Object) equal}
-     * watermarks from all of them. Only then we insert the watermark to {@code dest} collection.
-     *
-     * <p>Receiving non-equal watermark produces an error. So does receiving a new watermark, when some
-     * queue is already done or a when queue becomes done without emitting expected watermark.
+     * Drains all inbound queues into the {@code dest} collection. After
+     * encountering a {@link Watermark} in a particular queue, stops draining from
+     * it and drains other queues until it receives {@link Object#equals(Object)
+     * equal} watermarks from all of them. At that point it adds the watermark to
+     * the {@code dest} collection.
+     * <p>
+     * Receiving a non-equal watermark produces an error. So does receiving a new
+     * watermark while some queue is already done or when a queue becomes done without
+     * emitting the expected watermark.
      */
     @Override
     public ProgressState drainTo(Collection<Object> dest) {
@@ -77,7 +79,7 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
             if (wm == null) {
                 continue;
             }
-            // we've got watermark, handle it
+            // we've got a watermark, handle it
             validateWatermark(wm);
             if (wm == DONE_WM) {
                 queueDone.set(queueIndex);
@@ -106,13 +108,14 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
     private void validateWatermark(Watermark wm) {
         if (currentWm == null) {
             if (wm != null && wm != DONE_WM && queueDone.nextSetBit(0) >= 0) {
-                throw new JetException("Received a new watermark after some processor already completed (wm=" + wm + ')');
+                throw new JetException(
+                        "Received a new watermark after some processor already completed (wm=" + wm + ')');
             }
             return;
         }
         if (wm == DONE_WM) {
-            throw new JetException("Processor completed without first emitting a watermark, that was already emitted by "
-                    + "another processor (wm=" + currentWm + ')');
+            throw new JetException("Processor completed without first emitting a watermark" +
+                    " that was already emitted by another processor (wm=" + currentWm + ')');
         }
         if (!wm.equals(currentWm)) {
             throw new JetException("Watermark emitted by one processor not equal to watermark emitted by "
@@ -122,8 +125,9 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
     }
 
     /**
-     * Drains the queue at {@code queueIndex} into a {@code dest} collection, up to the next
-     * {@link Watermark}. Also updates the {@code tracker} with new status.
+     * Drains the queue at {@code queueIndex} into a {@code dest} collection, up
+     * to the next {@link Watermark}. Also updates the {@code tracker} with new
+     * status.
      *
      * @return Watermark, if found, or null
      */
@@ -132,8 +136,6 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
         wmDetector.wm = null;
 
         int drainedCount = conveyor.drain(queueIndex, wmDetector);
-
-        // note: progress is reported even if only DONE_ITEM is drained
         tracker.mergeWith(ProgressState.valueOf(drainedCount > 0, wmDetector.wm == DONE_WM));
 
         wmDetector.dest = null;
@@ -151,7 +153,8 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
     }
 
     /**
-     * Utility to drain queues in the conveyor, while watching for {@link Watermark}s.
+     * Drains a concurrent conveyor's queue while watching for {@link Watermark}s.
+     * When encountering a watermark, prevents draining more items.
      */
     private static final class WatermarkDetector implements Predicate<Object> {
         Collection<Object> dest;
@@ -160,7 +163,7 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
         @Override
         public boolean test(Object o) {
             if (o instanceof Watermark) {
-                assert wm == null;
+                assert wm == null : "Received a watermark item, but this.wm != null";
                 wm = (Watermark) o;
                 return false;
             }
@@ -168,4 +171,3 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
         }
     }
 }
-
