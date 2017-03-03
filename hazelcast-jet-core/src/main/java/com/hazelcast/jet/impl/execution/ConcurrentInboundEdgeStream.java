@@ -17,6 +17,7 @@
 package com.hazelcast.jet.impl.execution;
 
 import com.hazelcast.internal.util.concurrent.update.ConcurrentConveyor;
+import com.hazelcast.internal.util.concurrent.update.Pipe;
 import com.hazelcast.jet.JetException;
 import com.hazelcast.jet.Watermark;
 import com.hazelcast.jet.impl.util.ProgressState;
@@ -40,7 +41,6 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
     private final ConcurrentConveyor<Object> conveyor;
     private final ProgressTracker tracker;
     private final BitSet wmReceived;
-    private final BitSet queueDone;
     private final WatermarkDetector wmDetector = new WatermarkDetector();
     private Watermark currentWm;
 
@@ -50,7 +50,6 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
         this.priority = priority;
         this.tracker = new ProgressTracker();
         this.wmReceived = new BitSet(conveyor.queueCount());
-        this.queueDone = new BitSet(conveyor.queueCount());
     }
 
     /**
@@ -68,21 +67,22 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
     public ProgressState drainTo(Collection<Object> dest) {
         tracker.reset();
         for (int queueIndex = 0; queueIndex < conveyor.queueCount(); queueIndex++) {
-            if (queueDone.get(queueIndex)) {
+            final Pipe<Object> q = conveyor.queue(queueIndex);
+            if (q == null) {
                 continue;
             }
             if (alreadyAtWatermark(queueIndex)) {
                 tracker.notDone();
                 continue;
             }
-            Watermark wm = drainWithWatermarkDetection(queueIndex, dest);
+            Watermark wm = drainWithWatermarkDetection(q, dest);
             if (wm == null) {
                 continue;
             }
             // we've got a watermark, handle it
             validateWatermark(wm);
             if (wm == DONE_WM) {
-                queueDone.set(queueIndex);
+                conveyor.removeQueue(queueIndex);
                 continue;
             }
             wmReceived.set(queueIndex);
@@ -107,7 +107,7 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
 
     private void validateWatermark(Watermark wm) {
         if (currentWm == null) {
-            if (wm != null && wm != DONE_WM && queueDone.nextSetBit(0) >= 0) {
+            if (wm != null && wm != DONE_WM && conveyor.liveQueueCount() < conveyor.queueCount()) {
                 throw new JetException(
                         "Received a new watermark after some processor already completed (wm=" + wm + ')');
             }
@@ -125,17 +125,17 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
     }
 
     /**
-     * Drains the queue at {@code queueIndex} into a {@code dest} collection, up
+     * Drains the supplied queue into a {@code dest} collection, up
      * to the next {@link Watermark}. Also updates the {@code tracker} with new
      * status.
      *
      * @return Watermark, if found, or null
      */
-    private Watermark drainWithWatermarkDetection(int queueIndex, Collection<Object> dest) {
+    private Watermark drainWithWatermarkDetection(Pipe<Object> queue, Collection<Object> dest) {
         wmDetector.dest = dest;
         wmDetector.wm = null;
 
-        int drainedCount = conveyor.drain(queueIndex, wmDetector);
+        int drainedCount = queue.drain(wmDetector);
         tracker.mergeWith(ProgressState.valueOf(drainedCount > 0, wmDetector.wm == DONE_WM));
 
         wmDetector.dest = null;

@@ -142,13 +142,26 @@ public class ConcurrentConveyor<E> {
     private volatile boolean backpressure;
     private volatile Thread drainer;
     private volatile Throwable drainerDepartureCause;
+    private volatile int liveQueueCount;
 
     ConcurrentConveyor(E submitterGoneItem, QueuedPipe<E>... queues) {
         if (queues.length == 0) {
             throw new IllegalArgumentException("No concurrent queues supplied");
         }
         this.submitterGoneItem = submitterGoneItem;
-        this.queues = queues;
+        this.queues = validateAndCopy(queues);
+        this.liveQueueCount = queues.length;
+    }
+
+    private QueuedPipe<E>[] validateAndCopy(QueuedPipe<E>[] queues) {
+        final QueuedPipe<E>[] safeCopy = new QueuedPipe[queues.length];
+        for (int i = 0; i < queues.length; i++) {
+            if (queues[i] == null) {
+                throw new IllegalArgumentException("Queue at index " + i + " is null");
+            }
+            safeCopy[i] = queues[i];
+        }
+        return safeCopy;
     }
 
     /**
@@ -186,6 +199,14 @@ public class ConcurrentConveyor<E> {
     }
 
     /**
+     * Returns the number of remaining live queues, i.e., {@link #queueCount()}
+     * minus the number of queues nulled out by calling {@link #removeQueue(int)}.
+     */
+    public final int liveQueueCount() {
+        return liveQueueCount;
+    }
+
+    /**
      * @return the concurrent queue at the given index
      */
     public final QueuedPipe<E> queue(int index) {
@@ -195,6 +216,7 @@ public class ConcurrentConveyor<E> {
     public final boolean removeQueue(int index) {
         final boolean didRemove = queues[index] != null;
         queues[index] = null;
+        liveQueueCount--;
         return didRemove;
     }
 
