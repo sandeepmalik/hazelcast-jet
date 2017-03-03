@@ -92,7 +92,7 @@ public abstract class AbstractProcessor implements Processor {
      * Method that can be overridden to perform any necessary initialization for
      * the processor. It is called exactly once and strictly before any of the
      * processing methods ({@link #process(int, Inbox) process()},
-     * {@link #tryProcessWatermark(int, Watermark) tryProcessWatermark()},
+     * {@link Processor#completeEdge(int) tryProcessWatermark()},
      * {@link #complete() complete()}), but after the {@link #getOutbox() outbox}
      * and {@link #getLogger() logger} have been initialized.
      *

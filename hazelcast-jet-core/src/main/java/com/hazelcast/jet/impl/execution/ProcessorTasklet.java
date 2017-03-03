@@ -100,7 +100,7 @@ public class ProcessorTasklet implements Tasklet {
             tryProcessInbox();
         } else if (currInstreamExhausted) {
             progTracker.madeProgress(true);
-            if (processor.tryProcessWatermark(currInstream.ordinal(), DONE_WM)) {
+            if (processor.completeEdge(currInstream.ordinal())) {
                 currInstream = null;
             }
         }

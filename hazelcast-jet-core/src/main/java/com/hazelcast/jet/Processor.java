@@ -53,7 +53,7 @@ public interface Processor {
      * Initializes this processor with the outbox that the processing methods
      * must use to deposit their output items. This method will be called exactly
      * once and strictly before any calls to processing methods
-     * ({@link #process(int, Inbox)}, {@link #tryProcessWatermark(int, Watermark)},
+     * ({@link #process(int, Inbox)}, {@link #completeEdge(int)},
      * {@link #complete()}).
      * <p>
      * The default implementation does nothing.
@@ -74,31 +74,23 @@ public interface Processor {
     }
 
     /**
-     * Tries to process the supplied watermark item, which was received over
-     * the supplied ordinal. May choose to process only partially and return
+     * Called when an inbound edge's stream is exhausted. May return
      * {@code false}, in which case it will be called again later with the
-     * same {@code (ordinal, item)} combination.
-     * <p>
-     * The default implementation throws an {@code UnsupportedOperationException}.
-     * <p>
-     * <strong>NOTE:</strong> unless the processor doesn't differentiate between
-     * its inbound edges, the first choice should be leaving this method alone
-     * and instead overriding the specific {@code tryProcessWatermarkN()}
-     * methods for each ordinal the processor expects.
+     * same {@code ordinal}.
      *
-     * @param ordinal ordinal of the edge that delivered the item
-     * @param wm      watermark item to be processed
-     * @return {@code true} if this item has now been processed,
+     * @param ordinal ordinal of the edge that's exhausted
+     * @return {@code true} if the completing step is now done,
      *         {@code false} otherwise.
      */
-    default boolean tryProcessWatermark(int ordinal, Watermark wm) {
+    default boolean completeEdge(int ordinal) {
         return true;
     }
 
     /**
-     * Called after all the inputs are exhausted. If it returns {@code false}, it will be
-     * invoked again until it returns {@code true}. After this method is called, no other
-     * processing methods will be called on this processor.
+     * Called after all the inbound edges' streams are exhausted. If it returns
+     * {@code false}, it will be invoked again until it returns {@code true}.
+     * After this method is called, no other processing methods will be called on
+     * this processor.
      *
      * @return {@code true} if the completing step is now done, {@code false} otherwise.
      */
