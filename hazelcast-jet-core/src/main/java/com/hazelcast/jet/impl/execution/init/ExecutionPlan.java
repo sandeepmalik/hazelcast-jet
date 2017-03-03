@@ -402,7 +402,7 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
                        int offset = 0;
                        for (Address addr : ptionArrgmt.remotePartitionAssignment.get().keySet()) {
                            final OutboundCollector[] collectors = new OutboundCollector[ptionsPerProcessor.length];
-                           // count the queues backwards
+                           // assign the queues starting from end
                            final int queueOffset = --offset;
                            Arrays.setAll(collectors, n -> new ConveyorCollector(
                                    localConveyors[n], localConveyors[n].queueCount() + queueOffset,
