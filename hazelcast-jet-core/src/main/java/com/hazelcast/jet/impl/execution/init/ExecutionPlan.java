@@ -399,14 +399,15 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
                    .computeIfAbsent(edge.destOrdinal(), x -> {
                        Map<Address, ReceiverTasklet> addrToTasklet = new HashMap<>();
                        //create a receiver per address
+                       int offset = 0;
                        for (int i = 0; i < partitionOwners.length; i++) {
                            Address addr = partitionOwners[i];
                            if (addr.equals(nodeEngine.getThisAddress())) {
                                continue;
                            }
                            final OutboundCollector[] collectors = new OutboundCollector[ptionsPerProcessor.length];
-                           // each receiver per member gets a queue in each conveyor, and start counting from the end
-                           final int queueOffset = - i - 1;
+                           // count the queues backwards
+                           final int queueOffset = --offset;
                            Arrays.setAll(collectors, n -> new ConveyorCollector(
                                    localConveyors[n], localConveyors[n].queueCount() + queueOffset,
                                    ptionsPerProcessor[n]));
