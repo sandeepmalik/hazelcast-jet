@@ -107,7 +107,7 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
 
     private void validateWatermark(Watermark wm) {
         if (currentWm == null) {
-            if (wm != null && wm != DONE_WM && conveyor.liveQueueCount() < conveyor.queueCount()) {
+            if (wm != DONE_WM && conveyor.liveQueueCount() < conveyor.queueCount()) {
                 throw new JetException(
                         "Received a new watermark after some processor already completed (wm=" + wm + ')');
             }

@@ -56,10 +56,11 @@ import static com.hazelcast.jet.impl.util.ExceptionUtil.sneakyThrow;
  */
 public abstract class AbstractProcessor implements Processor {
 
-    private Outbox outbox;
-    private Object pendingItem;
-    private ILogger logger;
     private boolean isCooperative = true;
+    private ILogger logger;
+    private Outbox outbox;
+
+    private Object pendingItem;
 
     /**
      * Specifies what this processor's {@link #isCooperative} method will return.
@@ -376,7 +377,7 @@ public abstract class AbstractProcessor implements Processor {
     // to ensure that ordinal is dispatched on just once per
     // process(ordinal, inbox) call.
 
-    private void process0(@Nonnull Inbox inbox) throws Exception {
+    void process0(@Nonnull Inbox inbox) throws Exception {
         for (Object item; (item = inbox.peek()) != null; ) {
             if (!tryProcess0(item)) {
                 return;
@@ -385,7 +386,7 @@ public abstract class AbstractProcessor implements Processor {
         }
     }
 
-    private void process1(@Nonnull Inbox inbox) throws Exception {
+    void process1(@Nonnull Inbox inbox) throws Exception {
         for (Object item; (item = inbox.peek()) != null; ) {
             if (!tryProcess1(item)) {
                 return;
@@ -394,7 +395,7 @@ public abstract class AbstractProcessor implements Processor {
         }
     }
 
-    private void process2(@Nonnull Inbox inbox) throws Exception {
+    void process2(@Nonnull Inbox inbox) throws Exception {
         for (Object item; (item = inbox.peek()) != null; ) {
             if (!tryProcess2(item)) {
                 return;
@@ -403,7 +404,7 @@ public abstract class AbstractProcessor implements Processor {
         }
     }
 
-    private void process3(@Nonnull Inbox inbox) throws Exception {
+    void process3(@Nonnull Inbox inbox) throws Exception {
         for (Object item; (item = inbox.peek()) != null; ) {
             if (!tryProcess3(item)) {
                 return;
@@ -412,7 +413,7 @@ public abstract class AbstractProcessor implements Processor {
         }
     }
 
-    private void process4(@Nonnull Inbox inbox) throws Exception {
+    void process4(@Nonnull Inbox inbox) throws Exception {
         for (Object item; (item = inbox.peek()) != null; ) {
             if (!tryProcess4(item)) {
                 return;
@@ -421,7 +422,7 @@ public abstract class AbstractProcessor implements Processor {
         }
     }
 
-    private void processAny(int ordinal, @Nonnull Inbox inbox) throws Exception {
+    void processAny(int ordinal, @Nonnull Inbox inbox) throws Exception {
         for (Object item; (item = inbox.peek()) != null; ) {
             if (!tryProcess(ordinal, item)) {
                 return;
