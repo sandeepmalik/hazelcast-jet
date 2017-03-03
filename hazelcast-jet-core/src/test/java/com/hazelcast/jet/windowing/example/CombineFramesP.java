@@ -16,50 +16,55 @@
 
 package com.hazelcast.jet.windowing.example;
 
-import com.hazelcast.jet.AbstractProcessor;
 import com.hazelcast.jet.Distributed;
+import com.hazelcast.jet.Watermark;
+import com.hazelcast.jet.WatermarkAwareProcessor;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import static com.hazelcast.jet.Util.entry;
 
 /**
  * Javadoc pending.
  */
-public class CombineFramesP<B, R> extends AbstractProcessor {
+public class CombineFramesP<K, B, R> extends WatermarkAwareProcessor {
     private final SnapshottingCollector<?, B, R> tc;
-    private final int expectedGroupSize;
-    private final Map<Long, List<B>> seqToFrames = new HashMap<>();
+    private final Map<Long, Map<K, B>> frames = new HashMap<>();
 
-    private CombineFramesP(SnapshottingCollector<?, B, R> tc, int expectedGroupSize) {
+    private CombineFramesP(SnapshottingCollector<?, B, R> tc) {
         this.tc = tc;
-        this.expectedGroupSize = expectedGroupSize;
     }
 
-    public static <B, R> Distributed.Supplier<CombineFramesP<B, R>> combineFrames(
-            SnapshottingCollector<?, B, R> tc, int expectedGroupSize
-    ) {
-        return () -> new CombineFramesP<>(tc, expectedGroupSize);
+    public static <K, B, R> Distributed.Supplier<CombineFramesP<K, B, R>> combineFrames(
+            SnapshottingCollector<?, B, R> tc) {
+        return () -> new CombineFramesP<>(tc);
     }
 
     @Override
     protected boolean tryProcess0(@Nonnull Object item) {
-        final KeyedFrame<Void, B> e = (KeyedFrame<Void, B>) item;
+        System.out.println(item);
+        final KeyedFrame<K, B> e = (KeyedFrame<K, B>) item;
         final Long frameSeq = e.getSeq();
         final B frame = e.getValue();
-        final List<B> frameGroup = seqToFrames.computeIfAbsent(frameSeq, fs -> new ArrayList<>());
-        frameGroup.add(frame);
-        if (frameGroup.size() == expectedGroupSize) {
-            B combined = frameGroup.get(0);
-            for (int i = 1; i < frameGroup.size(); i++) {
-                combined = tc.combiner().apply(combined, frameGroup.get(i));
-            }
-            emit(entry(frameSeq, tc.finisher().apply(combined)));
-            seqToFrames.remove(frameSeq);
+        frames.computeIfAbsent(frameSeq, seq -> new HashMap<>())
+              .compute(e.getKey(), (s, b) -> {
+                          if (b == null) {
+                              b = tc.supplier().get();
+                          }
+                          return tc.combiner().apply(b, frame);
+                      });
+        return true;
+    }
+
+    @Override
+    protected boolean tryProcessWm(int ordinal, Watermark wm) {
+        FrameClosed frame = (FrameClosed) wm;
+        Map<K, B> keys = frames.remove(frame.seq());
+        for (Entry<K, B> entry : keys.entrySet()) {
+            emit(new KeyedFrame<>(frame.seq(), entry.getKey(), tc.finisher().apply(entry.getValue())));
         }
         return true;
     }

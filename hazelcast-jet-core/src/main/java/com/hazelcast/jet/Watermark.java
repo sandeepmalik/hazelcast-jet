@@ -16,11 +16,13 @@
 
 package com.hazelcast.jet;
 
+import java.io.Serializable;
+
 /**
  * Marker interface for a watermark item. Since each processor of a
  * vertex will emit its own item for a given watermark event, the
  * subtypes of this interface must implement {@link #equals(Object)}
  * such that all these items come out as equal.
  */
-public interface Watermark {
+public interface Watermark extends Serializable {
 }

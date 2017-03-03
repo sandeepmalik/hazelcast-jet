@@ -16,10 +16,13 @@
 
 package com.hazelcast.jet.windowing.example;
 
+import java.io.Serializable;
+import java.util.Arrays;
+
 /**
  * Javadoc pending.
  */
-public final class KeyedFrame<K, V> {
+public final class KeyedFrame<K, V> implements Serializable {
     private final long seq;
     private final K key;
     private final V value;
@@ -63,6 +66,8 @@ public final class KeyedFrame<K, V> {
 
     @Override
     public String toString() {
-        return "KeyedWindowEntry{seq=" + seq + ", key=" + key + ", value=" + value + '}';
+        //hack
+        String valueStr = value instanceof long[] ? Arrays.toString((long[])value) : value.toString();
+        return "KeyedWindowEntry{seq=" + seq + ", key=" + key + ", value=" + valueStr + '}';
     }
 }

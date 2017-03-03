@@ -18,6 +18,7 @@ package com.hazelcast.jet.windowing.example;
 
 import com.hazelcast.jet.AbstractProcessor;
 import com.hazelcast.jet.Distributed;
+import com.hazelcast.jet.Distributed.Function;
 import com.hazelcast.jet.Distributed.LongUnaryOperator;
 import com.hazelcast.jet.Distributed.ToLongFunction;
 
@@ -26,7 +27,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.function.Function;
 
 /**
  * TODO javadoc
@@ -65,10 +65,10 @@ public class GroupByFrameP<T, K, B, R> extends AbstractProcessor {
             ToLongFunction<? super T> extractTimestampF,
             LongUnaryOperator toFrameSeqF,
             SnapshottingCollector<T, B, R> tc) {
-        return groupByFrameAndKey(bucketCount, t -> null, extractTimestampF, toFrameSeqF, tc);
+        return groupByFrame(bucketCount, t -> "global", extractTimestampF, toFrameSeqF, tc);
     }
 
-    public static <T, K, B, R> Distributed.Supplier<GroupByFrameP> groupByFrameAndKey(
+    public static <T, K, B, R> Distributed.Supplier<GroupByFrameP> groupByFrame(
             int bucketCount,
             Function<? super T, K> extractKeyF,
             ToLongFunction<? super T> extractTimestampF,
@@ -104,6 +104,10 @@ public class GroupByFrameP<T, K, B, R> extends AbstractProcessor {
                 B bucket = e.getValue();
                 emit(new KeyedFrame<>(seq, e.getKey(), bucket));
             }
+
+            FrameClosed item = new FrameClosed(seq);
+            getLogger().info("Closing frame " + item);
+            emit(item);
             keyToBucketMaps[bucketIndex] = new HashMap<>();
         }
         currentFrameSeq = itemFrameSeq;

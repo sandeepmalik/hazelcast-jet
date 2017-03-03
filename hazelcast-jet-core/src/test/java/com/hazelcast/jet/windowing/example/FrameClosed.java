@@ -18,16 +18,16 @@ package com.hazelcast.jet.windowing.example;
 
 import com.hazelcast.jet.Watermark;
 
-public class WatermarkWithTime implements Watermark {
+public class FrameClosed implements Watermark {
 
-    private final long time;
+    private final long seq;
 
-    public WatermarkWithTime(long time) {
-        this.time = time;
+    public FrameClosed(long seq) {
+        this.seq = seq;
     }
 
-    public long time() {
-        return time;
+    public long seq() {
+        return seq;
     }
 
     @Override
@@ -39,20 +39,20 @@ public class WatermarkWithTime implements Watermark {
             return false;
         }
 
-        WatermarkWithTime that = (WatermarkWithTime) o;
+        FrameClosed that = (FrameClosed) o;
 
-        return time == that.time;
+        return seq == that.seq;
     }
 
     @Override
     public int hashCode() {
-        return (int) (time ^ (time >>> 32));
+        return (int) (seq ^ (seq >>> 32));
     }
 
     @Override
     public String toString() {
-        return "WatermarkWithTime{" +
-                "time=" + time +
+        return "FrameClosed{" +
+                "seq=" + seq +
                 '}';
     }
 }

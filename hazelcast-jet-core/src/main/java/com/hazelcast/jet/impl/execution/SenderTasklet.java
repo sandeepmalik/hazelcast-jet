@@ -16,6 +16,7 @@
 
 package com.hazelcast.jet.impl.execution;
 
+import com.hazelcast.jet.Watermark;
 import com.hazelcast.jet.impl.util.ObjectWithPartitionId;
 import com.hazelcast.jet.impl.util.ProgressState;
 import com.hazelcast.jet.impl.util.ProgressTracker;
@@ -111,7 +112,8 @@ public class SenderTasklet implements Tasklet {
                          && (item = inbox.poll()) != null;
                  writtenCount++
                     ) {
-                ObjectWithPartitionId itemWithpId = (ObjectWithPartitionId) item;
+                ObjectWithPartitionId itemWithpId = item instanceof ObjectWithPartitionId ?
+                        (ObjectWithPartitionId) item : new ObjectWithPartitionId(item, - 1);
                 final int mark = outputBuffer.position();
                 outputBuffer.writeObject(itemWithpId.getItem());
                 sentSeq += estimatedMemoryFootprint(outputBuffer.position() - mark);

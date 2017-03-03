@@ -18,6 +18,7 @@ package com.hazelcast.jet.windowing.example;
 
 import com.hazelcast.jet.AbstractProcessor;
 import com.hazelcast.jet.DAG;
+import com.hazelcast.jet.Distributed.Function;
 import com.hazelcast.jet.Jet;
 import com.hazelcast.jet.JetInstance;
 import com.hazelcast.jet.Vertex;
@@ -35,6 +36,7 @@ import static com.hazelcast.jet.KeyExtractors.entryKey;
 import static com.hazelcast.jet.Partitioner.HASH_CODE;
 import static com.hazelcast.jet.Processors.readMap;
 import static com.hazelcast.jet.windowing.example.CombineFramesP.combineFrames;
+import static com.hazelcast.jet.windowing.example.GroupByFrameP.groupByFrame;
 import static com.hazelcast.jet.windowing.example.GroupByFrameP.groupByFrame;
 import static com.hazelcast.jet.windowing.example.SnapshottingCollectors.mapping;
 import static com.hazelcast.jet.windowing.example.SnapshottingCollectors.summingLong;
@@ -55,7 +57,7 @@ public class TradeMonitor {
             final int defaultLocalParallelism = Math.max(1, getRuntime().availableProcessors() / 2);
             cfg.setInstanceConfig(new InstanceConfig().setCooperativeThreadCount(defaultLocalParallelism));
 
-            Jet.newJetInstance();
+            Jet.newJetInstance(cfg);
             JetInstance jet = Jet.newJetInstance(cfg);
 
             IStreamMap<String, Integer> initial = jet.getMap("initial");
@@ -66,17 +68,22 @@ public class TradeMonitor {
             Vertex generateEvents = dag.newVertex("generate-events", () -> new TradeGeneratorP(100));
             Vertex peek = dag.newVertex("peek", PeekP::new);
             Vertex groupByFrame = dag.newVertex("group-by-frame",
-                    groupByFrame(4, t -> System.currentTimeMillis(),
-                            ts -> ts / 1_000, mapping(Trade::getQuantity, summingLong())));
+                    groupByFrame(4, Trade::getTicker,
+                            t -> System.currentTimeMillis(), ts -> ts / 1_000,
+                            mapping(Trade::getQuantity, summingLong())
+                    )
+            ).localParallelism(1);
             Vertex combineFrames = dag.newVertex("combine-frames",
-                    combineFrames(summingLong(), defaultLocalParallelism * 2));
+                    combineFrames(summingLong())).localParallelism(1);
 
-            dag.edge(between(tickerSource, generateEvents).partitioned(entryKey()))
+            dag.edge(between(tickerSource, generateEvents).broadcast().distributed())
                .edge(between(generateEvents, groupByFrame).partitioned(Trade::getTicker, HASH_CODE))
-               .edge(between(groupByFrame, combineFrames.localParallelism(1)).allToOne().distributed())
+               .edge(between(groupByFrame, combineFrames).partitioned((Function<KeyedFrame, Object>) KeyedFrame::getKey)
+                                                         .distributed())
 
-               .edge(from(generateEvents, 1).to(peek))
-               .edge(from(groupByFrame, 1).to(peek, 1));
+//               .edge(from(generateEvents, 1).to(peek))
+//               .edge(from(groupByFrame, 1).to(peek, 0))
+               .edge(from(combineFrames).to(peek, 0));
 
             jet.newJob(dag).execute().get();
         } finally {
