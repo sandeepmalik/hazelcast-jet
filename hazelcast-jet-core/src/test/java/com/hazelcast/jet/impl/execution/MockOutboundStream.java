@@ -16,62 +16,16 @@
 
 package com.hazelcast.jet.impl.execution;
 
-import com.hazelcast.jet.Watermark;
-import com.hazelcast.jet.impl.util.ProgressState;
-
-import java.util.ArrayList;
 import java.util.List;
 
-public class MockOutboundStream extends OutboundEdgeStream {
+class MockOutboundStream extends OutboundEdgeStream {
 
-    public MockOutboundStream(int ordinal, int capacity) {
+    MockOutboundStream(int ordinal, int capacity) {
         super(ordinal, 1024, new MockOutboundCollector(capacity));
     }
 
-    public List<Object> getBuffer() {
+    List<Object> getBuffer() {
         return ((MockOutboundCollector) getCollector()).getBuffer();
-    }
-
-    private static class MockOutboundCollector implements OutboundCollector {
-
-        private final ArrayList<Object> buffer;
-        private final int capacity;
-
-        public MockOutboundCollector(int capacity) {
-            this.capacity = capacity;
-            this.buffer = new ArrayList<>(capacity);
-        }
-
-
-        @Override
-        public ProgressState offer(Object item) {
-            if (buffer.size() == capacity) {
-                return ProgressState.NO_PROGRESS;
-            }
-            buffer.add(item);
-            return ProgressState.DONE;
-        }
-
-        @Override
-        public ProgressState offerWatermark(Watermark item) {
-            return offer((Object)item);
-        }
-
-        @Override
-        public int[] getPartitions() {
-            return null;
-        }
-
-        public List<Object> drain() {
-            List<Object> copy = new ArrayList<>(this.buffer);
-            this.buffer.clear();
-            return copy;
-        }
-
-        public List<Object> getBuffer() {
-            return buffer;
-        }
-
     }
 }
 
