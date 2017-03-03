@@ -136,6 +136,11 @@ public class SenderTasklet implements Tasklet {
         this.sendSeqLimitCompressed = sendSeqLimitCompressed;
     }
 
+    @Override
+    public String toString() {
+        return "SenderTasklet " + connection.getEndPoint();
+    }
+
     /**
      * Given an uncompressed {@code sentSeq} and a compressed {@code sendSeqLimitCompressed}, tells
      * whether the {@code sentSeq} is within the limit specified by the compressed seq.

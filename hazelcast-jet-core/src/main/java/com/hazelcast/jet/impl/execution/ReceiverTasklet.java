@@ -97,8 +97,7 @@ public class ReceiverTasklet implements Tasklet {
         this.receiveWindowCompressed = INITIAL_RECEIVE_WINDOW_COMPRESSED;
     }
 
-    @Nonnull
-    @Override
+    @Override @Nonnull
     public ProgressState call() {
         if (receptionDone) {
             return collector.offerWatermark(DONE_WM);
@@ -193,6 +192,11 @@ public class ReceiverTasklet implements Tasklet {
         final long seqToBe = seqNow + itemWeight;
         ackedSeq = seqToBe;
         return seqToBe;
+    }
+
+    @Override
+    public String toString() {
+        return "ReceiverTasklet";
     }
 
     static int compressSeq(long seq) {

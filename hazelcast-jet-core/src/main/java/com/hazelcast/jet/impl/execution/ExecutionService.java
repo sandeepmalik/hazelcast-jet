@@ -40,10 +40,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.concurrent.Executors.newCachedThreadPool;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.partitioningBy;
 
 public class ExecutionService {
@@ -136,6 +138,15 @@ public class ExecutionService {
 
     private String threadNamePrefix() {
         return "hz." + hzInstanceName + ".jet.";
+    }
+
+    private String trackersToString() {
+        return Arrays.stream(workers)
+                     .flatMap(w -> w.trackers.stream())
+                     .map(Object::toString)
+                     .sorted()
+                     .collect(joining("\n"))
+                + "\n-----------------";
     }
 
     private final class BlockingWorker implements Runnable {
@@ -255,6 +266,11 @@ public class ExecutionService {
         TaskletTracker(Tasklet tasklet, JobFuture jobFuture) {
             this.tasklet = tasklet;
             this.jobFuture = jobFuture;
+        }
+
+        @Override
+        public String toString() {
+            return "Tracking " + tasklet;
         }
     }
 
