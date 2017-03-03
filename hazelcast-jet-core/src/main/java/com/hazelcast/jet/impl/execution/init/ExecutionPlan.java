@@ -400,8 +400,7 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
                        Map<Address, ReceiverTasklet> addrToTasklet = new HashMap<>();
                        //create a receiver per address
                        int offset = 0;
-                       for (int i = 0; i < partitionOwners.length; i++) {
-                           Address addr = partitionOwners[i];
+                       for (Address addr : partitionOwners) {
                            if (addr.equals(nodeEngine.getThisAddress())) {
                                continue;
                            }
