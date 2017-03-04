@@ -38,12 +38,13 @@ public class TradeGeneratorP extends AbstractProcessor {
     private final Supplier<String[]> tickers = memoize(() -> tickerToPrice.keySet().toArray(new String[0]));
 
     TradeGeneratorP(int periodMillis) {
-        this.traverser = new PeriodicTraverser<>(() -> {
+        Traverser<Trade> traverser = () -> {
             String[] tickers = this.tickers.get();
             String ticker = tickers[r.nextInt(tickers.length)];
             int price = tickerToPrice.compute(ticker, (k, p) -> p + r.nextInt(200) - 100);
             return new Trade(ticker, r.nextInt(100) + 1, price);
-        }, periodMillis);
+        };
+        this.traverser = periodMillis > 0 ? new PeriodicTraverser<>(traverser, periodMillis) : traverser;
     }
 
     @Override
@@ -76,7 +77,12 @@ public class TradeGeneratorP extends AbstractProcessor {
 
         @Override
         public T next() {
-            return traverser.next();
+            long curr = System.currentTimeMillis();
+            if (curr - last > periodMillis) {
+                last = curr;
+                return traverser.next();
+            }
+            return null;
         }
     }
 }
