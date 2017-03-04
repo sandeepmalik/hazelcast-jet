@@ -318,9 +318,9 @@ public abstract class AbstractProcessor implements Processor {
      *
      * @param <R> type of the emitted item
      */
-    protected final class FlatMapper {
+    protected final class FlatMapper<R> {
         private final int outputOrdinal;
-        private Traverser<?> outputTraverser;
+        private Traverser<? extends R> outputTraverser;
 
         public FlatMapper(int outputOrdinal) {
             this.outputOrdinal = outputOrdinal;
@@ -340,7 +340,7 @@ public abstract class AbstractProcessor implements Processor {
          */
         public <T> boolean tryProcess(
                 @Nonnull T item,
-                @Nonnull Function<? super T, ? extends Traverser<?>> mapper
+                @Nonnull Function<? super T, ? extends Traverser<? extends R>> mapper
         ) {
             if (outputTraverser == null) {
                 outputTraverser = mapper.apply(item);
