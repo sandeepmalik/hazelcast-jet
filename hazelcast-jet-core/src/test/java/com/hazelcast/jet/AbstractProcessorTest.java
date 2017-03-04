@@ -166,7 +166,7 @@ public class AbstractProcessorTest {
     public void test() {
         final Object item1 = 1;
         final Object item2 = 2;
-        final FlatMapper<Object> flatMapper = p.new FlatMapper<Object>();
+        final FlatMapper flatMapper = p.new FlatMapper();
 
         // When
         boolean done = flatMapper.tryProcess(MOCK_ITEM, x -> Traverser.over(item1, item2));

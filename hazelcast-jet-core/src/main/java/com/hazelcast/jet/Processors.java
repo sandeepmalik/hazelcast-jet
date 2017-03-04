@@ -505,7 +505,7 @@ public final class Processors {
      */
     private static class TransformP<T, R> extends AbstractProcessor {
         private final Function<? super T, ? extends Traverser<? extends R>> mapper;
-        private final FlatMapper<R> flatMapper = new FlatMapper<>();
+        private final FlatMapper flatMapper = new FlatMapper();
 
         /**
          * Constructs a processor with the given mapping function.
