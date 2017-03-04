@@ -45,7 +45,6 @@ public class CombineFramesP<K, B, R> extends WatermarkAwareProcessor {
 
     @Override
     protected boolean tryProcess0(@Nonnull Object item) {
-        System.out.println(item);
         final KeyedFrame<K, B> e = (KeyedFrame<K, B>) item;
         final Long frameSeq = e.getSeq();
         final B frame = e.getValue();
@@ -63,6 +62,9 @@ public class CombineFramesP<K, B, R> extends WatermarkAwareProcessor {
     protected boolean tryProcessWm(int ordinal, Watermark wm) {
         FrameClosed frame = (FrameClosed) wm;
         Map<K, B> keys = frames.remove(frame.seq());
+        if (keys == null) {
+            return true;
+        }
         for (Entry<K, B> entry : keys.entrySet()) {
             emit(new KeyedFrame<>(frame.seq(), entry.getKey(), tc.finisher().apply(entry.getValue())));
         }

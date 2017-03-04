@@ -18,11 +18,12 @@ package com.hazelcast.jet.windowing.example;
 
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Map;
 
 /**
  * Javadoc pending.
  */
-public final class KeyedFrame<K, V> implements Serializable {
+public final class KeyedFrame<K, V> implements Serializable, Map.Entry<K,V> {
     private final long seq;
     private final K key;
     private final V value;
@@ -43,6 +44,11 @@ public final class KeyedFrame<K, V> implements Serializable {
 
     public V getValue() {
         return value;
+    }
+
+    @Override
+    public V setValue(V value) {
+        throw new UnsupportedOperationException("");
     }
 
     @Override

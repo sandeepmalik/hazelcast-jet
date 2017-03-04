@@ -16,7 +16,6 @@
 
 package com.hazelcast.jet.impl.execution;
 
-import com.hazelcast.jet.Watermark;
 import com.hazelcast.jet.impl.util.ObjectWithPartitionId;
 import com.hazelcast.jet.impl.util.ProgressState;
 import com.hazelcast.jet.impl.util.ProgressTracker;
@@ -33,13 +32,13 @@ import java.util.ArrayDeque;
 import java.util.Queue;
 
 import static com.hazelcast.jet.impl.Networking.createStreamPacketHeader;
+import static com.hazelcast.jet.impl.execution.DoneWatermark.DONE_WM;
 import static com.hazelcast.jet.impl.execution.ReceiverTasklet.compressSeq;
 import static com.hazelcast.jet.impl.execution.ReceiverTasklet.estimatedMemoryFootprint;
-import static com.hazelcast.jet.impl.execution.DoneWatermark.DONE_WM;
+import static com.hazelcast.jet.impl.util.ExceptionUtil.rethrow;
 import static com.hazelcast.jet.impl.util.Util.createObjectDataOutput;
 import static com.hazelcast.jet.impl.util.Util.getMemberConnection;
 import static com.hazelcast.jet.impl.util.Util.uncheckRun;
-import static com.hazelcast.jet.impl.util.ExceptionUtil.rethrow;
 
 public class SenderTasklet implements Tasklet {
 

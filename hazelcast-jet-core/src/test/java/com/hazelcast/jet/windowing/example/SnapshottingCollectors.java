@@ -35,10 +35,22 @@ public final class SnapshottingCollectors {
         );
     }
 
-    public static SnapshottingCollector<Number, long[], Long> summingLong() {
+    public static SnapshottingCollector<Number, ?, Long> summingLong() {
         return SnapshottingCollector.of(
                 () -> new long[1],
                 (a, t) -> a[0] += t.longValue(),
+                long[]::clone,
+                (a, b) -> {
+                    a[0] += b[0];
+                    return a;
+                },
+                a -> a[0]);
+    }
+
+    public static <T> SnapshottingCollector<T, ?, Long> counting() {
+        return SnapshottingCollector.of(
+                () -> new long[1],
+                (a, t) -> a[0]++,
                 long[]::clone,
                 (a, b) -> {
                     a[0] += b[0];

@@ -106,7 +106,6 @@ public class GroupByFrameP<T, K, B, R> extends AbstractProcessor {
             }
 
             FrameClosed item = new FrameClosed(seq);
-            getLogger().info("Closing frame " + item);
             emit(item);
             keyToBucketMaps[bucketIndex] = new HashMap<>();
         }

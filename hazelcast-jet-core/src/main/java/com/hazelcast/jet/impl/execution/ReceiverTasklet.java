@@ -114,7 +114,7 @@ public class ReceiverTasklet implements Tasklet {
                 assert inbox.peek() == null : "Found something in the queue beyond the DONE_WM: " + inbox.remove();
                 break;
             }
-            ProgressState outcome = item instanceof Watermark ? collector.offerWatermark((Watermark)item) :
+            ProgressState outcome = item instanceof Watermark ? collector.offerWatermark((Watermark) item) :
                     collector.offer(item, o.getPartitionId());
             if (!outcome.isDone()) {
                 tracker.madeProgress(outcome.isMadeProgress());

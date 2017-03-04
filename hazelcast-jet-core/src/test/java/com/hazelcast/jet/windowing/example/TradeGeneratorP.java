@@ -76,12 +76,7 @@ public class TradeGeneratorP extends AbstractProcessor {
 
         @Override
         public T next() {
-            long curr = System.currentTimeMillis();
-            if (curr - last > periodMillis) {
-                last = curr;
-                return traverser.next();
-            }
-            return null;
+            return traverser.next();
         }
     }
 }

@@ -40,6 +40,7 @@ public class WatermarkAwareProcessor extends AbstractProcessor {
         return tryProcessWm(3, wm);
     }
 
+    @SuppressWarnings("checkstyle:magicnumber")
     protected boolean tryProcessWm4(Watermark wm) {
         return tryProcessWm(4, wm);
     }
