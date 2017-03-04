@@ -115,7 +115,7 @@ public class TradeMonitor {
 
             dag.edge(between(tickerSource, generateEvents).broadcast().distributed())
                .edge(between(generateEvents, groupByFrame).partitioned(Trade::getTicker, HASH_CODE))
-               .edge(between(groupByFrame, combineFrames).partitioned((Function<KeyedFrame, Object>) KeyedFrame::getKey)
+               .edge(between(groupByFrame, combineFrames).partitioned((KeyedFrame f) -> f.getKey())
                                                          .distributed())
                .edge(between(combineFrames, sink));
 
@@ -159,7 +159,7 @@ public class TradeMonitor {
             long seq = in.readLong();
             Object key = in.readObject();
             Object value = in.readObject();
-            return new KeyedFrame(seq, key, value);
+            return new KeyedFrame<>(seq, key, value);
         }
 
         @Override

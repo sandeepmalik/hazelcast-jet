@@ -16,21 +16,19 @@
 
 package com.hazelcast.jet.windowing.example;
 
+import com.hazelcast.jet.AbstractProcessor;
 import com.hazelcast.jet.Distributed;
 import com.hazelcast.jet.Watermark;
-import com.hazelcast.jet.WatermarkAwareProcessor;
 
 import javax.annotation.Nonnull;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import static com.hazelcast.jet.Util.entry;
-
 /**
  * Javadoc pending.
  */
-public class CombineFramesP<K, B, R> extends WatermarkAwareProcessor {
+public class CombineFramesP<K, B, R> extends AbstractProcessor {
     private final SnapshottingCollector<?, B, R> tc;
     private final Map<Long, Map<K, B>> frames = new HashMap<>();
 
@@ -59,7 +57,7 @@ public class CombineFramesP<K, B, R> extends WatermarkAwareProcessor {
     }
 
     @Override
-    protected boolean tryProcessWm(int ordinal, Watermark wm) {
+    public boolean tryProcessWatermark(int ordinal, Watermark wm) {
         FrameClosed frame = (FrameClosed) wm;
         Map<K, B> keys = frames.remove(frame.seq());
         if (keys == null) {

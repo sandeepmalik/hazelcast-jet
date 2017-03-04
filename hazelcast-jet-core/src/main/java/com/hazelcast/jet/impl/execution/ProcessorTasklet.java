@@ -16,7 +16,6 @@
 
 package com.hazelcast.jet.impl.execution;
 
-import com.hazelcast.jet.Inbox;
 import com.hazelcast.jet.Processor;
 import com.hazelcast.jet.Processor.Context;
 import com.hazelcast.jet.Watermark;
@@ -146,7 +145,14 @@ public class ProcessorTasklet implements Tasklet {
         }
         progTracker.madeProgress(true);
         final int inboundOrdinal = currInstream.ordinal();
-        processor.process(inboundOrdinal, inbox);
+        final Watermark wm = inbox.peekWatermark();
+        if (wm != null) {
+            if (processor.tryProcessWatermark(inboundOrdinal, wm)) {
+                inbox.removeWatermark();
+            }
+        } else {
+            processor.process(inboundOrdinal, inbox);
+        }
         if (!inbox.isEmpty()) {
             progTracker.notDone();
         }
@@ -192,9 +198,6 @@ public class ProcessorTasklet implements Tasklet {
     @Override
     public String toString() {
         return "ProcessorTasklet{vertex=" + vertexName + ", processor=" + processor + '}';
-    }
-
-    private static final class ArrayDequeInbox extends ArrayDeque<Object> implements Inbox {
     }
 }
 

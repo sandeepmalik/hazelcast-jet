@@ -62,15 +62,33 @@ public interface Processor {
     }
 
     /**
-     * Processes some items in the supplied inbox. Removes the items it's
-     * done with. Does not remove an item until it is done with it.
+     * Called with a batch of items retrieved from an inbound edge's stream. The
+     * items are in the inbox and this method may process zero or more of them,
+     * removing each item after it is processed. Does not remove an item until it
+     * is done with it.
      * <p>
      * The default implementation does nothing.
      *
-     * @param ordinal ordinal of the edge the item comes from
+     * @param ordinal ordinal of the inbound edge
      * @param inbox   the inbox containing the pending items
      */
     default void process(int ordinal, @Nonnull Inbox inbox) {
+    }
+
+    /**
+     * Called when the current item on the inbound edge's stream is a watermark.
+     * May return {@code false}, in which case it will be called again later with
+     * the same {@code ordinal} and {@code wm}.
+     * <p>
+     * The default implementation does nothing and returns {@code true}.
+     *
+     * @param ordinal ordinal of the inbound edge
+     * @param wm the watermark
+     * @return {@code true} if the completing step is now done,
+     *         {@code false} otherwise.
+     */
+    default boolean tryProcessWatermark(int ordinal, Watermark wm) {
+        return true;
     }
 
     /**
