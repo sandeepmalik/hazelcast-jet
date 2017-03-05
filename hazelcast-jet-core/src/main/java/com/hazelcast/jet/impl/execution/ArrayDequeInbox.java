@@ -20,6 +20,7 @@ import com.hazelcast.jet.Inbox;
 import com.hazelcast.jet.Watermark;
 
 import java.util.ArrayDeque;
+import java.util.NoSuchElementException;
 
 /**
  * Implements {@link Inbox} in terms of an {@link ArrayDeque}.
@@ -39,5 +40,21 @@ public final class ArrayDequeInbox extends ArrayDeque<Object> implements Inbox {
     @Override
     public Object remove() {
         return Inbox.super.remove();
+    }
+
+    /**
+     * Retrieves, but does not remove, the watermark that is the only item in
+     * this inbox; or returns {@code null} if the above conditions aren't met.
+     */
+    Watermark peekWatermark() {
+        return size() == 1 && peek() instanceof Watermark ? (Watermark) peek() : null;
+    }
+
+    /**
+     * Removes the head of this inbox and asserts that it is a {@link Watermark}.
+     */
+    void removeWatermark() {
+        final Object item = super.poll();
+        assert item instanceof Watermark : "removeWatermark() called on non-watermark: " + item;
     }
 }

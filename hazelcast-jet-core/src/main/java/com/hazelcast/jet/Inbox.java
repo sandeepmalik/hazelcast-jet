@@ -24,12 +24,15 @@ import java.util.function.Consumer;
  * Queue-like API with special treatment for the watermark item. The inbox
  * is in a special state when it contains just a watermark item. In that
  * state the standard {@link #peek()}, {@link #poll()}, and {@link #remove()}
- * behave as if the inbox is empty, whereas the special {@link #peekWatermark()},
- * {@link #pollWatermark()}, and {@link #removeWatermark()} return the watermark.
+ * behave as if the inbox is empty. The methods {@link #drain(Consumer) drain()}
+ * and {@link #drainTo(Collection) drainTo()} behave as if implemented in terms
+ * of {@code poll()} and therefore won't drain the final watermark.
  * <p>
- * <strong>NOTE</strong> that the above means that the inbox may report
- * {@code size() > 0} yet fail to return anything from the standard
- * methods.
+ * <strong>NOTE</strong> that any watermark that is not the last item in
+ * the inbox will be given no special treatment.
+ * <p>
+ * <strong>NOTE</strong> that the inbox may report {@code size() > 0} yet fail
+ * to return anything from the dequeuing methods.
  */
 public interface Inbox {
 
@@ -72,42 +75,10 @@ public interface Inbox {
     }
 
     /**
-     * Retrieves, but does not remove, the watermark that is the only item in
-     * this inbox; or returns {@code null} if the above conditions aren't met.
-     */
-    default Watermark peekWatermark() {
-        return size() == 1 && peek() instanceof Watermark ? (Watermark) peek() : null;
-    }
-
-    /**
-     * Retrieves and removes the watermark that is the only item in this inbox,
-     * or returns {@code null} if the above conditions aren't met.
-     */
-    default Watermark pollWatermark() {
-        return peekWatermark() != null ? (Watermark) remove() : null;
-    }
-
-    /**
-     * Retrieves and removes the watermark that is the only item in this inbox.
-     * This method differs from {@link #poll poll} only in that it throws an
-     * exception if the above conditions aren't met.
+     * Drains all the items except for any final {@link Watermark} into the
+     * provided {@link Collection}.
      *
-     * @throws NoSuchElementException if the inbox doesn't contain a watermark
-     *                                which is the only item in it
-     */
-    default Watermark removeWatermark() {
-        final Watermark item = pollWatermark();
-        if (item == null) {
-            throw new NoSuchElementException("removeWatermark()");
-        }
-        return item;
-    }
-
-    /**
-     * Drains all elements into the provided {@link Collection}.
-     *
-     * @param target the collection to drain this object's items into
-     * @return the number of elements actually drained
+     * @return the number of items drained
      */
     default <E> int drainTo(Collection<E> target) {
         int drained = 0;
@@ -119,9 +90,10 @@ public interface Inbox {
     }
 
     /**
-     * Passes each of this object's items to the supplied consumer until it is empty.
+     * Passes each of this inbox's items, except for any final {@link Watermark},
+     * to the supplied consumer.
      *
-     * @return the number of elements drained
+     * @return the number of items drained
      */
     default <E> int drain(Consumer<E> consumer) {
         int consumed = 0;
