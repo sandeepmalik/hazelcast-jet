@@ -59,7 +59,7 @@ public class CombineFramesP<K, F, R> extends AbstractProcessor {
 
     @Override
     public boolean tryProcessWatermark(int ordinal, Watermark wm) {
-        FrameClosed frame = (FrameClosed) wm;
+        SeqWatermark frame = (SeqWatermark) wm;
         Map<K, F> keys = seqToKeyToFrame.remove(frame.seq());
         if (keys == null) {
             return true;

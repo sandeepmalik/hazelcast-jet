@@ -18,11 +18,11 @@ package com.hazelcast.jet.windowing.example;
 
 import com.hazelcast.jet.Watermark;
 
-public class FrameClosed implements Watermark {
+public final class SeqWatermark implements Watermark {
 
     private final long seq;
 
-    public FrameClosed(long seq) {
+    public SeqWatermark(long seq) {
         this.seq = seq;
     }
 
@@ -32,16 +32,7 @@ public class FrameClosed implements Watermark {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-
-        FrameClosed that = (FrameClosed) o;
-
-        return seq == that.seq;
+        return this == o || o instanceof SeqWatermark && this.seq == ((SeqWatermark) o).seq;
     }
 
     @Override
@@ -51,8 +42,6 @@ public class FrameClosed implements Watermark {
 
     @Override
     public String toString() {
-        return "FrameClosed{" +
-                "seq=" + seq +
-                '}';
+        return "SeqWatermark{seq=" + seq + '}';
     }
 }

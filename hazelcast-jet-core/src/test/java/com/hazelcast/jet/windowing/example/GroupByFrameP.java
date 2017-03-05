@@ -31,50 +31,50 @@ import java.util.Map.Entry;
 /**
  * TODO javadoc
  * @param <T> Ingested type
- * @param <B> Accumulator type
+ * @param <F> Accumulator type
  * @param <R> Accumulator result type
  */
-public class GroupByFrameP<T, K, B, R> extends AbstractProcessor {
-    private final SnapshottingCollector<? super T, B, R> tc;
+public class GroupByFrameP<T, K, F, R> extends AbstractProcessor {
+    private final SnapshottingCollector<? super T, F, R> tc;
     private final ToLongFunction<? super T> extractTimestampF;
     private final Function<? super T, K> extractKeyF;
     private final LongUnaryOperator toFrameSeqF;
-    private final int bucketCount;
-    private final Map<K, B>[] keyToBucketMaps;
+    private final int openFrameCount;
+    private final Map<K, F>[] keyToFrameMaps;
     private long currentFrameSeq;
     private long frameSeqBase;
 
     private GroupByFrameP(
-            int bucketCount,
+            int openFrameCount,
             Function<? super T, K> extractKeyF,
             ToLongFunction<? super T> extractTimestampF,
             LongUnaryOperator toFrameSeqF,
-            SnapshottingCollector<? super T, B, R> tc
+            SnapshottingCollector<? super T, F, R> tc
     ) {
         this.tc = tc;
         this.extractTimestampF = extractTimestampF;
         this.extractKeyF = extractKeyF;
         this.toFrameSeqF = toFrameSeqF;
-        this.bucketCount = bucketCount;
-        this.keyToBucketMaps = new Map[bucketCount];
-        Arrays.setAll(keyToBucketMaps, i -> new HashMap<>());
+        this.openFrameCount = openFrameCount;
+        this.keyToFrameMaps = new Map[openFrameCount];
+        Arrays.setAll(keyToFrameMaps, i -> new HashMap<>());
     }
 
     public static <T, B, R> Distributed.Supplier<GroupByFrameP> groupByFrame(
-            int bucketCount,
+            int openFrameCount,
             ToLongFunction<? super T> extractTimestampF,
             LongUnaryOperator toFrameSeqF,
             SnapshottingCollector<T, B, R> tc) {
-        return groupByFrame(bucketCount, t -> "global", extractTimestampF, toFrameSeqF, tc);
+        return groupByFrame(openFrameCount, t -> "global", extractTimestampF, toFrameSeqF, tc);
     }
 
     public static <T, K, B, R> Distributed.Supplier<GroupByFrameP> groupByFrame(
-            int bucketCount,
+            int openFrameCount,
             Function<? super T, K> extractKeyF,
             ToLongFunction<? super T> extractTimestampF,
             LongUnaryOperator toFrameSeqF,
             SnapshottingCollector<T, B, R> tc) {
-        return () -> new GroupByFrameP<>(bucketCount, extractKeyF, extractTimestampF, toFrameSeqF, tc);
+        return () -> new GroupByFrameP<>(openFrameCount, extractKeyF, extractTimestampF, toFrameSeqF, tc);
     }
 
     @Override
@@ -83,37 +83,34 @@ public class GroupByFrameP<T, K, B, R> extends AbstractProcessor {
         K key = extractKeyF.apply(t);
         final long itemFrameSeq = toFrameSeqF.applyAsLong(extractTimestampF.applyAsLong(t));
         ensureFrameSeqInitialized(itemFrameSeq);
-        if (itemFrameSeq <= currentFrameSeq - bucketCount) {
+        if (itemFrameSeq <= currentFrameSeq - openFrameCount) {
             System.out.println("Late event: " + t);
             return true;
         }
         if (itemFrameSeq > currentFrameSeq) {
             slideTo(itemFrameSeq);
         }
-        B bucket = keyToBucketMaps[toBucketIndex(itemFrameSeq)].computeIfAbsent(key, x -> tc.supplier().get());
-        tc.accumulator().accept(bucket, t);
+        F frame = keyToFrameMaps[toFrameIndex(itemFrameSeq)].computeIfAbsent(key, x -> tc.supplier().get());
+        tc.accumulator().accept(frame, t);
         return true;
     }
 
     private void slideTo(long itemFrameSeq) {
-        final long evictFrom = Math.max(frameSeqBase, currentFrameSeq - bucketCount + 1);
-        final long evictUntil = itemFrameSeq - bucketCount + 1;
+        final long evictFrom = Math.max(frameSeqBase, currentFrameSeq - openFrameCount + 1);
+        final long evictUntil = itemFrameSeq - openFrameCount + 1;
         for (long seq = evictFrom; seq < evictUntil; seq++) {
-            final int bucketIndex = toBucketIndex(seq);
-            for (Entry<K, B> e : keyToBucketMaps[bucketIndex].entrySet()) {
-                B bucket = e.getValue();
-                emit(new KeyedFrame<>(seq, e.getKey(), bucket));
+            final int frameIndex = toFrameIndex(seq);
+            for (Entry<K, F> e : keyToFrameMaps[frameIndex].entrySet()) {
+                emit(new KeyedFrame<>(seq, e.getKey(), e.getValue()));
             }
-
-            FrameClosed item = new FrameClosed(seq);
-            emit(item);
-            keyToBucketMaps[bucketIndex] = new HashMap<>();
+            emit(new SeqWatermark(seq));
+            keyToFrameMaps[frameIndex] = new HashMap<>();
         }
         currentFrameSeq = itemFrameSeq;
     }
 
-    private int toBucketIndex(long tsPeriod) {
-        return (int) Math.floorMod(tsPeriod, bucketCount);
+    private int toFrameIndex(long tsPeriod) {
+        return (int) Math.floorMod(tsPeriod, openFrameCount);
     }
 
     private void ensureFrameSeqInitialized(long frameSeq) {

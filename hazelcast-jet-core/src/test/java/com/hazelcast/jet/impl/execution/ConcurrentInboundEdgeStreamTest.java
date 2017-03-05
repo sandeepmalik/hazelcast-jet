@@ -21,7 +21,7 @@ import com.hazelcast.internal.util.concurrent.update.OneToOneConcurrentArrayQueu
 import com.hazelcast.internal.util.concurrent.update.QueuedPipe;
 import com.hazelcast.jet.JetException;
 import com.hazelcast.jet.impl.util.ProgressState;
-import com.hazelcast.jet.windowing.example.FrameClosed;
+import com.hazelcast.jet.windowing.example.SeqWatermark;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -147,13 +147,13 @@ public class ConcurrentInboundEdgeStreamTest {
         for (QueuedPipe<Object> q : Arrays.asList(q1, q2)) {
             q.add(0);
             q.add(1);
-            q.add(new FrameClosed(1));
+            q.add(new SeqWatermark(1));
             q.add(2);
             q.add(DONE_WM);
         }
 
         ProgressState progressState = stream.drainTo(list);
-        assertEquals(Arrays.asList(0, 1, 0, 1, new FrameClosed(1)), list);
+        assertEquals(Arrays.asList(0, 1, 0, 1, new SeqWatermark(1)), list);
         assertEquals(MADE_PROGRESS, progressState);
 
         list.clear();
@@ -167,7 +167,7 @@ public class ConcurrentInboundEdgeStreamTest {
         ArrayList<Object> list = new ArrayList<>();
         q1.add(0);
         q1.add(1);
-        q1.add(new FrameClosed(1));
+        q1.add(new SeqWatermark(1));
         q1.add(2);
         q1.add(DONE_WM);
         q2.add(3);
@@ -179,10 +179,10 @@ public class ConcurrentInboundEdgeStreamTest {
         list.clear();
         q2.add(5);
         q2.add(6);
-        q2.add(new FrameClosed(1));
+        q2.add(new SeqWatermark(1));
         q2.add(DONE_WM);
         progressState = stream.drainTo(list);
-        assertEquals(Arrays.asList(5, 6, new FrameClosed(1)), list);
+        assertEquals(Arrays.asList(5, 6, new SeqWatermark(1)), list);
         assertEquals(MADE_PROGRESS, progressState);
 
         list.clear();
@@ -193,8 +193,8 @@ public class ConcurrentInboundEdgeStreamTest {
 
     @Test
     public void when_watermarksDontMatch_then_error() {
-        FrameClosed wm1 = new FrameClosed(0);
-        FrameClosed wm2 = new FrameClosed(1);
+        SeqWatermark wm1 = new SeqWatermark(0);
+        SeqWatermark wm2 = new SeqWatermark(1);
 
         ArrayList<Object> list = new ArrayList<>();
         q1.add(wm1);
@@ -212,7 +212,7 @@ public class ConcurrentInboundEdgeStreamTest {
     @Test
     public void when_oneWithWmOtherDone_then_error() {
         ArrayList<Object> list = new ArrayList<>();
-        FrameClosed wm = new FrameClosed(0);
+        SeqWatermark wm = new SeqWatermark(0);
         q1.add(wm);
         q1.add(DONE_WM);
         q2.add(DONE_WM);
@@ -226,7 +226,7 @@ public class ConcurrentInboundEdgeStreamTest {
     @Test
     public void when_oneDoneOtherWithWm_then_error() {
         ArrayList<Object> list = new ArrayList<>();
-        FrameClosed wm = new FrameClosed(0);
+        SeqWatermark wm = new SeqWatermark(0);
         q1.add(DONE_WM);
         q2.add(wm);
         q2.add(DONE_WM);
