@@ -18,6 +18,7 @@ package com.hazelcast.jet.windowing.example;
 
 import com.hazelcast.jet.AbstractProcessor;
 import com.hazelcast.jet.Distributed;
+import com.hazelcast.jet.Distributed.Optional;
 import com.hazelcast.jet.Watermark;
 
 import javax.annotation.Nonnull;
@@ -28,42 +29,42 @@ import java.util.Map.Entry;
 /**
  * Javadoc pending.
  */
-public class CombineFramesP<K, B, R> extends AbstractProcessor {
-    private final SnapshottingCollector<?, B, R> tc;
-    private final Map<Long, Map<K, B>> frames = new HashMap<>();
+public class CombineFramesP<K, F, R> extends AbstractProcessor {
+    private final SnapshottingCollector<?, F, R> tc;
+    private final Map<Long, Map<K, F>> seqToKeyToFrame = new HashMap<>();
 
-    private CombineFramesP(SnapshottingCollector<?, B, R> tc) {
+    private CombineFramesP(SnapshottingCollector<?, F, R> tc) {
         this.tc = tc;
     }
 
     public static <K, B, R> Distributed.Supplier<CombineFramesP<K, B, R>> combineFrames(
-            SnapshottingCollector<?, B, R> tc) {
+            SnapshottingCollector<?, B, R> tc
+    ) {
         return () -> new CombineFramesP<>(tc);
     }
 
     @Override
     protected boolean tryProcess0(@Nonnull Object item) {
-        final KeyedFrame<K, B> e = (KeyedFrame<K, B>) item;
+        final KeyedFrame<K, F> e = (KeyedFrame) item;
         final Long frameSeq = e.getSeq();
-        final B frame = e.getValue();
-        frames.computeIfAbsent(frameSeq, seq -> new HashMap<>())
-              .compute(e.getKey(), (s, b) -> {
-                          if (b == null) {
-                              b = tc.supplier().get();
-                          }
-                          return tc.combiner().apply(b, frame);
-                      });
+        final F frame = e.getValue();
+        seqToKeyToFrame.computeIfAbsent(frameSeq, x -> new HashMap<>())
+                       .compute(e.getKey(),
+                               (s, f) -> tc.combiner().apply(
+                                       Optional.ofNullable(f).orElseGet(tc.supplier()),
+                                       frame)
+                       );
         return true;
     }
 
     @Override
     public boolean tryProcessWatermark(int ordinal, Watermark wm) {
         FrameClosed frame = (FrameClosed) wm;
-        Map<K, B> keys = frames.remove(frame.seq());
+        Map<K, F> keys = seqToKeyToFrame.remove(frame.seq());
         if (keys == null) {
             return true;
         }
-        for (Entry<K, B> entry : keys.entrySet()) {
+        for (Entry<K, F> entry : keys.entrySet()) {
             emit(new KeyedFrame<>(frame.seq(), entry.getKey(), tc.finisher().apply(entry.getValue())));
         }
         return true;

@@ -79,10 +79,9 @@ public class TradeMonitor {
         put("AAPL", 15000);
     }};
 
-    private static final ILogger logger = Logger.getLogger(TradeMonitor.class);
-
     public static void main(String[] args) throws Exception {
         System.setProperty("hazelcast.logging.type", "log4j");
+        final ILogger logger = Logger.getLogger(TradeMonitor.class);
 
         try {
             JetConfig cfg = new JetConfig();
@@ -109,8 +108,7 @@ public class TradeMonitor {
                             counting()
                     )
             );
-            Vertex combineFrames = dag.newVertex("combine-frames",
-                    combineFrames(counting()));
+            Vertex combineFrames = dag.newVertex("combine-frames", combineFrames(counting()));
             Vertex sink = dag.newVertex("sink", Processors.writeMap("sink")).localParallelism(1);
 
             dag.edge(between(tickerSource, generateEvents).broadcast().distributed())
@@ -119,10 +117,9 @@ public class TradeMonitor {
                                                          .distributed())
                .edge(between(combineFrames, sink));
 
-//            dag
-//               .edge(from(generateEvents, 1).to(peek))
-//               .edge(from(groupByFrame, 1).to(peek, 0))
-//               .edge(from(combineFrames).to(peek, 0));
+            dag.edge(from(generateEvents, 1).to(peek));
+//            dag.edge(from(groupByFrame, 1).to(peek, 0));
+//            dag.edge(from(combineFrames, 1).to(peek, 0));
 
             jet.newJob(dag).execute();
 
@@ -168,7 +165,6 @@ public class TradeMonitor {
         }
 
         @Override public void destroy() {
-
         }
     }
 }

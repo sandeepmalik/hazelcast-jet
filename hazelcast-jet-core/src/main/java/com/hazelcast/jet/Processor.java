@@ -84,7 +84,7 @@ public interface Processor {
      *
      * @param ordinal ordinal of the inbound edge
      * @param wm the watermark
-     * @return {@code true} if the completing step is now done,
+     * @return {@code true} if the processing of the watermark is now done,
      *         {@code false} otherwise.
      */
     default boolean tryProcessWatermark(int ordinal, Watermark wm) {
