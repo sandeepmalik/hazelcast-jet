@@ -43,6 +43,8 @@ public class DagValidator {
     public Collection<Vertex> validate(Map<String, Vertex> verticesByName, Set<Edge> edges) {
         topologicalVertexStack.clear();
         checkTrue(!verticesByName.isEmpty(), "DAG must contain at least one vertex");
+        // Don't consider self-edges in validation. They are allowed even though they result in cycles.
+        edges = edges.stream().filter(e -> !e.isSelfEdge()).collect(toSet());
         Map<String, List<Edge>> outgoingEdgeMap = edges.stream().collect(groupingBy(Edge::getSourceName));
         validateOutboundEdgeOrdinals(outgoingEdgeMap);
         validateInboundEdgeOrdinals(edges.stream().collect(groupingBy(Edge::getDestName)));
@@ -118,8 +120,9 @@ public class DagValidator {
                     strongConnect(outVertex, vertexMap, edgeMap, stack, nextIndex);
                     av.lowlink = Math.min(av.lowlink, outVertex.lowlink);
                 } else if (outVertex.onstack) {
-                    // strongly connected component detected, but we will wait till later so that the full cycle can be displayed.
-                    // update lowlink in case outputVertex should be considered the root of this component.
+                    // strongly connected component detected, but we will wait till later so
+                    // that the full cycle can be displayed. Update lowlink in case outputVertex
+                    // should be considered the root of this component.
                     av.lowlink = Math.min(av.lowlink, outVertex.index);
                 }
             }
@@ -139,15 +142,6 @@ public class DagValidator {
                 }
                 message.append(av.v.getName());
                 throw new IllegalArgumentException("DAG contains a cycle: " + message);
-            } else {
-                // detect self-cycle
-                if (edgeMap.containsKey(pop.v.getName())) {
-                    for (Edge edge : edgeMap.get(pop.v.getName())) {
-                        if (edge.getDestName().equals(pop.v.getName())) {
-                            throw new IllegalArgumentException("DAG contains a self-cycle on vertex:" + pop.v.getName());
-                        }
-                    }
-                }
             }
             topologicalVertexStack.addLast(av.v);
         }

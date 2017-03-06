@@ -170,6 +170,10 @@ public class Edge implements IdentifiedDataSerializable {
         return destOrdinal;
     }
 
+    public boolean isSelfEdge() {
+        return source == destination;
+    }
+
     /**
      * Sets the priority of the edge. A lower number means higher priority
      * and the default is 0.
