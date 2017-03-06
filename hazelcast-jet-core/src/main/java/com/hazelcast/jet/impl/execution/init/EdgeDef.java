@@ -17,10 +17,8 @@
 package com.hazelcast.jet.impl.execution.init;
 
 import com.hazelcast.jet.Edge;
-import com.hazelcast.jet.Edge.DistributionScope;
-import com.hazelcast.jet.Edge.ForwardingPattern;
-import com.hazelcast.jet.Partitioner;
 import com.hazelcast.jet.config.EdgeConfig;
+import com.hazelcast.jet.Partitioner;
 import com.hazelcast.nio.ObjectDataInput;
 import com.hazelcast.nio.ObjectDataOutput;
 import com.hazelcast.nio.serialization.IdentifiedDataSerializable;
@@ -35,8 +33,8 @@ public class EdgeDef implements IdentifiedDataSerializable {
     private int destOrdinal;
     private int priority;
     private boolean isBuffered;
-    private DistributionScope distributionScope;
-    private ForwardingPattern forwardingPattern;
+    private boolean isDistributed;
+    private Edge.ForwardingPattern forwardingPattern;
     private Partitioner partitioner;
     private EdgeConfig config;
 
@@ -55,7 +53,7 @@ public class EdgeDef implements IdentifiedDataSerializable {
         this.destOrdinal = edge.getDestOrdinal();
         this.priority = edge.getPriority();
         this.isBuffered = edge.isBuffered();
-        this.distributionScope = isJobDistributed ? edge.distributionScope() : DistributionScope.NONE;
+        this.isDistributed = isJobDistributed && edge.isDistributed();
         this.forwardingPattern = edge.getForwardingPattern();
         this.partitioner = edge.getPartitioner();
         this.config = config;
@@ -68,17 +66,8 @@ public class EdgeDef implements IdentifiedDataSerializable {
         this.id = sourceVertex.vertexId() + ":" + destVertex.vertexId();
     }
 
-    public ForwardingPattern forwardingPattern() {
+    public Edge.ForwardingPattern forwardingPattern() {
         return forwardingPattern;
-    }
-
-    public DistributionScope distributionScope() {
-        return distributionScope;
-    }
-
-    boolean isDistributed() {
-        // Deliberate use of equals() to assert non-null
-        return !distributionScope.equals(DistributionScope.NONE);
     }
 
     public Partitioner partitioner() {
@@ -113,6 +102,10 @@ public class EdgeDef implements IdentifiedDataSerializable {
         return isBuffered;
     }
 
+    boolean isDistributed() {
+        return isDistributed;
+    }
+
     EdgeConfig getConfig() {
         return config;
     }
@@ -137,7 +130,7 @@ public class EdgeDef implements IdentifiedDataSerializable {
         out.writeInt(sourceOrdinal);
         out.writeInt(priority);
         out.writeBoolean(isBuffered);
-        out.writeObject(distributionScope);
+        out.writeBoolean(isDistributed);
         out.writeObject(forwardingPattern);
         CustomClassLoadedObject.write(out, partitioner);
         out.writeObject(config);
@@ -150,7 +143,7 @@ public class EdgeDef implements IdentifiedDataSerializable {
         sourceOrdinal = in.readInt();
         priority = in.readInt();
         isBuffered = in.readBoolean();
-        distributionScope = in.readObject();
+        isDistributed = in.readBoolean();
         forwardingPattern = in.readObject();
         partitioner = CustomClassLoadedObject.read(in);
         config = in.readObject();

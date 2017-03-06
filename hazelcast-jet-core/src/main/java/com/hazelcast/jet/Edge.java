@@ -25,13 +25,9 @@ import com.hazelcast.nio.ObjectDataOutput;
 import com.hazelcast.nio.serialization.IdentifiedDataSerializable;
 import com.hazelcast.util.UuidUtil;
 
-import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.io.Serializable;
 
-import static com.hazelcast.jet.Edge.DistributionScope.ALL_ITEMS;
-import static com.hazelcast.jet.Edge.DistributionScope.NONE;
-import static com.hazelcast.jet.Edge.ForwardingPattern.VARIABLE_UNICAST;
 import static com.hazelcast.jet.KeyExtractors.wholeItem;
 import static com.hazelcast.jet.Partitioner.defaultPartitioner;
 
@@ -65,11 +61,9 @@ public class Edge implements IdentifiedDataSerializable {
 
     private int priority;
     private boolean isBuffered;
+    private boolean isDistributed;
     private Partitioner<?> partitioner;
-    @Nonnull
-    private ForwardingPattern forwardingPattern = VARIABLE_UNICAST;
-    @Nonnull
-    private DistributionScope distributionScope = NONE;
+    private ForwardingPattern forwardingPattern = ForwardingPattern.VARIABLE_UNICAST;
 
     private EdgeConfig config;
 
@@ -281,38 +275,20 @@ public class Edge implements IdentifiedDataSerializable {
     }
 
     /**
-     * Declares that the edge is distributed.
+     * Declares that the edge is distributed. A non-distributed edge only transfers
+     * data within the same member. If the data source running on local member is
+     * distributed (produces only a slice of all the data on any given member), the
+     * local processors will not observe all the data. The same holds true when the data
+     * originates from an upstream distributed edge.
      * <p>
-     * A non-distributed edge only transfers data within the same member. If the
-     * data source running on local member is distributed (produces only a slice
-     * of all the data on any given member), the local processors will not observe
-     * all the data. The same holds true when the data originates from an upstream
-     * distributed edge.
-     * <p>
-     * A <em>distributed</em> edge allows all the data to be observed by all the
-     * processors (using the {@link ForwardingPattern#BROADCAST BROADCAST}
-     * forwarding pattern) and, more attractively, all the data with a given
-     * partition ID to be observed by the same unique processor, regardless of
-     * whether it is running on the local or a remote member (using the {@link
-     * ForwardingPattern#PARTITIONED PARTITIONED} forwarding pattern).
-     * <p>
-     * The effect of this method is identical to
-     * {@link #distributed(DistributionScope) distributed(ALL_ITEMS)}.
+     * A <em>distributed</em> edge allows all the data to be observed by all the processors
+     * (using the {@link ForwardingPattern#BROADCAST BROADCAST} forwarding pattern) and,
+     * more attractively, all the data with a given partition ID to be observed by the same
+     * unique processor, regardless of whether it is running on the local or a remote member
+     * (using the {@link ForwardingPattern#PARTITIONED PARTITIONED} forwarding pattern).
      */
     public Edge distributed() {
-        return distributed(ALL_ITEMS);
-    }
-
-    /**
-     * Allows a finer-grained setting to enable data distribution on the edge.
-     * Along with the {@link DistributionScope#ALL_ITEMS default distribution
-     * scope} it offers to distribute {@link DistributionScope#JUST_WATERMARKS
-     * just watermark items}.
-     *
-     * @see #distributed()
-     */
-    public Edge distributed(DistributionScope scope) {
-        this.distributionScope = scope;
+        isDistributed = true;
         return this;
     }
 
@@ -321,11 +297,7 @@ public class Edge implements IdentifiedDataSerializable {
      * property are discussed in {@link #distributed()}.
      */
     public boolean isDistributed() {
-        return distributionScope != NONE;
-    }
-
-    public DistributionScope distributionScope() {
-        return distributionScope;
+        return isDistributed;
     }
 
     /**
@@ -401,7 +373,7 @@ public class Edge implements IdentifiedDataSerializable {
         out.writeInt(destOrdinal);
         out.writeInt(priority);
         out.writeBoolean(isBuffered);
-        out.writeObject(distributionScope);
+        out.writeBoolean(isDistributed);
         out.writeObject(forwardingPattern);
         CustomClassLoadedObject.write(out, partitioner);
         out.writeObject(config);
@@ -415,7 +387,7 @@ public class Edge implements IdentifiedDataSerializable {
         destOrdinal = in.readInt();
         priority = in.readInt();
         isBuffered = in.readBoolean();
-        distributionScope = in.readObject();
+        isDistributed = in.readBoolean();
         forwardingPattern = in.readObject();
         partitioner = CustomClassLoadedObject.read(in);
         config = in.readObject();
@@ -457,25 +429,6 @@ public class Edge implements IdentifiedDataSerializable {
          * Each item is sent to all candidate processors.
          */
         BROADCAST
-    }
-
-    /**
-     * Determines the scope of edge data that is subject to distribution.
-     */
-    public enum DistributionScope implements Serializable {
-        /**
-         * Distribute nothing; route all items to local processors only.
-         */
-        NONE,
-        /**
-         * Distribute just the watermarks. Other items are routed only to local
-         * processors.
-         */
-        JUST_WATERMARKS,
-        /**
-         * Distribute all items.
-         */
-        ALL_ITEMS;
     }
 
     private static class Single implements Partitioner<Object> {

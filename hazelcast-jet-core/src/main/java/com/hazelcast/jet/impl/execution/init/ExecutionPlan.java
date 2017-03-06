@@ -23,7 +23,6 @@ import com.hazelcast.internal.util.concurrent.update.OneToOneConcurrentArrayQueu
 import com.hazelcast.internal.util.concurrent.update.QueuedPipe;
 import com.hazelcast.jet.DAG;
 import com.hazelcast.jet.Edge;
-import com.hazelcast.jet.Edge.DistributionScope;
 import com.hazelcast.jet.JetException;
 import com.hazelcast.jet.JetInstance;
 import com.hazelcast.jet.Processor;
@@ -70,7 +69,6 @@ import java.util.Objects;
 import java.util.function.Function;
 
 import static com.hazelcast.internal.util.concurrent.update.ConcurrentConveyor.concurrentConveyor;
-import static com.hazelcast.jet.Edge.DistributionScope.ALL_ITEMS;
 import static com.hazelcast.jet.impl.execution.OutboundCollector.compositeCollector;
 import static com.hazelcast.jet.impl.util.Util.getRemoteMembers;
 import static com.hazelcast.jet.impl.util.Util.readList;
@@ -368,8 +366,7 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
     ) {
         final int totalPtionCount = nodeEngine.getPartitionService().getPartitionCount();
         final int processorCount = edge.destVertex().parallelism();
-        final int[][] ptionsPerProcessor = ptionArrgmt.assignPartitionsToProcessors(processorCount,
-                edge.distributionScope() == ALL_ITEMS);
+        final int[][] ptionsPerProcessor = ptionArrgmt.assignPartitionsToProcessors(processorCount, edge.isDistributed());
         final OutboundCollector[] localCollectors = new OutboundCollector[processorCount];
         final ConcurrentConveyor<Object>[] localConveyors = localConveyorMap.get(edge.edgeId());
         Arrays.setAll(localCollectors, n ->
@@ -397,7 +394,6 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
 
     private void createIfAbsentReceiverTasklet(EdgeDef edge, int[][] ptionsPerProcessor, int totalPtionCount) {
         final ConcurrentConveyor<Object>[] localConveyors = localConveyorMap.get(edge.edgeId());
-        final int flowControlPeriodMs = getJetConfig().getInstanceConfig().getFlowControlPeriodMs();
 
         receiverMap.computeIfAbsent(edge.destVertex().vertexId(), x -> new HashMap<>())
                    .computeIfAbsent(edge.destOrdinal(), x -> {
@@ -413,14 +409,15 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
                                    ptionsPerProcessor[n]));
                            final OutboundCollector collector = compositeCollector(collectors, edge, totalPtionCount);
                            ReceiverTasklet receiverTasklet = new ReceiverTasklet(
-                                   collector, edge.getConfig().getReceiveWindowMultiplier(), flowControlPeriodMs);
+                                   collector, edge.getConfig().getReceiveWindowMultiplier(),
+                                   getConfig().getInstanceConfig().getFlowControlPeriodMs());
                            addrToTasklet.put(addr, receiverTasklet);
                        }
                        return addrToTasklet;
                    });
     }
 
-    private JetConfig getJetConfig() {
+    private JetConfig getConfig() {
         JetService service = nodeEngine.getService(JetService.SERVICE_NAME);
         return service.getJetInstance().getConfig();
     }
