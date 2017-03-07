@@ -37,6 +37,7 @@ import static com.hazelcast.jet.impl.execution.DoneWatermark.DONE_WM;
 public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
 
     private final int ordinal;
+    private final boolean isSelfEdge;
     private final int priority;
     private final ConcurrentConveyor<Object> conveyor;
     private final ProgressTracker tracker;
@@ -44,12 +45,30 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
     private final WatermarkDetector wmDetector = new WatermarkDetector();
     private Watermark currentWm;
 
-    public ConcurrentInboundEdgeStream(ConcurrentConveyor<Object> conveyor, int ordinal, int priority) {
+    public ConcurrentInboundEdgeStream(
+            ConcurrentConveyor<Object> conveyor, int ordinal, boolean isSelfEdge, int priority
+    ) {
         this.conveyor = conveyor;
         this.ordinal = ordinal;
+        this.isSelfEdge = isSelfEdge;
         this.priority = priority;
         this.tracker = new ProgressTracker();
         this.wmReceived = new BitSet(conveyor.queueCount());
+    }
+
+    @Override
+    public int ordinal() {
+        return ordinal;
+    }
+
+    @Override
+    public int priority() {
+        return priority;
+    }
+
+    @Override
+    public boolean isSelfEdge() {
+        return isSelfEdge;
     }
 
     /**
@@ -140,16 +159,6 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
 
         wmDetector.dest = null;
         return wmDetector.wm;
-    }
-
-    @Override
-    public int ordinal() {
-        return ordinal;
-    }
-
-    @Override
-    public int priority() {
-        return priority;
     }
 
     /**

@@ -40,5 +40,7 @@ public interface InboundEdgeStream {
 
     int ordinal();
 
+    boolean isSelfEdge();
+
     int priority();
 }

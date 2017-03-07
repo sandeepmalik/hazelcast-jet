@@ -94,6 +94,10 @@ public class EdgeDef implements IdentifiedDataSerializable {
         return destOrdinal;
     }
 
+    boolean isSelfEdge() {
+        return sourceVertex == destVertex;
+    }
+
     int priority() {
         return priority;
     }

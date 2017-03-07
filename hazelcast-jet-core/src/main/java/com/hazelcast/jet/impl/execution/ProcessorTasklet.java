@@ -48,9 +48,9 @@ public class ProcessorTasklet implements Tasklet {
     private final Queue<ArrayList<InboundEdgeStream>> instreamGroupQueue;
     private final String vertexName;
     private final Context context;
-    private CircularListCursor<InboundEdgeStream> instreamCursor;
     private final ArrayDequeOutbox outbox;
     private final OutboundEdgeStream[] outstreams;
+    private InstreamCursor instreamCursor;
 
     private InboundEdgeStream currInstream;
     private boolean currInstreamExhausted;
@@ -77,7 +77,6 @@ public class ProcessorTasklet implements Tasklet {
         this.context = context;
         this.instreamCursor = popInstreamGroup();
     }
-
 
     @Override
     public void init() {
@@ -107,8 +106,10 @@ public class ProcessorTasklet implements Tasklet {
         return progTracker.toProgressState();
     }
 
-    private CircularListCursor<InboundEdgeStream> popInstreamGroup() {
-        return Optional.ofNullable(instreamGroupQueue.poll()).map(CircularListCursor::new).orElse(null);
+    private InstreamCursor popInstreamGroup() {
+        return Optional.ofNullable(instreamGroupQueue.poll())
+                       .map(InstreamCursor::new)
+                       .orElse(null);
     }
 
     private void tryFillInbox() {
@@ -199,5 +200,27 @@ public class ProcessorTasklet implements Tasklet {
     public String toString() {
         return "ProcessorTasklet{vertex=" + vertexName + ", processor=" + processor + '}';
     }
-}
 
+    private static final class InstreamCursor {
+        private final CircularListCursor<InboundEdgeStream> cursor;
+        private int upstreamCount;
+
+        InstreamCursor(List<InboundEdgeStream> instreams) {
+            this.cursor = new CircularListCursor<>(instreams);
+            this.upstreamCount = (int) instreams.stream().filter(s -> !s.isSelfEdge()).count();
+        }
+
+        InboundEdgeStream value() {
+            return cursor.value();
+        }
+
+        boolean advance() {
+            return upstreamCount > 0 && cursor.advance();
+        }
+
+        void remove() {
+            cursor.remove();
+            upstreamCount--;
+        }
+    }
+}
