@@ -43,8 +43,6 @@ public class DagValidator {
     public Collection<Vertex> validate(Map<String, Vertex> verticesByName, Set<Edge> edges) {
         topologicalVertexStack.clear();
         checkTrue(!verticesByName.isEmpty(), "DAG must contain at least one vertex");
-        // Don't consider self-edges in validation. They are allowed even though they result in cycles.
-        edges = edges.stream().filter(e -> !e.isSelfEdge()).collect(toSet());
         Map<String, List<Edge>> outgoingEdgeMap = edges.stream().collect(groupingBy(Edge::getSourceName));
         validateOutboundEdgeOrdinals(outgoingEdgeMap);
         validateInboundEdgeOrdinals(edges.stream().collect(groupingBy(Edge::getDestName)));
