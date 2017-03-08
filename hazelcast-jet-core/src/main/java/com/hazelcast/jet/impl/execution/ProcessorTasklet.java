@@ -146,6 +146,7 @@ public class ProcessorTasklet implements Tasklet {
             progTracker.notDone();
             return;
         }
+        processor.process();
         final int inboundOrdinal = currInstream.ordinal();
         final Watermark wm = inbox.peekWatermark();
         if (wm != null) {
