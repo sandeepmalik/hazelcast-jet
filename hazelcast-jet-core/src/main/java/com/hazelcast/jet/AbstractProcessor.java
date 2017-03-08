@@ -179,8 +179,8 @@ public abstract class AbstractProcessor implements Processor {
      * {@code false}, in which case it will be called again later with the same
      * item.
      * <p>
-     * The default implementation delegates to
-     * {@link #tryProcess(int, Object) tryProcess(0, item)}.
+     * The default implementation delegates to {@link #tryProcess(int, Object)
+     * tryProcess(0, item)}.
      *
      * @param item    item to be processed
      * @return {@code true} if this item has now been processed,
@@ -196,8 +196,8 @@ public abstract class AbstractProcessor implements Processor {
      * {@code false}, in which case it will be called again later with the same
      * item.
      * <p>
-     * The default implementation delegates to
-     * {@link #tryProcess(int, Object) tryProcess(1, item)}.
+     * The default implementation delegates to {@link #tryProcess(int, Object)
+     * tryProcess(1, item)}.
      *
      * @param item    item to be processed
      * @return {@code true} if this item has now been processed,
@@ -213,8 +213,8 @@ public abstract class AbstractProcessor implements Processor {
      * {@code false}, in which case it will be called again later with the same
      * item.
      * <p>
-     * The default implementation delegates to
-     * {@link #tryProcess(int, Object) tryProcess(2, item)}.
+     * The default implementation delegates to {@link #tryProcess(int, Object)
+     * tryProcess(2, item)}.
      *
      * @param item    item to be processed
      * @return {@code true} if this item has now been processed,
@@ -230,8 +230,8 @@ public abstract class AbstractProcessor implements Processor {
      * {@code false}, in which case it will be called again later with the same
      * item.
      * <p>
-     * The default implementation delegates to
-     * {@link #tryProcess(int, Object) tryProcess(3, item)}.
+     * The default implementation delegates to {@link #tryProcess(int, Object)
+     * tryProcess(3, item)}.
      *
      * @param item    item to be processed
      * @return {@code true} if this item has now been processed,
@@ -247,8 +247,8 @@ public abstract class AbstractProcessor implements Processor {
      * {@code false}, in which case it will be called again later with the same
      * item.
      * <p>
-     * The default implementation delegates to
-     * {@link #tryProcess(int, Object) tryProcess(4, item)}.
+     * The default implementation delegates to {@link #tryProcess(int, Object)
+     * tryProcess(4, item)}.
      *
      * @param item    item to be processed
      * @return {@code true} if this item has now been processed,
@@ -283,11 +283,15 @@ public abstract class AbstractProcessor implements Processor {
     /**
      * Emits the items obtained from the traverser to the outbox bucket with the
      * supplied ordinal, in a cooperative fashion: if the outbox reports it has
-     * reached the limit, backs off and returns {@code false}.
+     * {@link Outbox#hasReachedLimit()}  reached the limit}, backs off and
+     * returns {@code false}.
      * <p>
      * If this method returns {@code false}, then the same traverser must be
      * retained by the caller and passed again in the subsequent invocation of
      * this method, so as to resume emitting where it left off.
+     * <p>
+     * For simplified usage from {@link #tryProcess(int, Object) tryProcess()}
+     * methods, see {@link FlatMapper}.
      *
      * @param ordinal ordinal of the target bucket
      * @param traverser traverser over items to emit
@@ -342,11 +346,25 @@ public abstract class AbstractProcessor implements Processor {
 
     /**
      * A helper that simplifies the implementation of
-     * {@link AbstractProcessor#tryProcess(int, Object)} for {@code flatMap}-like
-     * behavior. User supplies a {@code mapper} which takes an item and
+     * {@link AbstractProcessor#tryProcess(int, Object) tryProcess()} for emitting
+     * collections. User supplies a {@code mapper} which takes an item and
      * returns a traverser over all output items that should be emitted. The
      * {@link #tryProcess(Object)} method obtains and passes the traverser to
      * {@link #emitCooperatively(int, Traverser)}.
+     *
+     * Example:
+     * <pre>
+     * public static class WordSplitterP extends AbstractProcessor {
+     *
+     *     private FlatMapper&lt;String, String> flatMapper =
+     *             flatMapper((String item) -> Traverser.over(item.split("\\W")));
+     *
+     *     &#064;Override
+     *     protected boolean tryProcess(int ordinal, Object item) throws Exception {
+     *         return flatMapper.tryProcess((String) item);
+     *     }
+     * }
+     * </pre>
      *
      * @param <T> type of the input item
      * @param <R> type of the emitted item
