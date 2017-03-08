@@ -73,11 +73,6 @@ public class MockInboundStream implements InboundEdgeStream {
     }
 
     @Override
-    public boolean isSelfEdge() {
-        return false;
-    }
-
-    @Override
     public int priority() {
         return 0;
     }

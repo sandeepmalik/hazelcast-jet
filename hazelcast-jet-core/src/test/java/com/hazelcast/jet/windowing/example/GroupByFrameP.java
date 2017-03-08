@@ -64,8 +64,7 @@ public class GroupByFrameP<T, K, F, R> extends AbstractProcessor {
             int openFrameCount,
             ToLongFunction<? super T> extractTimestampF,
             LongUnaryOperator toFrameSeqF,
-            SnapshottingCollector<T, B, R> tc
-    ) {
+            SnapshottingCollector<T, B, R> tc) {
         return groupByFrame(openFrameCount, t -> "global", extractTimestampF, toFrameSeqF, tc);
     }
 
@@ -74,8 +73,7 @@ public class GroupByFrameP<T, K, F, R> extends AbstractProcessor {
             Function<? super T, K> extractKeyF,
             ToLongFunction<? super T> extractTimestampF,
             LongUnaryOperator toFrameSeqF,
-            SnapshottingCollector<T, B, R> tc
-    ) {
+            SnapshottingCollector<T, B, R> tc) {
         return () -> new GroupByFrameP<>(openFrameCount, extractKeyF, extractTimestampF, toFrameSeqF, tc);
     }
 

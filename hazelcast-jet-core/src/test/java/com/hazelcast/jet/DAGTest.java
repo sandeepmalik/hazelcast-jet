@@ -133,7 +133,7 @@ public class DAGTest {
     }
 
     @Test
-    public void inboundEdgesMethod() {
+    public void inboundEdges() {
         // Given
         final DAG dag = new DAG();
         final Vertex a = dag.newVertex("a", PROCESSOR_SUPPLIER);
@@ -156,7 +156,7 @@ public class DAGTest {
     }
 
     @Test
-    public void outboundEdgesMethod() {
+    public void outboundEdges() {
         // Given
         final DAG dag = new DAG();
         final Vertex a = dag.newVertex("a", PROCESSOR_SUPPLIER);
@@ -232,37 +232,14 @@ public class DAGTest {
         DAG dag = new DAG();
         Vertex a = dag.newVertex("a", PROCESSOR_SUPPLIER);
         Vertex b = dag.newVertex("b", PROCESSOR_SUPPLIER);
-        Vertex c = dag.newVertex("c", PROCESSOR_SUPPLIER);
-        Vertex d = dag.newVertex("d", PROCESSOR_SUPPLIER);
         dag.edge(between(a, b))
-           .edge(between(b, c))
-           .edge(between(c, d))
-           .edge(from(d).to(b, 1));
+           .edge(between(b, a));
 
         // Then
         exceptionRule.expect(IllegalArgumentException.class);
 
         // When
         dag.validate();
-    }
-
-    @Test
-    public void when_selfEdge_then_valid() {
-        // Given
-        DAG dag = new DAG();
-        Vertex a = dag.newVertex("a", PROCESSOR_SUPPLIER);
-        Vertex b = dag.newVertex("b", PROCESSOR_SUPPLIER);
-        Vertex c = dag.newVertex("c", PROCESSOR_SUPPLIER);
-        Vertex d = dag.newVertex("d", PROCESSOR_SUPPLIER);
-        dag.edge(between(a, b))
-           .edge(between(b, c))
-           .edge(between(c, d))
-           .edge(from(c, 1).to(c, 1));
-
-        // When
-        dag.validate();
-
-        // Then success
     }
 
     @Test

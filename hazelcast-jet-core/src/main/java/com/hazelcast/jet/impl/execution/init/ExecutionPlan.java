@@ -335,8 +335,10 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
             for (Address destAddr : getRemoteMembers(nodeEngine)) {
                 final ConcurrentConveyor<Object> conveyor =
                         createConveyorArray(1, edge.sourceVertex().parallelism(), edge.getConfig().getQueueSize())[0];
+                final ConcurrentInboundEdgeStream inboundEdgeStream = createInboundEdgeStream(
+                        edge.destOrdinal(), edge.priority(), conveyor);
                 final int destVertexId = edge.destVertex().vertexId();
-                final SenderTasklet t = new SenderTasklet(inboundEdgeStream(edge, conveyor), nodeEngine,
+                final SenderTasklet t = new SenderTasklet(inboundEdgeStream, nodeEngine,
                         destAddr, executionId, destVertexId, edge.getConfig().getPacketSizeLimit());
                 senderMap.computeIfAbsent(destVertexId, xx -> new HashMap<>())
                          .computeIfAbsent(edge.destOrdinal(), xx -> new HashMap<>())
@@ -426,13 +428,15 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
             // each tasklet will have one input conveyor per edge
             // and one InboundEmitter per queue on the conveyor
             final ConcurrentConveyor<Object> conveyor = localConveyorMap.get(inEdge.edgeId())[processorIdx];
-            inboundStreams.add(inboundEdgeStream(inEdge, conveyor));
+            inboundStreams.add(createInboundEdgeStream(inEdge.destOrdinal(), inEdge.priority(), conveyor));
         }
         return inboundStreams;
     }
 
-    private static ConcurrentInboundEdgeStream inboundEdgeStream(EdgeDef edge, ConcurrentConveyor<Object> conveyor) {
-        return new ConcurrentInboundEdgeStream(conveyor, edge.destOrdinal(), edge.isSelfEdge(), edge.priority());
+    private static ConcurrentInboundEdgeStream createInboundEdgeStream(
+            int ordinal, int priority, ConcurrentConveyor<Object> conveyor
+    ) {
+        return new ConcurrentInboundEdgeStream(conveyor, ordinal, priority);
     }
 }
 

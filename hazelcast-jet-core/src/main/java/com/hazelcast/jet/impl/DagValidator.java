@@ -140,6 +140,15 @@ public class DagValidator {
                 }
                 message.append(av.v.getName());
                 throw new IllegalArgumentException("DAG contains a cycle: " + message);
+            } else {
+                // detect self-cycle
+                if (edgeMap.containsKey(pop.v.getName())) {
+                    for (Edge edge : edgeMap.get(pop.v.getName())) {
+                        if (edge.getDestName().equals(pop.v.getName())) {
+                            throw new IllegalArgumentException("DAG contains a self-cycle on vertex:" + pop.v.getName());
+                        }
+                    }
+                }
             }
             topologicalVertexStack.addLast(av.v);
         }
