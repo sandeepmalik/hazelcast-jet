@@ -102,9 +102,11 @@ public class ProcessorTasklet implements Tasklet {
             if (processor.completeEdge(currInstream.ordinal())) {
                 currInstream = null;
             }
-            progTracker.madeProgress(outbox.didAdd());
+        } else {
+            processor.process();
         }
         tryFlushOutbox();
+        progTracker.madeProgress(outbox.didAdd());
         return progTracker.toProgressState();
     }
 
@@ -153,7 +155,6 @@ public class ProcessorTasklet implements Tasklet {
         } else {
             processor.process(inboundOrdinal, inbox);
         }
-        progTracker.madeProgress(outbox.didAdd());
         if (!inbox.isEmpty()) {
             progTracker.notDone();
         }
@@ -168,7 +169,6 @@ public class ProcessorTasklet implements Tasklet {
             return;
         }
         processorCompleted = processor.complete();
-        progTracker.madeProgress(outbox.didAdd());
         if (processorCompleted) {
             for (OutboundEdgeStream outstream : outstreams) {
                 outbox.add(outstream.ordinal(), DONE_WM);
