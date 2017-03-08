@@ -31,6 +31,8 @@ public final class ArrayDequeOutbox implements Outbox {
     private final ArrayDeque<Object>[] buckets;
     private final int[] outboxLimits;
 
+    private boolean didAdd;
+
     public ArrayDequeOutbox(int size, int[] outboxLimits) {
         this.outboxLimits = outboxLimits.clone();
         this.buckets = new ArrayDeque[size];
@@ -44,6 +46,7 @@ public final class ArrayDequeOutbox implements Outbox {
 
     @Override
     public void add(int ordinal, @Nonnull Object item) {
+        didAdd = true;
         if (ordinal != -1) {
             buckets[ordinal].add(item);
         } else {
@@ -71,9 +74,17 @@ public final class ArrayDequeOutbox implements Outbox {
         return Arrays.toString(buckets);
     }
 
-    // Private API that exposes the ArrayDeques to the ProcessorTasklet
+    // Private API
 
     public Queue<Object> queueWithOrdinal(int ordinal) {
         return buckets[ordinal];
+    }
+
+    public void resetDidAdd() {
+        didAdd = false;
+    }
+
+    public boolean didAdd() {
+        return didAdd;
     }
 }

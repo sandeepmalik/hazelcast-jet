@@ -76,6 +76,13 @@ public interface Processor {
     }
 
     /**
+     * Called when there is no pending data to process. Allows the processor to
+     * perform non-input-driven work.
+     */
+    default void process() {
+    }
+
+    /**
      * Called when the current item on the inbound edge's stream is a watermark.
      * May return {@code false}, in which case it will be called again later with
      * the same {@code ordinal} and {@code wm}.
@@ -158,7 +165,5 @@ public interface Processor {
          */
         @Nonnull
         String vertexName();
-
-
     }
 }

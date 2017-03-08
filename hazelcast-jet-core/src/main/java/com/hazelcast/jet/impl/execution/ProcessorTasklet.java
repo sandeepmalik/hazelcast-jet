@@ -93,15 +93,16 @@ public class ProcessorTasklet implements Tasklet {
     public ProgressState call() {
         progTracker.reset();
         tryFillInbox();
+        outbox.resetDidAdd();
         if (progTracker.isDone()) {
             completeIfNeeded();
         } else if (!inbox.isEmpty()) {
             tryProcessInbox();
         } else if (currInstreamExhausted) {
-            progTracker.madeProgress(true);
             if (processor.completeEdge(currInstream.ordinal())) {
                 currInstream = null;
             }
+            progTracker.madeProgress(outbox.didAdd());
         }
         tryFlushOutbox();
         return progTracker.toProgressState();
@@ -143,7 +144,6 @@ public class ProcessorTasklet implements Tasklet {
             progTracker.notDone();
             return;
         }
-        progTracker.madeProgress(true);
         final int inboundOrdinal = currInstream.ordinal();
         final Watermark wm = inbox.peekWatermark();
         if (wm != null) {
@@ -153,6 +153,7 @@ public class ProcessorTasklet implements Tasklet {
         } else {
             processor.process(inboundOrdinal, inbox);
         }
+        progTracker.madeProgress(outbox.didAdd());
         if (!inbox.isEmpty()) {
             progTracker.notDone();
         }
@@ -166,15 +167,15 @@ public class ProcessorTasklet implements Tasklet {
             progTracker.notDone();
             return;
         }
-        progTracker.madeProgress(true);
-        if (!processor.complete()) {
-            progTracker.notDone();
+        processorCompleted = processor.complete();
+        progTracker.madeProgress(outbox.didAdd());
+        if (processorCompleted) {
+            for (OutboundEdgeStream outstream : outstreams) {
+                outbox.add(outstream.ordinal(), DONE_WM);
+            }
             return;
         }
-        processorCompleted = true;
-        for (OutboundEdgeStream outstream : outstreams) {
-            outbox.add(outstream.ordinal(), DONE_WM);
-        }
+        progTracker.notDone();
     }
 
     private void tryFlushOutbox() {
