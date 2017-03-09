@@ -45,6 +45,6 @@ public final class Punctuation implements Serializable{
 
     @Override
     public String toString() {
-        return "SeqPunctuation{seq=" + seq + '}';
+        return "Punctuation{seq=" + seq + '}';
     }
 }

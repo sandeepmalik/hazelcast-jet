@@ -21,6 +21,8 @@ import com.hazelcast.jet.Distributed.ToLongFunction;
 import com.hazelcast.jet.Punctuation;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
+import java.util.function.LongSupplier;
 
 /**
  * A processor to interleave the source with punctuations, when the source does not emit any
@@ -36,44 +38,91 @@ import javax.annotation.Nonnull;
  */
 public class InterleavePunctuationP<T> extends AbstractProcessor {
 
+    private static final int HISTORIC_SEQS_COUNT = 16;
+
     private final ToLongFunction<T> extractTimestampF;
     private final long punctuationLag;
-    private final long punctuationInterval;
-    private Punctuation currentPunctuation;
+    private final LongSupplier clock;
+    private long highestSeq = Long.MIN_VALUE;
+    private long[] historicSeqs;
+    private int historicSeqsPos;
+    private long historyInterval;
+    private long currentHistoryFrameEnd;
+    private long highestPunctuation;
+
+    @Override
+    protected void init(@Nonnull Context context) throws Exception {
+        currentHistoryFrameEnd = clock.getAsLong() + historyInterval;
+    }
 
     /**
      * Time unit for {@code punctuationLag} and {@code punctuationInterval} is in the same
      * units as {@code extractTimestampF}.
      *
-     * @param extractTimestampF Function to extract timestamp from input items
-     * @param punctuationLag Time the punctuation is behind the most recent event
+     * @param extractTimestampF   Function to extract timestamp from input items
+     * @param punctuationLag      Time the punctuation is behind the most recent event
      * @param punctuationInterval Minimum time between subsequent punctuations.
      */
     public InterleavePunctuationP(ToLongFunction<T> extractTimestampF, long punctuationLag,
-            long punctuationInterval) {
+            long maxRetain) {
+        this(extractTimestampF, punctuationLag, maxRetain, System::nanoTime);
+    }
+
+    InterleavePunctuationP(ToLongFunction<T> extractTimestampF, long punctuationLag,
+            long maxRetain, LongSupplier clock) {
         this.extractTimestampF = extractTimestampF;
         this.punctuationLag = punctuationLag;
-        this.punctuationInterval = punctuationInterval;
+        this.clock = clock;
+
+        historicSeqs = new long[HISTORIC_SEQS_COUNT];
+        Arrays.fill(historicSeqs, Long.MIN_VALUE);
+
+        historyInterval = maxRetain / HISTORIC_SEQS_COUNT;
     }
 
     @Override
     protected boolean tryProcess(int ordinal, @Nonnull Object item) throws Exception {
         emit(item);
         T tItem = (T) item;
-        long itemTime = extractTimestampF.applyAsLong(tItem);
+        long itemSeq = extractTimestampF.applyAsLong(tItem);
 
-        // initial state
-        if (currentPunctuation == null) {
-            currentPunctuation = new Punctuation(itemTime);
-        } else {
-            // if sufficient time passed since the last punctuation, emit a new one
-            if (Math.subtractExact(itemTime, currentPunctuation.seq()) >= punctuationInterval) {
-                currentPunctuation = new Punctuation(itemTime - punctuationLag);
-                emit(currentPunctuation);
-            }
+        // if sufficient time passed since the last punctuation, emit a new one
+        if (itemSeq > highestSeq) {
+            highestSeq = itemSeq;
+            emitPunctuation(highestSeq - punctuationLag);
         }
 
         return true;
+    }
+
+    @Override
+    public void process() {
+        long now = clock.getAsLong();
+
+        while (currentHistoryFrameEnd < now) {
+            long nextFrameEnd = currentHistoryFrameEnd + historyInterval;
+
+            int oldestPos = historicSeqsPos + 1 == HISTORIC_SEQS_COUNT ? 0 : historicSeqsPos + 1;
+
+            // emit the oldest bucket, if it is newer than current max
+            if (historicSeqs[oldestPos] > highestSeq - punctuationLag) {
+                emitPunctuation(historicSeqs[oldestPos]);
+            }
+
+            historicSeqsPos = oldestPos;
+
+            // initialize the current bucket to current max. If this is an old bucket, initialize it to current-lag
+            historicSeqs[historicSeqsPos] = highestSeq - (nextFrameEnd < now ? punctuationLag : 0);
+
+            currentHistoryFrameEnd += historyInterval;
+        }
+    }
+
+    private void emitPunctuation(long at) {
+        if (at > highestPunctuation) {
+            highestPunctuation = at;
+            emit(new Punctuation(at));
+        }
     }
 
     @Override
@@ -84,9 +133,5 @@ public class InterleavePunctuationP<T> extends AbstractProcessor {
 
     public long getPunctuationLag() {
         return punctuationLag;
-    }
-
-    public long getPunctuationInterval() {
-        return punctuationInterval;
     }
 }
