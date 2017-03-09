@@ -39,7 +39,7 @@ public class InterleavePunctuationP<T> extends AbstractProcessor {
     private final ToLongFunction<T> extractTimestampF;
     private final long punctuationLag;
     private final long punctuationInterval;
-    private SeqPunctuation currentPunctuation;
+    private Punctuation currentPunctuation;
 
     /**
      * Time unit for {@code punctuationLag} and {@code punctuationInterval} is in the same
@@ -64,11 +64,11 @@ public class InterleavePunctuationP<T> extends AbstractProcessor {
 
         // initial state
         if (currentPunctuation == null) {
-            currentPunctuation = new SeqPunctuation(itemTime);
+            currentPunctuation = new Punctuation(itemTime);
         } else {
             // if sufficient time passed since the last punctuation, emit a new one
             if (Math.subtractExact(itemTime, currentPunctuation.seq()) >= punctuationInterval) {
-                currentPunctuation = new SeqPunctuation(itemTime - punctuationLag);
+                currentPunctuation = new Punctuation(itemTime - punctuationLag);
                 emit(currentPunctuation);
             }
         }

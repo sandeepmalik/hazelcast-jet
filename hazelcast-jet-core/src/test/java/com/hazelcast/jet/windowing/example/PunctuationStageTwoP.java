@@ -17,6 +17,7 @@
 package com.hazelcast.jet.windowing.example;
 
 import com.hazelcast.jet.AbstractProcessor;
+import com.hazelcast.jet.Punctuation;
 
 import javax.annotation.Nonnull;
 
@@ -30,13 +31,13 @@ public class PunctuationStageTwoP extends AbstractProcessor {
 
     @Override
     protected boolean tryProcess(int ordinal, @Nonnull Object item) {
-        if (!(item instanceof SeqPunctuation)) {
+        if (!(item instanceof Punctuation)) {
             emit(item);
             return true;
         }
-        final long receivedSeq = ((SeqPunctuation) item).seq();
+        final long receivedSeq = ((Punctuation) item).seq();
         while (emittedSeq < receivedSeq) {
-            emit(new SeqPunctuation(++emittedSeq));
+            emit(new Punctuation(++emittedSeq));
         }
         return true;
     }

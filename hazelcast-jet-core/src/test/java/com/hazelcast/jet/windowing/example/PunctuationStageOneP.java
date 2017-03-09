@@ -20,6 +20,7 @@ import com.hazelcast.jet.AbstractProcessor;
 import com.hazelcast.jet.Distributed;
 import com.hazelcast.jet.Distributed.LongUnaryOperator;
 import com.hazelcast.jet.Distributed.ToLongFunction;
+import com.hazelcast.jet.Punctuation;
 
 import javax.annotation.Nonnull;
 
@@ -66,7 +67,7 @@ public class PunctuationStageOneP<T> extends AbstractProcessor {
             nextPuncSeq = itemFrameSeq - (openFrameCount - 1);
         }
         while (nextPuncSeq + openFrameCount <= itemFrameSeq) {
-            emit(new SeqPunctuation(++nextPuncSeq));
+            emit(new Punctuation(++nextPuncSeq));
         }
         emit(t);
         return true;

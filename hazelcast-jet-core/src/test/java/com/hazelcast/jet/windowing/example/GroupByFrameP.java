@@ -21,6 +21,7 @@ import com.hazelcast.jet.Distributed;
 import com.hazelcast.jet.Distributed.Function;
 import com.hazelcast.jet.Distributed.LongUnaryOperator;
 import com.hazelcast.jet.Distributed.ToLongFunction;
+import com.hazelcast.jet.Punctuation;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
@@ -103,7 +104,7 @@ public class GroupByFrameP<T, K, F, R> extends AbstractProcessor {
             for (Entry<K, F> e : keyToFrameMaps[frameIndex].entrySet()) {
                 emit(new KeyedFrame<>(seq, e.getKey(), e.getValue()));
             }
-            emit(new SeqPunctuation(seq));
+            emit(new Punctuation(seq));
             keyToFrameMaps[frameIndex] = new HashMap<>();
         }
         currentFrameSeq = itemFrameSeq;

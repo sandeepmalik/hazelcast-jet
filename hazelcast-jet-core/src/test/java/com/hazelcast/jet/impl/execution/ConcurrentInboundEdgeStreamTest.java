@@ -20,8 +20,8 @@ import com.hazelcast.internal.util.concurrent.update.ConcurrentConveyor;
 import com.hazelcast.internal.util.concurrent.update.OneToOneConcurrentArrayQueue;
 import com.hazelcast.internal.util.concurrent.update.QueuedPipe;
 import com.hazelcast.jet.JetException;
+import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.impl.util.ProgressState;
-import com.hazelcast.jet.windowing.example.SeqPunctuation;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -147,13 +147,13 @@ public class ConcurrentInboundEdgeStreamTest {
         for (QueuedPipe<Object> q : Arrays.asList(q1, q2)) {
             q.add(0);
             q.add(1);
-            q.add(new SeqPunctuation(1));
+            q.add(new Punctuation(1));
             q.add(2);
             q.add(DONE_ITEM);
         }
 
         ProgressState progressState = stream.drainTo(list);
-        assertEquals(Arrays.asList(0, 1, 0, 1, new SeqPunctuation(1)), list);
+        assertEquals(Arrays.asList(0, 1, 0, 1, new Punctuation(1)), list);
         assertEquals(MADE_PROGRESS, progressState);
 
         list.clear();
@@ -167,7 +167,7 @@ public class ConcurrentInboundEdgeStreamTest {
         ArrayList<Object> list = new ArrayList<>();
         q1.add(0);
         q1.add(1);
-        q1.add(new SeqPunctuation(1));
+        q1.add(new Punctuation(1));
         q1.add(2);
         q1.add(DONE_ITEM);
         q2.add(3);
@@ -179,10 +179,10 @@ public class ConcurrentInboundEdgeStreamTest {
         list.clear();
         q2.add(5);
         q2.add(6);
-        q2.add(new SeqPunctuation(1));
+        q2.add(new Punctuation(1));
         q2.add(DONE_ITEM);
         progressState = stream.drainTo(list);
-        assertEquals(Arrays.asList(5, 6, new SeqPunctuation(1)), list);
+        assertEquals(Arrays.asList(5, 6, new Punctuation(1)), list);
         assertEquals(MADE_PROGRESS, progressState);
 
         list.clear();
@@ -193,8 +193,8 @@ public class ConcurrentInboundEdgeStreamTest {
 
     @Test
     public void when_punctuationsDontMatch_then_error() {
-        SeqPunctuation wm1 = new SeqPunctuation(0);
-        SeqPunctuation wm2 = new SeqPunctuation(1);
+        Punctuation wm1 = new Punctuation(0);
+        Punctuation wm2 = new Punctuation(1);
 
         ArrayList<Object> list = new ArrayList<>();
         q1.add(wm1);
@@ -212,27 +212,27 @@ public class ConcurrentInboundEdgeStreamTest {
     @Test
     public void when_oneWithPuncOtherDone_then_error() {
         ArrayList<Object> list = new ArrayList<>();
-        SeqPunctuation punc = new SeqPunctuation(0);
+        Punctuation punc = new Punctuation(0);
         q1.add(punc);
         q1.add(DONE_ITEM);
         q2.add(DONE_ITEM);
 
         exception.expect(JetException.class);
         exception.expectMessage("Processor completed without first emitting a punctuation, that was already emitted by "
-                + "another processor (punc=" + punc + ")");
+                + "another processor (punc=" + punc + ')');
         stream.drainTo(list);
     }
 
     @Test
     public void when_oneDoneOtherWithPunc_then_error() {
         ArrayList<Object> list = new ArrayList<>();
-        SeqPunctuation punc = new SeqPunctuation(0);
+        Punctuation punc = new Punctuation(0);
         q1.add(DONE_ITEM);
         q2.add(punc);
         q2.add(DONE_ITEM);
 
         exception.expect(JetException.class);
-        exception.expectMessage("Received a new punctuation after some processor already completed (punc=" + punc + ")");
+        exception.expectMessage("Received a new punctuation after some processor already completed (punc=" + punc + ')');
         stream.drainTo(list);
     }
 }

@@ -59,7 +59,7 @@ public class CombineFramesP<K, F, R> extends AbstractProcessor {
 
     @Override
     public boolean tryProcessPunctuation(int ordinal, Punctuation punc) {
-        SeqPunctuation frame = (SeqPunctuation) punc;
+        Punctuation frame = (Punctuation) punc;
         Map<K, F> keys = seqToKeyToFrame.remove(frame.seq());
         if (keys == null) {
             return true;

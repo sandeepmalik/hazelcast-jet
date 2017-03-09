@@ -19,8 +19,32 @@ package com.hazelcast.jet;
 import java.io.Serializable;
 
 /**
- * Marker interface for a punctuation item. There must be a total order defined
- * over punctuation items to allow finding the minimum and maximum value.
+ * A stream punctuation item.
  */
-public interface Punctuation<SELF> extends Serializable, Comparable<SELF> {
+public final class Punctuation implements Serializable{
+
+    private final long seq;
+
+    public Punctuation(long seq) {
+        this.seq = seq;
+    }
+
+    public long seq() {
+        return seq;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return this == o || o instanceof Punctuation && this.seq == ((Punctuation) o).seq;
+    }
+
+    @Override
+    public int hashCode() {
+        return (int) (seq ^ (seq >>> 32));
+    }
+
+    @Override
+    public String toString() {
+        return "SeqPunctuation{seq=" + seq + '}';
+    }
 }

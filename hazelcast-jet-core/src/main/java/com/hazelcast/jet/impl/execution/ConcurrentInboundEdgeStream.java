@@ -18,16 +18,15 @@ package com.hazelcast.jet.impl.execution;
 
 import com.hazelcast.internal.util.concurrent.update.ConcurrentConveyor;
 import com.hazelcast.internal.util.concurrent.update.Pipe;
-import com.hazelcast.jet.JetException;
 import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.impl.util.ProgressState;
 import com.hazelcast.jet.impl.util.ProgressTracker;
 import com.hazelcast.util.function.Predicate;
 
-import java.util.BitSet;
 import java.util.Collection;
 
 import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
+import static com.hazelcast.jet.impl.util.Util.indexOfMin;
 
 /**
  * {@code InboundEdgeStream} implemented in terms of a {@code ConcurrentConveyor}.
@@ -40,106 +39,16 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
     private final int priority;
     private final ConcurrentConveyor<Object> conveyor;
     private final ProgressTracker tracker;
-    private final BitSet wmReceived;
-    private final PunctuationDetector wmDetector = new PunctuationDetector();
-    private Punctuation currentPunc;
+    private final PuncDetector puncDetector = new PuncDetector();
+    private final long[] observedPunctuations;
+    private int indexOfLeastPunc = -1;
 
     public ConcurrentInboundEdgeStream(ConcurrentConveyor<Object> conveyor, int ordinal, int priority) {
         this.conveyor = conveyor;
         this.ordinal = ordinal;
         this.priority = priority;
         this.tracker = new ProgressTracker();
-        this.wmReceived = new BitSet(conveyor.queueCount());
-    }
-
-    /**
-     * Drains all inbound queues into the {@code dest} collection. After
-     * encountering a {@link Punctuation} in a particular queue, stops draining from
-     * it and drains other queues until it receives {@link Object#equals(Object)
-     * equal} punctuations from all of them. At that point it adds the punctuation to
-     * the {@code dest} collection.
-     * <p>
-     * Receiving a non-equal punctuation produces an error. So does receiving a new
-     * punctuation while some queue is already done or when a queue becomes done without
-     * emitting the expected punctuation.
-     */
-    @Override
-    public ProgressState drainTo(Collection<Object> dest) {
-        tracker.reset();
-        for (int queueIndex = 0; queueIndex < conveyor.queueCount(); queueIndex++) {
-            final Pipe<Object> q = conveyor.queue(queueIndex);
-            if (q == null) {
-                continue;
-            }
-            if (alreadyAtPunctuation(queueIndex)) {
-                tracker.notDone();
-                continue;
-            }
-            Punctuation punc = drainWithPunctuationDetection(q, dest);
-            if (punc == null) {
-                continue;
-            }
-            // we've got a punctuation, handle it
-            validatePunctuation(punc);
-            if (punc == DONE_ITEM) {
-                conveyor.removeQueue(queueIndex);
-                continue;
-            }
-            wmReceived.set(queueIndex);
-            currentPunc = punc;
-            if (allPunctuationsReceived()) {
-                dest.add(currentPunc);
-                currentPunc = null;
-                wmReceived.clear();
-                break;
-            }
-        }
-        return tracker.toProgressState();
-    }
-
-    private boolean alreadyAtPunctuation(int i) {
-        return currentPunc != null && wmReceived.get(i);
-    }
-
-    private boolean allPunctuationsReceived() {
-        return wmReceived.nextClearBit(0) == conveyor.queueCount();
-    }
-
-    private void validatePunctuation(Punctuation punc) {
-        if (currentPunc == null) {
-            if (punc != DONE_ITEM && conveyor.liveQueueCount() < conveyor.queueCount()) {
-                throw new JetException(
-                        "Received a new punctuation after some processor already completed (punc=" + punc + ')');
-            }
-            return;
-        }
-        if (punc == DONE_ITEM) {
-            throw new JetException("Processor completed without first emitting a punctuation" +
-                    " that was already emitted by another processor (punc=" + currentPunc + ')');
-        }
-        if (!punc.equals(currentPunc)) {
-            throw new JetException("Punctuation emitted by one processor not equal to punctuation emitted by "
-                    + "another one, wm1=" + currentPunc + ", wm2=" + punc
-                    + ", all processors must emit equal punctuations in the same order");
-        }
-    }
-
-    /**
-     * Drains the supplied queue into a {@code dest} collection, up
-     * to the next {@link Punctuation}. Also updates the {@code tracker} with new
-     * status.
-     *
-     * @return Punctuation, if found, or null
-     */
-    private Punctuation drainWithPunctuationDetection(Pipe<Object> queue, Collection<Object> dest) {
-        wmDetector.dest = dest;
-        wmDetector.punc = null;
-
-        int drainedCount = queue.drain(wmDetector);
-        tracker.mergeWith(ProgressState.valueOf(drainedCount > 0, wmDetector.punc == DONE_ITEM));
-
-        wmDetector.dest = null;
-        return wmDetector.punc;
+        this.observedPunctuations = new long[conveyor.queueCount()];
     }
 
     @Override
@@ -153,12 +62,75 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
     }
 
     /**
+     * Drains all inbound queues into the {@code dest} collection.
+     */
+    @Override
+    public ProgressState drainTo(Collection<Object> dest) {
+        tracker.reset();
+        for (int queueIndex = 0; queueIndex < conveyor.queueCount(); queueIndex++) {
+            final Pipe<Object> q = conveyor.queue(queueIndex);
+            if (q == null) {
+                continue;
+            }
+            Punctuation punc = drainUpToPunctuation(q, dest);
+            if (punc == null) {
+                continue;
+            }
+            if (puncDetector.isDone) {
+                conveyor.removeQueue(queueIndex);
+                continue;
+            }
+            observedPunctuations[queueIndex] = punc.seq();
+            updateLeastPunctuation(dest, queueIndex, punc);
+        }
+        return tracker.toProgressState();
+    }
+
+    /**
+     * Drains the supplied queue into a {@code dest} collection, up to the next
+     * {@link Punctuation}. Also updates the {@code tracker} with new status.
+     *
+     * @return the drained punctuation, if any; {@code null} otherwise
+     */
+    private Punctuation drainUpToPunctuation(Pipe<Object> queue, Collection<Object> dest) {
+        puncDetector.reset(dest);
+
+        int drainedCount = queue.drain(puncDetector);
+        tracker.mergeWith(ProgressState.valueOf(drainedCount > 0, puncDetector.isDone));
+
+        puncDetector.dest = null;
+        return puncDetector.punc;
+    }
+
+    private void updateLeastPunctuation(Collection<Object> dest, int queueIndex, Punctuation punc) {
+        if (indexOfLeastPunc == -1) {
+            indexOfLeastPunc = queueIndex;
+            dest.add(punc);
+            return;
+        }
+        if (indexOfLeastPunc == queueIndex) {
+            int newIndexOfLeast = indexOfMin(observedPunctuations);
+            if (newIndexOfLeast != queueIndex) {
+                indexOfLeastPunc = newIndexOfLeast;
+                dest.add(punc);
+            }
+        }
+    }
+
+    /**
      * Drains a concurrent conveyor's queue while watching for {@link Punctuation}s.
      * When encountering a punctuation, prevents draining more items.
      */
-    private static final class PunctuationDetector implements Predicate<Object> {
+    private static final class PuncDetector implements Predicate<Object> {
         Collection<Object> dest;
         Punctuation punc;
+        boolean isDone;
+
+        void reset(Collection<Object> newDest) {
+            dest = newDest;
+            punc = null;
+            isDone = false;
+        }
 
         @Override
         public boolean test(Object o) {
@@ -167,7 +139,12 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
                 punc = (Punctuation) o;
                 return false;
             }
-            return dest.add(o);
+            if (o == DONE_ITEM) {
+                isDone = true;
+                return false;
+            }
+            dest.add(o);
+            return true;
         }
     }
 }

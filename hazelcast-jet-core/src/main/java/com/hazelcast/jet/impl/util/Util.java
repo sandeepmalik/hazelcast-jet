@@ -81,6 +81,18 @@ public final class Util {
         void run() throws Exception;
     }
 
+    public static int indexOfMin(@Nonnull long[] items) {
+        int indexOfMin = -1;
+        long min = Long.MAX_VALUE;
+        for (int i = 0; i < items.length; i++) {
+            if (items[i] < min) {
+                min = items[i];
+                indexOfMin = i;
+            }
+        }
+        return indexOfMin;
+    }
+
     @Nonnull
     public static List<Address> getRemoteMembers(@Nonnull NodeEngine engine) {
         final Member localMember = engine.getLocalMember();
