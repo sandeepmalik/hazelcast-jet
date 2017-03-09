@@ -24,16 +24,27 @@ import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.function.LongSupplier;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+
 /**
- * A processor to interleave the source with punctuations, when the source does not emit any
- * punctuation.
+ * A processor to interleave the source with punctuations, when the source does not emit them.
  * <p>
- * The emission is driven by incoming data and its time. If there is no input, there is no
- * punctuation. New punctuations is emitted, whenever an item newer than
- * {@code lastPunctuation + }{@link #getPunctuationInterval()} is emitted.
+ * The emission is driven by incoming data and its time. If there is no input, the punctuations will
+ * stop. New punctuations is emitted for each item, if it is the newest so far.
+ * <p>
+ * The {@code maxRetain} parameter specifies number of milliseconds (in terms of local system
+ * time): if the last emitted punctuation is lower than the highest sequence {@code maxRetain}
+ * milliseconds ago,
+ *
+ * If highest punctuation sequence {@code maxRetain} milliseconds
+ *                          ago (in local system time) was higher than the current punctuation,
+ *                          it will be emitted as a new punctuation.
+ *                          This effectively causes, that if input events stop coming, the punctuation
+ *                          after {@code maxRetain} milliseconds will advance to the highest seq value
+ *                          seen.
  * <p>
  * Items can be out of order. Items older than the already emitted watermark are not dropped,
- * you should set the {@link #getPunctuationLag()} to accommodate for enough time for
+ * however you should set the {@link #getPunctuationLag()} to enough time to accomodate for
  * expected out-of-orderness.
  */
 public class InterleavePunctuationP<T> extends AbstractProcessor {
@@ -43,29 +54,30 @@ public class InterleavePunctuationP<T> extends AbstractProcessor {
     private final ToLongFunction<T> extractTimestampF;
     private final long punctuationLag;
     private final LongSupplier clock;
+    private final long maxRetain;
     private long highestSeq = Long.MIN_VALUE;
     private long[] historicSeqs;
     private int historicSeqsPos;
     private long historyInterval;
-    private long currentHistoryFrameEnd;
+    private long nextHistoryFrameStart;
     private long highestPunctuation;
 
     @Override
     protected void init(@Nonnull Context context) throws Exception {
-        currentHistoryFrameEnd = clock.getAsLong() + historyInterval;
+        nextHistoryFrameStart = clock.getAsLong() + historyInterval;
     }
 
     /**
      * Time unit for {@code punctuationLag} and {@code punctuationInterval} is in the same
      * units as {@code extractTimestampF}.
      *
-     * @param extractTimestampF   Function to extract timestamp from input items
-     * @param punctuationLag      Time the punctuation is behind the most recent event
-     * @param punctuationInterval Minimum time between subsequent punctuations.
+     * @param extractTimestampF Function to extract timestamp from input items
+     * @param punctuationLag    Time the punctuation is behind the most recent event
+     * @param maxRetain         See {@link InterleavePunctuationP}
      */
     public InterleavePunctuationP(ToLongFunction<T> extractTimestampF, long punctuationLag,
             long maxRetain) {
-        this(extractTimestampF, punctuationLag, maxRetain, System::nanoTime);
+        this(extractTimestampF, punctuationLag, MILLISECONDS.toNanos(maxRetain), System::nanoTime);
     }
 
     InterleavePunctuationP(ToLongFunction<T> extractTimestampF, long punctuationLag,
@@ -78,6 +90,7 @@ public class InterleavePunctuationP<T> extends AbstractProcessor {
         Arrays.fill(historicSeqs, Long.MIN_VALUE);
 
         historyInterval = maxRetain / HISTORIC_SEQS_COUNT;
+        this.maxRetain = historyInterval * HISTORIC_SEQS_COUNT;
     }
 
     @Override
@@ -89,7 +102,7 @@ public class InterleavePunctuationP<T> extends AbstractProcessor {
         // if sufficient time passed since the last punctuation, emit a new one
         if (itemSeq > highestSeq) {
             highestSeq = itemSeq;
-            emitPunctuation(highestSeq - punctuationLag);
+            maybeEmitPunctuation(highestSeq - punctuationLag);
         }
 
         return true;
@@ -99,26 +112,26 @@ public class InterleavePunctuationP<T> extends AbstractProcessor {
     public void process() {
         long now = clock.getAsLong();
 
-        while (currentHistoryFrameEnd < now) {
-            long nextFrameEnd = currentHistoryFrameEnd + historyInterval;
+        if (nextHistoryFrameStart <= now) {
+            long punctToEmit = Long.MIN_VALUE;
+            while (nextHistoryFrameStart <= now) {
+                nextHistoryFrameStart += historyInterval;
+                historicSeqsPos++;
+                if (historicSeqsPos == HISTORIC_SEQS_COUNT) {
+                    historicSeqsPos = 0;
+                }
+                punctToEmit = historicSeqs[historicSeqsPos];
 
-            int oldestPos = historicSeqsPos + 1 == HISTORIC_SEQS_COUNT ? 0 : historicSeqsPos + 1;
-
-            // emit the oldest bucket, if it is newer than current max
-            if (historicSeqs[oldestPos] > highestSeq - punctuationLag) {
-                emitPunctuation(historicSeqs[oldestPos]);
+                // initialize the current bucket to current max. If this is an old bucket, initialize it to current-lag
+                historicSeqs[historicSeqsPos] = highestSeq - (nextHistoryFrameStart < now ? punctuationLag : 0);
             }
 
-            historicSeqsPos = oldestPos;
-
-            // initialize the current bucket to current max. If this is an old bucket, initialize it to current-lag
-            historicSeqs[historicSeqsPos] = highestSeq - (nextFrameEnd < now ? punctuationLag : 0);
-
-            currentHistoryFrameEnd += historyInterval;
+            // emit the punctuation
+            maybeEmitPunctuation(punctToEmit);
         }
     }
 
-    private void emitPunctuation(long at) {
+    private void maybeEmitPunctuation(long at) {
         if (at > highestPunctuation) {
             highestPunctuation = at;
             emit(new Punctuation(at));
