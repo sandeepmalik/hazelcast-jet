@@ -21,7 +21,7 @@ import com.hazelcast.internal.util.concurrent.update.OneToOneConcurrentArrayQueu
 import com.hazelcast.internal.util.concurrent.update.QueuedPipe;
 import com.hazelcast.jet.JetException;
 import com.hazelcast.jet.impl.util.ProgressState;
-import com.hazelcast.jet.windowing.example.SeqWatermark;
+import com.hazelcast.jet.windowing.example.SeqPunctuation;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -31,7 +31,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 
-import static com.hazelcast.jet.impl.execution.DoneWatermark.DONE_WM;
+import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
 import static com.hazelcast.jet.impl.util.ProgressState.DONE;
 import static com.hazelcast.jet.impl.util.ProgressState.MADE_PROGRESS;
 import static org.junit.Assert.assertEquals;
@@ -59,7 +59,7 @@ public class ConcurrentInboundEdgeStreamTest {
         ArrayList<Object> list = new ArrayList<>();
         q1.add(1);
         q1.add(2);
-        q1.add(DONE_WM);
+        q1.add(DONE_ITEM);
         q2.add(6);
         ProgressState progressState = stream.drainTo(list);
         assertEquals(Arrays.asList(1, 2, 6), list);
@@ -67,7 +67,7 @@ public class ConcurrentInboundEdgeStreamTest {
 
         list.clear();
         q2.add(7);
-        q2.add(DONE_WM);
+        q2.add(DONE_ITEM);
         progressState = stream.drainTo(list);
         // emitter2 returned 7 and now both emitters are done
         assertEquals(Collections.singletonList(7), list);
@@ -85,9 +85,9 @@ public class ConcurrentInboundEdgeStreamTest {
         ArrayList<Object> list = new ArrayList<>();
         q1.add(1);
         q1.add(2);
-        q1.add(DONE_WM);
+        q1.add(DONE_ITEM);
         q2.add(6);
-        q2.add(DONE_WM);
+        q2.add(DONE_ITEM);
         ProgressState progressState = stream.drainTo(list);
 
         // emitter1 returned 1 and 2; emitter2 returned 6
@@ -99,8 +99,8 @@ public class ConcurrentInboundEdgeStreamTest {
     @Test
     public void when_allEmittersInitiallyDone_then_firstCallDone() {
         ArrayList<Object> list = new ArrayList<>();
-        q1.add(DONE_WM);
-        q2.add(DONE_WM);
+        q1.add(DONE_ITEM);
+        q2.add(DONE_ITEM);
         ProgressState progressState = stream.drainTo(list);
 
         assertEquals(0, list.size());
@@ -116,7 +116,7 @@ public class ConcurrentInboundEdgeStreamTest {
     public void when_oneEmitterWithNoProgress_then_noProgress() {
         ArrayList<Object> list = new ArrayList<>();
         q2.add(1);
-        q2.add(DONE_WM);
+        q2.add(DONE_ITEM);
         ProgressState progressState = stream.drainTo(list);
 
         assertEquals(Collections.singletonList(1), list);
@@ -128,7 +128,7 @@ public class ConcurrentInboundEdgeStreamTest {
         assertEquals(ProgressState.NO_PROGRESS, progressState);
 
         // now make emitter1 done, without returning anything
-        q1.add(DONE_WM);
+        q1.add(DONE_ITEM);
 
         list.clear();
         progressState = stream.drainTo(list);
@@ -142,18 +142,18 @@ public class ConcurrentInboundEdgeStreamTest {
     }
 
     @Test
-    public void when_watermarkFromAllEmittersInSingleDrain_then_emitAtWm() {
+    public void when_punctuationFromAllEmittersInSingleDrain_then_emitAtPunc() {
         ArrayList<Object> list = new ArrayList<>();
         for (QueuedPipe<Object> q : Arrays.asList(q1, q2)) {
             q.add(0);
             q.add(1);
-            q.add(new SeqWatermark(1));
+            q.add(new SeqPunctuation(1));
             q.add(2);
-            q.add(DONE_WM);
+            q.add(DONE_ITEM);
         }
 
         ProgressState progressState = stream.drainTo(list);
-        assertEquals(Arrays.asList(0, 1, 0, 1, new SeqWatermark(1)), list);
+        assertEquals(Arrays.asList(0, 1, 0, 1, new SeqPunctuation(1)), list);
         assertEquals(MADE_PROGRESS, progressState);
 
         list.clear();
@@ -163,13 +163,13 @@ public class ConcurrentInboundEdgeStreamTest {
     }
 
     @Test
-    public void when_watermarkFromSomeEmitter_then_dontEmit() {
+    public void when_punctuationFromSomeEmitter_then_dontEmit() {
         ArrayList<Object> list = new ArrayList<>();
         q1.add(0);
         q1.add(1);
-        q1.add(new SeqWatermark(1));
+        q1.add(new SeqPunctuation(1));
         q1.add(2);
-        q1.add(DONE_WM);
+        q1.add(DONE_ITEM);
         q2.add(3);
         q2.add(4);
         ProgressState progressState = stream.drainTo(list);
@@ -179,10 +179,10 @@ public class ConcurrentInboundEdgeStreamTest {
         list.clear();
         q2.add(5);
         q2.add(6);
-        q2.add(new SeqWatermark(1));
-        q2.add(DONE_WM);
+        q2.add(new SeqPunctuation(1));
+        q2.add(DONE_ITEM);
         progressState = stream.drainTo(list);
-        assertEquals(Arrays.asList(5, 6, new SeqWatermark(1)), list);
+        assertEquals(Arrays.asList(5, 6, new SeqPunctuation(1)), list);
         assertEquals(MADE_PROGRESS, progressState);
 
         list.clear();
@@ -192,47 +192,47 @@ public class ConcurrentInboundEdgeStreamTest {
     }
 
     @Test
-    public void when_watermarksDontMatch_then_error() {
-        SeqWatermark wm1 = new SeqWatermark(0);
-        SeqWatermark wm2 = new SeqWatermark(1);
+    public void when_punctuationsDontMatch_then_error() {
+        SeqPunctuation wm1 = new SeqPunctuation(0);
+        SeqPunctuation wm2 = new SeqPunctuation(1);
 
         ArrayList<Object> list = new ArrayList<>();
         q1.add(wm1);
-        q1.add(DONE_WM);
+        q1.add(DONE_ITEM);
         q2.add(wm2);
-        q2.add(DONE_WM);
+        q2.add(DONE_ITEM);
 
         exception.expect(JetException.class);
-        exception.expectMessage("Watermark emitted by one processor not equal to watermark emitted by another one");
+        exception.expectMessage("Punctuation emitted by one processor not equal to punctuation emitted by another one");
         exception.expectMessage(wm1.toString());
         exception.expectMessage(wm2.toString());
         stream.drainTo(list);
     }
 
     @Test
-    public void when_oneWithWmOtherDone_then_error() {
+    public void when_oneWithPuncOtherDone_then_error() {
         ArrayList<Object> list = new ArrayList<>();
-        SeqWatermark wm = new SeqWatermark(0);
-        q1.add(wm);
-        q1.add(DONE_WM);
-        q2.add(DONE_WM);
+        SeqPunctuation punc = new SeqPunctuation(0);
+        q1.add(punc);
+        q1.add(DONE_ITEM);
+        q2.add(DONE_ITEM);
 
         exception.expect(JetException.class);
-        exception.expectMessage("Processor completed without first emitting a watermark, that was already emitted by "
-                + "another processor (wm=" + wm + ")");
+        exception.expectMessage("Processor completed without first emitting a punctuation, that was already emitted by "
+                + "another processor (punc=" + punc + ")");
         stream.drainTo(list);
     }
 
     @Test
-    public void when_oneDoneOtherWithWm_then_error() {
+    public void when_oneDoneOtherWithPunc_then_error() {
         ArrayList<Object> list = new ArrayList<>();
-        SeqWatermark wm = new SeqWatermark(0);
-        q1.add(DONE_WM);
-        q2.add(wm);
-        q2.add(DONE_WM);
+        SeqPunctuation punc = new SeqPunctuation(0);
+        q1.add(DONE_ITEM);
+        q2.add(punc);
+        q2.add(DONE_ITEM);
 
         exception.expect(JetException.class);
-        exception.expectMessage("Received a new watermark after some processor already completed (wm=" + wm + ")");
+        exception.expectMessage("Received a new punctuation after some processor already completed (punc=" + punc + ")");
         stream.drainTo(list);
     }
 }

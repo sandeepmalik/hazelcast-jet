@@ -16,13 +16,15 @@
 
 package com.hazelcast.jet.windowing.example;
 
-import com.hazelcast.jet.Watermark;
+import com.hazelcast.jet.Punctuation;
 
-public final class SeqWatermark implements Watermark {
+import javax.annotation.Nonnull;
+
+public final class SeqPunctuation implements Punctuation<SeqPunctuation> {
 
     private final long seq;
 
-    public SeqWatermark(long seq) {
+    public SeqPunctuation(long seq) {
         this.seq = seq;
     }
 
@@ -32,7 +34,7 @@ public final class SeqWatermark implements Watermark {
 
     @Override
     public boolean equals(Object o) {
-        return this == o || o instanceof SeqWatermark && this.seq == ((SeqWatermark) o).seq;
+        return this == o || o instanceof SeqPunctuation && this.seq == ((SeqPunctuation) o).seq;
     }
 
     @Override
@@ -42,6 +44,11 @@ public final class SeqWatermark implements Watermark {
 
     @Override
     public String toString() {
-        return "SeqWatermark{seq=" + seq + '}';
+        return "SeqPunctuation{seq=" + seq + '}';
+    }
+
+    @Override
+    public int compareTo(@Nonnull SeqPunctuation that) {
+        return Long.compare(this.seq, that.seq);
     }
 }

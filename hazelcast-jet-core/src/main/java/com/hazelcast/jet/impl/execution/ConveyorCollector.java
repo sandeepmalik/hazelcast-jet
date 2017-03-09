@@ -17,7 +17,7 @@
 package com.hazelcast.jet.impl.execution;
 
 import com.hazelcast.internal.util.concurrent.update.ConcurrentConveyor;
-import com.hazelcast.jet.Watermark;
+import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.impl.util.ProgressState;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
@@ -40,8 +40,8 @@ public class ConveyorCollector implements OutboundCollector {
     }
 
     @Override
-    public ProgressState offerWatermark(Watermark wm) {
-        return offerToConveyor(wm);
+    public ProgressState offerBroadcast(Object punc) {
+        return offerToConveyor(punc);
     }
 
     @Override

@@ -18,7 +18,7 @@ package com.hazelcast.jet.impl.execution;
 
 import com.hazelcast.jet.Processor;
 import com.hazelcast.jet.Processor.Context;
-import com.hazelcast.jet.Watermark;
+import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.impl.util.ArrayDequeOutbox;
 import com.hazelcast.jet.impl.util.CircularListCursor;
 import com.hazelcast.jet.impl.util.ProgressState;
@@ -35,7 +35,7 @@ import java.util.Queue;
 import java.util.TreeMap;
 import java.util.stream.Stream;
 
-import static com.hazelcast.jet.impl.execution.DoneWatermark.DONE_WM;
+import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
 import static java.util.Comparator.comparing;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toCollection;
@@ -148,10 +148,10 @@ public class ProcessorTasklet implements Tasklet {
         }
         processor.process();
         final int inboundOrdinal = currInstream.ordinal();
-        final Watermark wm = inbox.peekWatermark();
-        if (wm != null) {
-            if (processor.tryProcessWatermark(inboundOrdinal, wm)) {
-                inbox.removeWatermark();
+        final Punctuation punc = inbox.peekPunctuation();
+        if (punc != null) {
+            if (processor.tryProcessPunctuation(inboundOrdinal, punc)) {
+                inbox.removePunctuation();
             }
         } else {
             processor.process(inboundOrdinal, inbox);
@@ -172,7 +172,7 @@ public class ProcessorTasklet implements Tasklet {
         processorCompleted = processor.complete();
         if (processorCompleted) {
             for (OutboundEdgeStream outstream : outstreams) {
-                outbox.add(outstream.ordinal(), DONE_WM);
+                outbox.add(outstream.ordinal(), DONE_ITEM);
             }
             return;
         }
@@ -186,7 +186,7 @@ public class ProcessorTasklet implements Tasklet {
             for (Object item; (item = q.peek()) != null; ) {
                 final OutboundCollector c = outstreams[i].getCollector();
                 final ProgressState state =
-                        (item instanceof Watermark ? c.offerWatermark((Watermark) item) : c.offer(item));
+                        (item instanceof Punctuation ? c.offerBroadcast((Punctuation) item) : c.offer(item));
                 progTracker.madeProgress(state.isMadeProgress());
                 if (!state.isDone()) {
                     progTracker.notDone();

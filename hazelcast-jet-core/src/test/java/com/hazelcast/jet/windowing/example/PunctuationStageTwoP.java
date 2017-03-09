@@ -25,18 +25,18 @@ import javax.annotation.Nonnull;
  * passing it through that it has already emitted earlier watermarks. Also
  * ensures against the duplication of watermarks already emitted.
  */
-public class WatermarkStageTwoP extends AbstractProcessor {
+public class PunctuationStageTwoP extends AbstractProcessor {
     private long emittedSeq;
 
     @Override
     protected boolean tryProcess(int ordinal, @Nonnull Object item) {
-        if (!(item instanceof SeqWatermark)) {
+        if (!(item instanceof SeqPunctuation)) {
             emit(item);
             return true;
         }
-        final long receivedSeq = ((SeqWatermark) item).seq();
+        final long receivedSeq = ((SeqPunctuation) item).seq();
         while (emittedSeq < receivedSeq) {
-            emit(new SeqWatermark(++emittedSeq));
+            emit(new SeqPunctuation(++emittedSeq));
         }
         return true;
     }

@@ -19,10 +19,8 @@ package com.hazelcast.jet;
 import java.io.Serializable;
 
 /**
- * Marker interface for a watermark item. Since each processor of a
- * vertex will emit its own item for a given watermark event, the
- * subtypes of this interface must implement {@link #equals(Object)}
- * such that all these items come out as equal.
+ * Marker interface for a punctuation item. There must be a total order defined
+ * over punctuation items to allow finding the minimum and maximum value.
  */
-public interface Watermark extends Serializable {
+public interface Punctuation<SELF> extends Serializable, Comparable<SELF> {
 }

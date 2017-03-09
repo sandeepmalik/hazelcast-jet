@@ -34,7 +34,7 @@ import javax.annotation.Nonnull;
  *     up with the frame seq.
  * </li></ol>
  */
-public class WatermarkStageOneP<T> extends AbstractProcessor {
+public class PunctuationStageOneP<T> extends AbstractProcessor {
 
     private final ToLongFunction<? super T> extractTimestampF;
     private final LongUnaryOperator toFrameSeqF;
@@ -42,7 +42,7 @@ public class WatermarkStageOneP<T> extends AbstractProcessor {
 
     private long nextWmSeq = Long.MIN_VALUE;
 
-    private WatermarkStageOneP(
+    private PunctuationStageOneP(
             ToLongFunction<? super T> extractTimestampF, LongUnaryOperator toFrameSeqF, int openFrameCount
     ) {
         this.extractTimestampF = extractTimestampF;
@@ -50,12 +50,12 @@ public class WatermarkStageOneP<T> extends AbstractProcessor {
         this.openFrameCount = openFrameCount;
     }
 
-    public static <T> Distributed.Supplier<WatermarkStageOneP> watermarkStageOne(
+    public static <T> Distributed.Supplier<PunctuationStageOneP> watermarkStageOne(
             ToLongFunction<? super T> extractTimestampF,
             LongUnaryOperator toFrameSeqF,
             int openFrameCount
     ) {
-        return () -> new WatermarkStageOneP(extractTimestampF, toFrameSeqF, openFrameCount);
+        return () -> new PunctuationStageOneP(extractTimestampF, toFrameSeqF, openFrameCount);
     }
 
     @Override
@@ -66,7 +66,7 @@ public class WatermarkStageOneP<T> extends AbstractProcessor {
             nextWmSeq = itemFrameSeq - (openFrameCount - 1);
         }
         while (nextWmSeq + openFrameCount <= itemFrameSeq) {
-            emit(new SeqWatermark(++nextWmSeq));
+            emit(new SeqPunctuation(++nextWmSeq));
         }
         emit(t);
         return true;

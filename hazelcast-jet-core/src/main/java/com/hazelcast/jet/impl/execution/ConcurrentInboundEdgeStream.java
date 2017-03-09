@@ -19,7 +19,7 @@ package com.hazelcast.jet.impl.execution;
 import com.hazelcast.internal.util.concurrent.update.ConcurrentConveyor;
 import com.hazelcast.internal.util.concurrent.update.Pipe;
 import com.hazelcast.jet.JetException;
-import com.hazelcast.jet.Watermark;
+import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.impl.util.ProgressState;
 import com.hazelcast.jet.impl.util.ProgressTracker;
 import com.hazelcast.util.function.Predicate;
@@ -27,7 +27,7 @@ import com.hazelcast.util.function.Predicate;
 import java.util.BitSet;
 import java.util.Collection;
 
-import static com.hazelcast.jet.impl.execution.DoneWatermark.DONE_WM;
+import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
 
 /**
  * {@code InboundEdgeStream} implemented in terms of a {@code ConcurrentConveyor}.
@@ -41,8 +41,8 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
     private final ConcurrentConveyor<Object> conveyor;
     private final ProgressTracker tracker;
     private final BitSet wmReceived;
-    private final WatermarkDetector wmDetector = new WatermarkDetector();
-    private Watermark currentWm;
+    private final PunctuationDetector wmDetector = new PunctuationDetector();
+    private Punctuation currentPunc;
 
     public ConcurrentInboundEdgeStream(ConcurrentConveyor<Object> conveyor, int ordinal, int priority) {
         this.conveyor = conveyor;
@@ -54,14 +54,14 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
 
     /**
      * Drains all inbound queues into the {@code dest} collection. After
-     * encountering a {@link Watermark} in a particular queue, stops draining from
+     * encountering a {@link Punctuation} in a particular queue, stops draining from
      * it and drains other queues until it receives {@link Object#equals(Object)
-     * equal} watermarks from all of them. At that point it adds the watermark to
+     * equal} punctuations from all of them. At that point it adds the punctuation to
      * the {@code dest} collection.
      * <p>
-     * Receiving a non-equal watermark produces an error. So does receiving a new
-     * watermark while some queue is already done or when a queue becomes done without
-     * emitting the expected watermark.
+     * Receiving a non-equal punctuation produces an error. So does receiving a new
+     * punctuation while some queue is already done or when a queue becomes done without
+     * emitting the expected punctuation.
      */
     @Override
     public ProgressState drainTo(Collection<Object> dest) {
@@ -71,25 +71,25 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
             if (q == null) {
                 continue;
             }
-            if (alreadyAtWatermark(queueIndex)) {
+            if (alreadyAtPunctuation(queueIndex)) {
                 tracker.notDone();
                 continue;
             }
-            Watermark wm = drainWithWatermarkDetection(q, dest);
-            if (wm == null) {
+            Punctuation punc = drainWithPunctuationDetection(q, dest);
+            if (punc == null) {
                 continue;
             }
-            // we've got a watermark, handle it
-            validateWatermark(wm);
-            if (wm == DONE_WM) {
+            // we've got a punctuation, handle it
+            validatePunctuation(punc);
+            if (punc == DONE_ITEM) {
                 conveyor.removeQueue(queueIndex);
                 continue;
             }
             wmReceived.set(queueIndex);
-            currentWm = wm;
-            if (allWatermarksReceived()) {
-                dest.add(currentWm);
-                currentWm = null;
+            currentPunc = punc;
+            if (allPunctuationsReceived()) {
+                dest.add(currentPunc);
+                currentPunc = null;
                 wmReceived.clear();
                 break;
             }
@@ -97,49 +97,49 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
         return tracker.toProgressState();
     }
 
-    private boolean alreadyAtWatermark(int i) {
-        return currentWm != null && wmReceived.get(i);
+    private boolean alreadyAtPunctuation(int i) {
+        return currentPunc != null && wmReceived.get(i);
     }
 
-    private boolean allWatermarksReceived() {
+    private boolean allPunctuationsReceived() {
         return wmReceived.nextClearBit(0) == conveyor.queueCount();
     }
 
-    private void validateWatermark(Watermark wm) {
-        if (currentWm == null) {
-            if (wm != DONE_WM && conveyor.liveQueueCount() < conveyor.queueCount()) {
+    private void validatePunctuation(Punctuation punc) {
+        if (currentPunc == null) {
+            if (punc != DONE_ITEM && conveyor.liveQueueCount() < conveyor.queueCount()) {
                 throw new JetException(
-                        "Received a new watermark after some processor already completed (wm=" + wm + ')');
+                        "Received a new punctuation after some processor already completed (punc=" + punc + ')');
             }
             return;
         }
-        if (wm == DONE_WM) {
-            throw new JetException("Processor completed without first emitting a watermark" +
-                    " that was already emitted by another processor (wm=" + currentWm + ')');
+        if (punc == DONE_ITEM) {
+            throw new JetException("Processor completed without first emitting a punctuation" +
+                    " that was already emitted by another processor (punc=" + currentPunc + ')');
         }
-        if (!wm.equals(currentWm)) {
-            throw new JetException("Watermark emitted by one processor not equal to watermark emitted by "
-                    + "another one, wm1=" + currentWm + ", wm2=" + wm
-                    + ", all processors must emit equal watermarks in the same order");
+        if (!punc.equals(currentPunc)) {
+            throw new JetException("Punctuation emitted by one processor not equal to punctuation emitted by "
+                    + "another one, wm1=" + currentPunc + ", wm2=" + punc
+                    + ", all processors must emit equal punctuations in the same order");
         }
     }
 
     /**
      * Drains the supplied queue into a {@code dest} collection, up
-     * to the next {@link Watermark}. Also updates the {@code tracker} with new
+     * to the next {@link Punctuation}. Also updates the {@code tracker} with new
      * status.
      *
-     * @return Watermark, if found, or null
+     * @return Punctuation, if found, or null
      */
-    private Watermark drainWithWatermarkDetection(Pipe<Object> queue, Collection<Object> dest) {
+    private Punctuation drainWithPunctuationDetection(Pipe<Object> queue, Collection<Object> dest) {
         wmDetector.dest = dest;
-        wmDetector.wm = null;
+        wmDetector.punc = null;
 
         int drainedCount = queue.drain(wmDetector);
-        tracker.mergeWith(ProgressState.valueOf(drainedCount > 0, wmDetector.wm == DONE_WM));
+        tracker.mergeWith(ProgressState.valueOf(drainedCount > 0, wmDetector.punc == DONE_ITEM));
 
         wmDetector.dest = null;
-        return wmDetector.wm;
+        return wmDetector.punc;
     }
 
     @Override
@@ -153,18 +153,18 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
     }
 
     /**
-     * Drains a concurrent conveyor's queue while watching for {@link Watermark}s.
-     * When encountering a watermark, prevents draining more items.
+     * Drains a concurrent conveyor's queue while watching for {@link Punctuation}s.
+     * When encountering a punctuation, prevents draining more items.
      */
-    private static final class WatermarkDetector implements Predicate<Object> {
+    private static final class PunctuationDetector implements Predicate<Object> {
         Collection<Object> dest;
-        Watermark wm;
+        Punctuation punc;
 
         @Override
         public boolean test(Object o) {
-            if (o instanceof Watermark) {
-                assert wm == null : "Received a watermark item, but this.wm != null";
-                wm = (Watermark) o;
+            if (o instanceof Punctuation) {
+                assert punc == null : "Received a punctuation item, but this.punc != null";
+                punc = (Punctuation) o;
                 return false;
             }
             return dest.add(o);

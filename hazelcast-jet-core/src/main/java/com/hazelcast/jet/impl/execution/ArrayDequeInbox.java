@@ -17,10 +17,9 @@
 package com.hazelcast.jet.impl.execution;
 
 import com.hazelcast.jet.Inbox;
-import com.hazelcast.jet.Watermark;
+import com.hazelcast.jet.Punctuation;
 
 import java.util.ArrayDeque;
-import java.util.NoSuchElementException;
 
 /**
  * Implements {@link Inbox} in terms of an {@link ArrayDeque}.
@@ -29,12 +28,12 @@ public final class ArrayDequeInbox extends ArrayDeque<Object> implements Inbox {
     @Override
     public Object peek() {
         final Object item = super.peek();
-        return size() != 1 || !(item instanceof Watermark) ? item : null;
+        return size() != 1 || !(item instanceof Punctuation) ? item : null;
     }
 
     @Override
     public Object poll() {
-        return size() != 1 || !(super.peek() instanceof Watermark) ? super.poll() : null;
+        return size() != 1 || !(super.peek() instanceof Punctuation) ? super.poll() : null;
     }
 
     @Override
@@ -43,18 +42,18 @@ public final class ArrayDequeInbox extends ArrayDeque<Object> implements Inbox {
     }
 
     /**
-     * Retrieves, but does not remove, the watermark that is the only item in
+     * Retrieves, but does not remove, the punctuation that is the only item in
      * this inbox; or returns {@code null} if the above conditions aren't met.
      */
-    Watermark peekWatermark() {
-        return size() == 1 && peek() instanceof Watermark ? (Watermark) peek() : null;
+    Punctuation peekPunctuation() {
+        return size() == 1 && peek() instanceof Punctuation ? (Punctuation) peek() : null;
     }
 
     /**
-     * Removes the head of this inbox and asserts that it is a {@link Watermark}.
+     * Removes the head of this inbox and asserts that it is a {@link Punctuation}.
      */
-    void removeWatermark() {
+    void removePunctuation() {
         final Object item = super.poll();
-        assert item instanceof Watermark : "removeWatermark() called on non-watermark: " + item;
+        assert item instanceof Punctuation : "removePunctuation() called on non-punctuation: " + item;
     }
 }

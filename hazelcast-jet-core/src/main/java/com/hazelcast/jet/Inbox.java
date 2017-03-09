@@ -21,14 +21,14 @@ import java.util.NoSuchElementException;
 import java.util.function.Consumer;
 
 /**
- * Queue-like API with special treatment for the watermark item. The inbox
- * is in a special state when it contains just a watermark item. In that
+ * Queue-like API with special treatment for the punctuation item. The inbox
+ * is in a special state when it contains just a punctuation item. In that
  * state the standard {@link #peek()}, {@link #poll()}, and {@link #remove()}
  * behave as if the inbox is empty. The methods {@link #drain(Consumer) drain()}
  * and {@link #drainTo(Collection) drainTo()} behave as if implemented in terms
- * of {@code poll()} and therefore won't drain the final watermark.
+ * of {@code poll()} and therefore won't drain the final punctuation.
  * <p>
- * <strong>NOTE</strong> that any watermark that is not the last item in
+ * <strong>NOTE</strong> that any punctuation that is not the last item in
  * the inbox will be given no special treatment.
  * <p>
  * <strong>NOTE</strong> that the inbox may report {@code size() > 0} yet fail
@@ -49,20 +49,20 @@ public interface Inbox {
 
     /**
      * Retrieves, but does not remove, the head of this inbox, or returns
-     * {@code null} if it is empty or contains just a watermark item.
+     * {@code null} if it is empty or contains just a punctuation item.
      */
     Object peek();
 
     /**
      * Retrieves and removes the head of this inbox, or returns {@code null}
-     * if it is empty or contains just a watermark item.
+     * if it is empty or contains just a punctuation item.
      */
     Object poll();
 
     /**
      * Retrieves and removes the head of this inbox. This method differs from
      * {@link #poll poll} only in that it throws an exception if the inbox is
-     * empty or contains just a watermark item.
+     * empty or contains just a punctuation item.
      *
      * @throws NoSuchElementException if this inbox is empty
      */
@@ -75,7 +75,7 @@ public interface Inbox {
     }
 
     /**
-     * Drains all the items except for any final {@link Watermark} into the
+     * Drains all the items except for any final {@link Punctuation} into the
      * provided {@link Collection}.
      *
      * @return the number of items drained
@@ -90,7 +90,7 @@ public interface Inbox {
     }
 
     /**
-     * Passes each of this inbox's items, except for any final {@link Watermark},
+     * Passes each of this inbox's items, except for any final {@link Punctuation},
      * to the supplied consumer.
      *
      * @return the number of items drained

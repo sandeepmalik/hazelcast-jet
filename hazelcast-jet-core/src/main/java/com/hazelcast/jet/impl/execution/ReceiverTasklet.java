@@ -17,7 +17,7 @@
 package com.hazelcast.jet.impl.execution;
 
 import com.hazelcast.internal.util.concurrent.MPSCQueue;
-import com.hazelcast.jet.Watermark;
+import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.impl.util.ObjectWithPartitionId;
 import com.hazelcast.jet.impl.util.ProgressState;
 import com.hazelcast.jet.impl.util.ProgressTracker;
@@ -29,7 +29,7 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Queue;
 
-import static com.hazelcast.jet.impl.execution.DoneWatermark.DONE_WM;
+import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
 import static com.hazelcast.jet.impl.util.ExceptionUtil.rethrow;
 import static java.lang.Math.ceil;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -101,21 +101,22 @@ public class ReceiverTasklet implements Tasklet {
     @Override @Nonnull
     public ProgressState call() {
         if (receptionDone) {
-            return collector.offerWatermark(DONE_WM);
+            return collector.offerBroadcast(DONE_ITEM);
         }
         tracker.reset();
         tracker.notDone();
         tryFillInbox();
         for (ObjWithPtionIdAndSize o; (o = inbox.peek()) != null; ) {
             final Object item = o.getItem();
-            if (item == DONE_WM) {
+            if (item == DONE_ITEM) {
                 receptionDone = true;
                 inbox.remove();
                 assert inbox.peek() == null : "Found something in the queue beyond the DONE_WM: " + inbox.remove();
                 break;
             }
-            ProgressState outcome = item instanceof Watermark ? collector.offerWatermark((Watermark) item) :
-                    collector.offer(item, o.getPartitionId());
+            ProgressState outcome = item instanceof Punctuation
+                    ? collector.offerBroadcast((Punctuation) item)
+                    : collector.offer(item, o.getPartitionId());
             if (!outcome.isDone()) {
                 tracker.madeProgress(outcome.isMadeProgress());
                 break;
@@ -127,7 +128,7 @@ public class ReceiverTasklet implements Tasklet {
         return tracker.toProgressState();
     }
 
-    public void receiveStreamPacket(BufferObjectDataInput packetInput) {
+    void receiveStreamPacket(BufferObjectDataInput packetInput) {
         incoming.add(packetInput);
     }
 
@@ -170,7 +171,7 @@ public class ReceiverTasklet implements Tasklet {
      *                     must be obtained from {@code System.nanoTime()}.
      */
     // Invoked sequentially by a task scheduler
-    public int updateAndGetSendSeqLimitCompressed(long timestampNow) {
+    int updateAndGetSendSeqLimitCompressed(long timestampNow) {
         final boolean hadPrevStats = prevTimestamp != 0 || prevAckedSeqCompressed != 0;
 
         final long ackTimeDelta = timestampNow - prevTimestamp;

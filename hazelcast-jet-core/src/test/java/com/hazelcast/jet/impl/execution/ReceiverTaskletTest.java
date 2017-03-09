@@ -19,27 +19,45 @@ package com.hazelcast.jet.impl.execution;
 import com.hazelcast.internal.serialization.InternalSerializationService;
 import com.hazelcast.internal.serialization.impl.DefaultSerializationServiceBuilder;
 import com.hazelcast.nio.BufferObjectDataOutput;
+import com.hazelcast.test.annotation.QuickTest;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
+import java.io.IOException;
+import java.io.Serializable;
+
+import static java.util.Arrays.asList;
 import static org.junit.Assert.*;
 
-/**
- * Javadoc pending.
- */
+@Category(QuickTest.class)
 public class ReceiverTaskletTest {
 
     private ReceiverTasklet t;
     private InternalSerializationService serService;
+    private MockOutboundCollector collector;
 
     @Before
     public void before() {
-        t = new ReceiverTasklet(new MockOutboundCollector(2), 3, 100);
+        collector = new MockOutboundCollector(2);
+        t = new ReceiverTasklet(collector, 3, 100);
         serService = new DefaultSerializationServiceBuilder().build();
     }
 
     @Test
-    public void test() {
+    public void when_receiveTwoObjects_then_emitThem() throws IOException {
+        pushObjects(1, 2);
+        t.call();
+        assertEquals(asList(1, 2), collector.getBuffer());
+    }
+
+    private void pushObjects(Object... objs) throws IOException {
         final BufferObjectDataOutput out = serService.createObjectDataOutput();
+        out.writeInt(objs.length);
+        for (Object obj : objs) {
+            out.writeObject(obj);
+            out.writeInt(Math.abs(obj.hashCode())); // partition id
+        }
+        t.receiveStreamPacket(serService.createObjectDataInput(out.toByteArray()));
     }
 }

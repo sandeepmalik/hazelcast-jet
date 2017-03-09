@@ -16,7 +16,7 @@
 
 package com.hazelcast.jet.impl.execution;
 
-import com.hazelcast.jet.Watermark;
+import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.impl.util.ProgressState;
 
 import java.util.ArrayList;
@@ -46,7 +46,7 @@ class MockOutboundCollector implements OutboundCollector {
     }
 
     @Override
-    public ProgressState offerWatermark(Watermark item) {
+    public ProgressState offerBroadcast(Object item) {
         return offer((Object) item);
     }
 

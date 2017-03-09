@@ -103,7 +103,7 @@ public class GroupByFrameP<T, K, F, R> extends AbstractProcessor {
             for (Entry<K, F> e : keyToFrameMaps[frameIndex].entrySet()) {
                 emit(new KeyedFrame<>(seq, e.getKey(), e.getValue()));
             }
-            emit(new SeqWatermark(seq));
+            emit(new SeqPunctuation(seq));
             keyToFrameMaps[frameIndex] = new HashMap<>();
         }
         currentFrameSeq = itemFrameSeq;

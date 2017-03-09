@@ -16,13 +16,11 @@
 
 package com.hazelcast.jet.impl.execution;
 
-import com.hazelcast.jet.Watermark;
-
 import java.io.Serializable;
 
-class DoneWatermark implements Watermark, Serializable {
+class DoneItem implements Serializable {
 
-    static final DoneWatermark DONE_WM = new DoneWatermark();
+    static final DoneItem DONE_ITEM = new DoneItem();
 
     @Override
     public String toString() {
@@ -30,6 +28,6 @@ class DoneWatermark implements Watermark, Serializable {
     }
 
     protected Object readResolve() {
-        return DONE_WM;
+        return DONE_ITEM;
     }
 }

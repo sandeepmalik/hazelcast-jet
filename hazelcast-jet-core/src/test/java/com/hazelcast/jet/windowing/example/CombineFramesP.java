@@ -19,7 +19,7 @@ package com.hazelcast.jet.windowing.example;
 import com.hazelcast.jet.AbstractProcessor;
 import com.hazelcast.jet.Distributed;
 import com.hazelcast.jet.Distributed.Optional;
-import com.hazelcast.jet.Watermark;
+import com.hazelcast.jet.Punctuation;
 
 import javax.annotation.Nonnull;
 import java.util.HashMap;
@@ -58,8 +58,8 @@ public class CombineFramesP<K, F, R> extends AbstractProcessor {
     }
 
     @Override
-    public boolean tryProcessWatermark(int ordinal, Watermark wm) {
-        SeqWatermark frame = (SeqWatermark) wm;
+    public boolean tryProcessPunctuation(int ordinal, Punctuation punc) {
+        SeqPunctuation frame = (SeqPunctuation) punc;
         Map<K, F> keys = seqToKeyToFrame.remove(frame.seq());
         if (keys == null) {
             return true;

@@ -83,18 +83,18 @@ public interface Processor {
     }
 
     /**
-     * Called when the current item on the inbound edge's stream is a watermark.
+     * Called when the current item on the inbound edge's stream is a punctuation.
      * May return {@code false}, in which case it will be called again later with
-     * the same {@code ordinal} and {@code wm}.
+     * the same {@code ordinal} and {@code punc}.
      * <p>
      * The default implementation does nothing and returns {@code true}.
      *
      * @param ordinal ordinal of the inbound edge
-     * @param wm the watermark
-     * @return {@code true} if the processing of the watermark is now done,
+     * @param punc the punctuation
+     * @return {@code true} if the processing of the punctuation is now done,
      *         {@code false} otherwise.
      */
-    default boolean tryProcessWatermark(int ordinal, Watermark wm) {
+    default boolean tryProcessPunctuation(int ordinal, Punctuation punc) {
         return true;
     }
 

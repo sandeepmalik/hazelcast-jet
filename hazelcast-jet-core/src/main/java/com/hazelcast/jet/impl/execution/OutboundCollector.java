@@ -17,7 +17,6 @@
 package com.hazelcast.jet.impl.execution;
 
 import com.hazelcast.jet.Partitioner;
-import com.hazelcast.jet.Watermark;
 import com.hazelcast.jet.impl.execution.init.EdgeDef;
 import com.hazelcast.jet.impl.util.CircularListCursor;
 import com.hazelcast.jet.impl.util.ProgressState;
@@ -37,10 +36,10 @@ public interface OutboundCollector {
     ProgressState offer(Object item);
 
     /**
-     * Offer a watermark to this collector. Watermarks will be propagated to all sub-collectors
+     * Offer a punctuation to this collector. Punctuations will be propagated to all sub-collectors
      * if the collector is a composite one.
      */
-    ProgressState offerWatermark(Watermark wm);
+    ProgressState offerBroadcast(Object item);
 
     /**
      * Offers an item with a known partition id
@@ -86,13 +85,13 @@ public interface OutboundCollector {
         }
 
         @Override
-        public ProgressState offerWatermark(Watermark wm) {
+        public ProgressState offerBroadcast(Object punc) {
             progTracker.reset();
             for (int i = 0; i < collectors.length; i++) {
                 if (broadcastTracker.get(i)) {
                     continue;
                 }
-                ProgressState result = collectors[i].offerWatermark(wm);
+                ProgressState result = collectors[i].offerBroadcast(punc);
                 progTracker.mergeWith(result);
                 if (result.isDone()) {
                     broadcastTracker.set(i);
