@@ -37,17 +37,6 @@ import java.util.function.Consumer;
 public interface Inbox {
 
     /**
-     * Returns the number of items in this inbox.
-     */
-    int size();
-
-    /**
-     * Returns {@code true} if this inbox contains no elements, {@code false}
-     * otherwise.
-     */
-    boolean isEmpty();
-
-    /**
      * Retrieves, but does not remove, the head of this inbox, or returns
      * {@code null} if it is empty or contains just a punctuation item.
      */

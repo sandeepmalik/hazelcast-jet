@@ -251,16 +251,6 @@ public class AbstractProcessorTest {
         }
 
         @Override
-        public int size() {
-            return MOCK_ITEM != null ? 1 : 0;
-        }
-
-        @Override
-        public boolean isEmpty() {
-            return MOCK_ITEM == null;
-        }
-
-        @Override
         public Object peek() {
             return MOCK_ITEM;
         }
