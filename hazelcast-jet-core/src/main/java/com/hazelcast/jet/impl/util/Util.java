@@ -18,6 +18,8 @@ package com.hazelcast.jet.impl.util;
 
 import com.hazelcast.core.Member;
 import com.hazelcast.internal.serialization.InternalSerializationService;
+import com.hazelcast.jet.JetInstance;
+import com.hazelcast.jet.impl.JetService;
 import com.hazelcast.nio.Address;
 import com.hazelcast.nio.BufferObjectDataInput;
 import com.hazelcast.nio.BufferObjectDataOutput;
@@ -104,6 +106,10 @@ public final class Util {
 
     public static Connection getMemberConnection(@Nonnull NodeEngine engine, @Nonnull Address memberAddr) {
         return ((NodeEngineImpl) engine).getNode().getConnectionManager().getConnection(memberAddr);
+    }
+
+    public static JetInstance getJetInstance(NodeEngine nodeEngine) {
+        return nodeEngine.<JetService>getService(JetService.SERVICE_NAME).getJetInstance();
     }
 
     @Nonnull
