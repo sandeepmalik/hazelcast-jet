@@ -76,6 +76,25 @@ public interface Processor {
     }
 
     /**
+     * Called with a batch of items retrieved from an inbound edge's stream.
+     * There is one inbox per upstream producer which holds the items
+     * it produced. A producer maybe a local or remote upstream
+     * {@code Processor} instance. This method may process zero or more of them,
+     * removing each item after it is processed. Does not remove an item until it
+     * is done with it.
+     * <p>
+     * The default implementation does nothing.
+     *
+     * @param ordinal ordinal of the inbound edge
+     * @param inboxes one inbox per upstream producer containing the pending items
+     */
+    default void process(int ordinal, @Nonnull Inbox[] inboxes) {
+        for (Inbox inbox : inboxes) {
+            process(ordinal, inbox);
+        }
+    }
+
+    /**
      * Called when there is no pending data to process. Allows the processor to
      * perform non-input-driven work.
      */
