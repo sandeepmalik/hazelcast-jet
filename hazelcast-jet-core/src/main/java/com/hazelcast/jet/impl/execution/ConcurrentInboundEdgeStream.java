@@ -40,7 +40,7 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
     private final ConcurrentConveyor<Object> conveyor;
     private final ProgressTracker tracker;
     private final PuncDetector puncDetector = new PuncDetector();
-    private final long[] observedPunctuations;
+    private final long[] observedPuncSeqs;
     private int indexOfLeastPunc = -1;
 
     public ConcurrentInboundEdgeStream(ConcurrentConveyor<Object> conveyor, int ordinal, int priority) {
@@ -48,7 +48,7 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
         this.ordinal = ordinal;
         this.priority = priority;
         this.tracker = new ProgressTracker();
-        this.observedPunctuations = new long[conveyor.queueCount()];
+        this.observedPuncSeqs = new long[conveyor.queueCount()];
     }
 
     @Override
@@ -72,7 +72,7 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
             if (q == null) {
                 continue;
             }
-            Punctuation punc = drainUpToPunctuation(q, dest);
+            Punctuation punc = drainUpToPunc(q, dest);
             if (punc == null) {
                 continue;
             }
@@ -80,8 +80,8 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
                 conveyor.removeQueue(queueIndex);
                 continue;
             }
-            observedPunctuations[queueIndex] = punc.seq();
-            updateLeastPunctuation(dest, queueIndex, punc);
+            observedPuncSeqs[queueIndex] = punc.seq();
+            updateLeastPunc(dest, queueIndex, punc);
         }
         return tracker.toProgressState();
     }
@@ -92,7 +92,7 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
      *
      * @return the drained punctuation, if any; {@code null} otherwise
      */
-    private Punctuation drainUpToPunctuation(Pipe<Object> queue, Collection<Object> dest) {
+    private Punctuation drainUpToPunc(Pipe<Object> queue, Collection<Object> dest) {
         puncDetector.reset(dest);
 
         int drainedCount = queue.drain(puncDetector);
@@ -102,14 +102,14 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
         return puncDetector.punc;
     }
 
-    private void updateLeastPunctuation(Collection<Object> dest, int queueIndex, Punctuation punc) {
+    private void updateLeastPunc(Collection<Object> dest, int queueIndex, Punctuation punc) {
         if (indexOfLeastPunc == -1) {
             indexOfLeastPunc = queueIndex;
             dest.add(punc);
             return;
         }
         if (indexOfLeastPunc == queueIndex) {
-            int newIndexOfLeast = indexOfMin(observedPunctuations);
+            int newIndexOfLeast = indexOfMin(observedPuncSeqs);
             if (newIndexOfLeast != queueIndex) {
                 indexOfLeastPunc = newIndexOfLeast;
                 dest.add(punc);
