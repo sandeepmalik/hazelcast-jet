@@ -26,7 +26,6 @@ import com.hazelcast.util.function.Predicate;
 import java.util.Collection;
 
 import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
-import static com.hazelcast.jet.impl.util.Util.indexOfMin;
 
 /**
  * {@code InboundEdgeStream} implemented in terms of a {@code ConcurrentConveyor}.

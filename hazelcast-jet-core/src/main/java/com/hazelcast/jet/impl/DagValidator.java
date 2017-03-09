@@ -32,7 +32,6 @@ import java.util.stream.IntStream;
 import static com.hazelcast.util.Preconditions.checkTrue;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toMap;
-import static java.util.stream.Collectors.toSet;
 
 /**
  * Validates a DAG against cycles and other malformations.

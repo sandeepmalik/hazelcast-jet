@@ -21,14 +21,20 @@ import java.io.Serializable;
 /**
  * A stream punctuation item.
  */
-public final class Punctuation implements Serializable{
+public final class Punctuation implements Serializable {
 
     private final long seq;
 
+    /**
+     * javadoc pending
+     */
     public Punctuation(long seq) {
         this.seq = seq;
     }
 
+    /**
+     * javadoc pending
+     */
     public long seq() {
         return seq;
     }

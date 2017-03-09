@@ -26,7 +26,6 @@ import com.hazelcast.jet.ProcessorSupplier;
 import com.hazelcast.jet.TopologyChangedException;
 import com.hazelcast.jet.Vertex;
 import com.hazelcast.jet.config.EdgeConfig;
-import com.hazelcast.jet.impl.JetService;
 import com.hazelcast.jet.impl.execution.init.Contexts.MetaSupplierCtx;
 import com.hazelcast.nio.Address;
 import com.hazelcast.spi.NodeEngine;
