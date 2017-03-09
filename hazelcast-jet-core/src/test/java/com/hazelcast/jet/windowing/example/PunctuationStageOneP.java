@@ -29,8 +29,8 @@ import javax.annotation.Nonnull;
  * </li><li>
  *     Determines the frame seq from the timestamp.
  * </li><li>
- *     If the frame seq is more recent than the last emitted watermark plus the
- *     number of allowed open frames, emits all the watermarks needed to catch
+ *     If the frame seq is more recent than the last emitted punctuation plus the
+ *     number of allowed open frames, emits all the punctuations needed to catch
  *     up with the frame seq.
  * </li></ol>
  */
@@ -40,7 +40,7 @@ public class PunctuationStageOneP<T> extends AbstractProcessor {
     private final LongUnaryOperator toFrameSeqF;
     private final int openFrameCount;
 
-    private long nextWmSeq = Long.MIN_VALUE;
+    private long nextPuncSeq = Long.MIN_VALUE;
 
     private PunctuationStageOneP(
             ToLongFunction<? super T> extractTimestampF, LongUnaryOperator toFrameSeqF, int openFrameCount
@@ -50,7 +50,7 @@ public class PunctuationStageOneP<T> extends AbstractProcessor {
         this.openFrameCount = openFrameCount;
     }
 
-    public static <T> Distributed.Supplier<PunctuationStageOneP> watermarkStageOne(
+    public static <T> Distributed.Supplier<PunctuationStageOneP> punctuationStageOne(
             ToLongFunction<? super T> extractTimestampF,
             LongUnaryOperator toFrameSeqF,
             int openFrameCount
@@ -62,11 +62,11 @@ public class PunctuationStageOneP<T> extends AbstractProcessor {
     protected boolean tryProcess(int ordinal, @Nonnull Object item) {
         T t = (T) item;
         final long itemFrameSeq = toFrameSeqF.applyAsLong(extractTimestampF.applyAsLong(t));
-        if (nextWmSeq == Long.MIN_VALUE) {
-            nextWmSeq = itemFrameSeq - (openFrameCount - 1);
+        if (nextPuncSeq == Long.MIN_VALUE) {
+            nextPuncSeq = itemFrameSeq - (openFrameCount - 1);
         }
-        while (nextWmSeq + openFrameCount <= itemFrameSeq) {
-            emit(new SeqPunctuation(++nextWmSeq));
+        while (nextPuncSeq + openFrameCount <= itemFrameSeq) {
+            emit(new SeqPunctuation(++nextPuncSeq));
         }
         emit(t);
         return true;

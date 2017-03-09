@@ -21,9 +21,9 @@ import com.hazelcast.jet.AbstractProcessor;
 import javax.annotation.Nonnull;
 
 /**
- * Passes through items it receives. When receiving a watermark, ensures before
- * passing it through that it has already emitted earlier watermarks. Also
- * ensures against the duplication of watermarks already emitted.
+ * Passes through items it receives. When receiving a punctuation, ensures before
+ * passing it through that it has already emitted earlier punctuations. Also
+ * ensures against the duplication of punctuations already emitted.
  */
 public class PunctuationStageTwoP extends AbstractProcessor {
     private long emittedSeq;
