@@ -24,7 +24,7 @@ class DoneItem implements Serializable {
 
     @Override
     public String toString() {
-        return "DONE_WM";
+        return "DONE_ITEM";
     }
 
     protected Object readResolve() {

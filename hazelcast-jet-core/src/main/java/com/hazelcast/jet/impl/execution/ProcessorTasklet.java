@@ -148,14 +148,7 @@ public class ProcessorTasklet implements Tasklet {
         }
         processor.process();
         final int inboundOrdinal = currInstream.ordinal();
-        final Punctuation punc = inbox.peekPunctuation();
-        if (punc != null) {
-            if (processor.tryProcessPunctuation(inboundOrdinal, punc)) {
-                inbox.removePunctuation();
-            }
-        } else {
-            processor.process(inboundOrdinal, inbox);
-        }
+        processor.process(inboundOrdinal, inbox);
         if (!inbox.isEmpty()) {
             progTracker.notDone();
         }
@@ -186,7 +179,8 @@ public class ProcessorTasklet implements Tasklet {
             for (Object item; (item = q.peek()) != null; ) {
                 final OutboundCollector c = outstreams[i].getCollector();
                 final ProgressState state =
-                        (item instanceof Punctuation ? c.offerBroadcast((Punctuation) item) : c.offer(item));
+                        (item instanceof Punctuation || item instanceof DoneItem ? c.offerBroadcast(item) : c.offer
+                                (item));
                 progTracker.madeProgress(state.isMadeProgress());
                 if (!state.isDone()) {
                     progTracker.notDone();

@@ -132,12 +132,15 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
             metaSupplier.init(new MetaSupplierCtx(instance, totalParallelism, localParallelism));
 
             Function<Address, ProcessorSupplier> procSupplierFn = metaSupplier.get(addresses);
+            int procIdxOffset = 0;
             for (Entry<Member, ExecutionPlan> e : plans.entrySet()) {
                 final ProcessorSupplier processorSupplier = procSupplierFn.apply(e.getKey().getAddress());
-                final VertexDef vertexDef = new VertexDef(vertexId, vertex.getName(), processorSupplier, localParallelism);
+                final VertexDef vertexDef = new VertexDef(vertexId, vertex.getName(), processorSupplier,
+                        procIdxOffset, localParallelism);
                 vertexDef.addInboundEdges(inbound);
                 vertexDef.addOutboundEdges(outbound);
                 e.getValue().vertices.add(vertexDef);
+                procIdxOffset += localParallelism;
             }
         }
         return plans;
@@ -176,17 +179,17 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
         this.ptionArrgmt = new PartitionArrangement(partitionOwners, nodeEngine.getThisAddress());
         JetInstance instance = getJetInstance(nodeEngine);
         for (VertexDef srcVertex : vertices) {
-            int processorIdx = -1;
+            int processorIdx = 0;
             for (Processor p : createProcessors(srcVertex, srcVertex.parallelism())) {
-                processorIdx++;
                 // createOutboundEdgeStreams() populates localConveyorMap and edgeSenderConveyorMap.
                 // Also populates instance fields: senderMap, receiverMap, tasklets.
                 final List<OutboundEdgeStream> outboundStreams = createOutboundEdgeStreams(srcVertex, processorIdx);
                 final List<InboundEdgeStream> inboundStreams = createInboundEdgeStreams(srcVertex, processorIdx);
                 ILogger logger = nodeEngine.getLogger(
                         srcVertex.name() + '(' + p.getClass().getSimpleName() + ")#" + processorIdx);
-                ProcCtx context = new ProcCtx(instance, logger, srcVertex.name(), processorIdx);
+                ProcCtx context = new ProcCtx(instance, logger, srcVertex.name(), processorIdx + srcVertex.getProcIdxOffset());
                 tasklets.add(new ProcessorTasklet(srcVertex.name(), context, p, inboundStreams, outboundStreams));
+                processorIdx++;
             }
         }
         List<ReceiverTasklet> allReceivers = receiverMap.values().stream()

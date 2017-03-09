@@ -39,16 +39,13 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
     private final int priority;
     private final ConcurrentConveyor<Object> conveyor;
     private final ProgressTracker tracker;
-    private final PuncDetector puncDetector = new PuncDetector();
-    private final long[] observedPuncSeqs;
-    private int indexOfLeastPunc = -1;
+    private final DoneDetector doneDetector = new DoneDetector();
 
     public ConcurrentInboundEdgeStream(ConcurrentConveyor<Object> conveyor, int ordinal, int priority) {
         this.conveyor = conveyor;
         this.ordinal = ordinal;
         this.priority = priority;
         this.tracker = new ProgressTracker();
-        this.observedPuncSeqs = new long[conveyor.queueCount()];
     }
 
     @Override
@@ -72,73 +69,33 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
             if (q == null) {
                 continue;
             }
-            Punctuation punc = drainUpToPunc(q, dest);
-            if (punc == null) {
-                continue;
-            }
-            if (puncDetector.isDone) {
+            doneDetector.reset(dest);
+            int drainedCount = q.drain(doneDetector);
+            tracker.mergeWith(ProgressState.valueOf(drainedCount > 0, doneDetector.isDone));
+            doneDetector.dest = null;
+
+            if (doneDetector.isDone) {
                 conveyor.removeQueue(queueIndex);
-                continue;
             }
-            observedPuncSeqs[queueIndex] = punc.seq();
-            updateLeastPunc(dest, queueIndex, punc);
         }
         return tracker.toProgressState();
-    }
-
-    /**
-     * Drains the supplied queue into a {@code dest} collection, up to the next
-     * {@link Punctuation}. Also updates the {@code tracker} with new status.
-     *
-     * @return the drained punctuation, if any; {@code null} otherwise
-     */
-    private Punctuation drainUpToPunc(Pipe<Object> queue, Collection<Object> dest) {
-        puncDetector.reset(dest);
-
-        int drainedCount = queue.drain(puncDetector);
-        tracker.mergeWith(ProgressState.valueOf(drainedCount > 0, puncDetector.isDone));
-
-        puncDetector.dest = null;
-        return puncDetector.punc;
-    }
-
-    private void updateLeastPunc(Collection<Object> dest, int queueIndex, Punctuation punc) {
-        if (indexOfLeastPunc == -1) {
-            indexOfLeastPunc = queueIndex;
-            dest.add(punc);
-            return;
-        }
-        if (indexOfLeastPunc == queueIndex) {
-            int newIndexOfLeast = indexOfMin(observedPuncSeqs);
-            if (newIndexOfLeast != queueIndex) {
-                indexOfLeastPunc = newIndexOfLeast;
-                dest.add(punc);
-            }
-        }
     }
 
     /**
      * Drains a concurrent conveyor's queue while watching for {@link Punctuation}s.
      * When encountering a punctuation, prevents draining more items.
      */
-    private static final class PuncDetector implements Predicate<Object> {
+    private static final class DoneDetector implements Predicate<Object> {
         Collection<Object> dest;
-        Punctuation punc;
         boolean isDone;
 
         void reset(Collection<Object> newDest) {
             dest = newDest;
-            punc = null;
             isDone = false;
         }
 
         @Override
         public boolean test(Object o) {
-            if (o instanceof Punctuation) {
-                assert punc == null : "Received a punctuation item, but this.punc != null";
-                punc = (Punctuation) o;
-                return false;
-            }
             if (o == DONE_ITEM) {
                 isDone = true;
                 return false;
