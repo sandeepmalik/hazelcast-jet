@@ -26,14 +26,14 @@ public final class Punctuation implements Serializable {
     private final long seq;
 
     /**
-     * javadoc pending
+     * Constructs a new punctuation item.
      */
     public Punctuation(long seq) {
         this.seq = seq;
     }
 
     /**
-     * javadoc pending
+     * Returns the sequence number of this punctuation.
      */
     public long seq() {
         return seq;
