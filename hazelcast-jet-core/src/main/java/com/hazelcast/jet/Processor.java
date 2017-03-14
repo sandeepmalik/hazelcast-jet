@@ -83,22 +83,6 @@ public interface Processor {
     }
 
     /**
-     * Called when the current item on the inbound edge's stream is a punctuation.
-     * May return {@code false}, in which case it will be called again later with
-     * the same {@code ordinal} and {@code punc}.
-     * <p>
-     * The default implementation does nothing and returns {@code true}.
-     *
-     * @param ordinal ordinal of the inbound edge
-     * @param punc the punctuation
-     * @return {@code true} if the processing of the punctuation is now done,
-     *         {@code false} otherwise.
-     */
-    default boolean tryProcessPunctuation(int ordinal, Punctuation punc) {
-        return true;
-    }
-
-    /**
      * Called when an inbound edge's stream is exhausted. May return
      * {@code false}, in which case it will be called again later with the
      * same {@code ordinal}.

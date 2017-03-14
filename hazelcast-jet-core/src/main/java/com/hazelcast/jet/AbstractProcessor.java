@@ -142,16 +142,6 @@ public abstract class AbstractProcessor implements Processor {
     }
 
     /**
-     * {@inheritDoc} The implementation in {@code AbstractProcessor} forwards the
-     * punctuation to all outbound edges.
-     */
-    @Override
-    public boolean tryProcessPunctuation(int ordinal, Punctuation punc) {
-        emit(punc);
-        return true;
-    }
-
-    /**
      * Tries to process the supplied input item, which was received from the
      * edge with the supplied ordinal. May choose to process only partially
      * and return {@code false}, in which case it will be called again later
