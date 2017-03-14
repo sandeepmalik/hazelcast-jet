@@ -20,8 +20,6 @@ import com.hazelcast.aggregation.Aggregators;
 import com.hazelcast.config.SerializerConfig;
 import com.hazelcast.jet.AbstractProcessor;
 import com.hazelcast.jet.DAG;
-import com.hazelcast.jet.Distributed.BinaryOperator;
-import com.hazelcast.jet.Distributed.Function;
 import com.hazelcast.jet.Jet;
 import com.hazelcast.jet.JetInstance;
 import com.hazelcast.jet.Processors;
@@ -34,33 +32,23 @@ import com.hazelcast.logging.ILogger;
 import com.hazelcast.logging.Logger;
 import com.hazelcast.nio.ObjectDataInput;
 import com.hazelcast.nio.ObjectDataOutput;
-import com.hazelcast.nio.serialization.Serializer;
-import com.hazelcast.nio.serialization.SerializerHook;
 import com.hazelcast.nio.serialization.StreamSerializer;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static com.hazelcast.jet.Edge.between;
 import static com.hazelcast.jet.Edge.from;
-import static com.hazelcast.jet.KeyExtractors.entryKey;
 import static com.hazelcast.jet.Partitioner.HASH_CODE;
 import static com.hazelcast.jet.Processors.readMap;
-import static com.hazelcast.jet.Util.entry;
 import static com.hazelcast.jet.windowing.example.CombineFramesP.combineFrames;
 import static com.hazelcast.jet.windowing.example.GroupByFrameP.groupByFrame;
-import static com.hazelcast.jet.windowing.example.GroupByFrameP.groupByFrame;
 import static com.hazelcast.jet.windowing.example.SnapshottingCollectors.counting;
-import static com.hazelcast.jet.windowing.example.SnapshottingCollectors.mapping;
-import static com.hazelcast.jet.windowing.example.SnapshottingCollectors.summingLong;
 import static java.lang.Runtime.getRuntime;
 
 public class TradeMonitor {
@@ -103,7 +91,7 @@ public class TradeMonitor {
             Vertex generateEvents = dag.newVertex("generate-events", () -> new TradeGeneratorP(0));
             Vertex peek = dag.newVertex("peek", PeekP::new);
             Vertex groupByFrame = dag.newVertex("group-by-frame",
-                    groupByFrame(4, Trade::getTicker,
+                    groupByFrame(Trade::getTicker,
                             t -> System.currentTimeMillis(), ts -> ts / 1_000,
                             counting()
                     )

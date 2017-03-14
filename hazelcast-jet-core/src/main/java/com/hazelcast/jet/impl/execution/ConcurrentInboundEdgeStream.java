@@ -23,9 +23,11 @@ import com.hazelcast.jet.impl.util.ProgressState;
 import com.hazelcast.jet.impl.util.ProgressTracker;
 import com.hazelcast.util.function.Predicate;
 
+import java.util.Arrays;
 import java.util.Collection;
 
 import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
+import static com.hazelcast.jet.impl.util.Util.indexOfMin;
 
 /**
  * {@code InboundEdgeStream} implemented in terms of a {@code ConcurrentConveyor}.
@@ -37,14 +39,18 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
     private final int ordinal;
     private final int priority;
     private final ConcurrentConveyor<Object> conveyor;
-    private final ProgressTracker tracker;
-    private final DoneDetector doneDetector = new DoneDetector();
+    private final ProgressTracker tracker = new ProgressTracker();
+    private final PunctuationDetector puncDetector = new PunctuationDetector();
+    private final long[] observedPuncSeqs;
+    private int indexOfLeastPunc;
 
     public ConcurrentInboundEdgeStream(ConcurrentConveyor<Object> conveyor, int ordinal, int priority) {
         this.conveyor = conveyor;
         this.ordinal = ordinal;
         this.priority = priority;
-        this.tracker = new ProgressTracker();
+
+        observedPuncSeqs = new long[conveyor.queueCount()];
+        Arrays.fill(observedPuncSeqs, Long.MIN_VALUE);
     }
 
     @Override
@@ -68,33 +74,62 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
             if (q == null) {
                 continue;
             }
-            doneDetector.reset(dest);
-            int drainedCount = q.drain(doneDetector);
-            tracker.mergeWith(ProgressState.valueOf(drainedCount > 0, doneDetector.isDone));
-            doneDetector.dest = null;
-
-            if (doneDetector.isDone) {
+            Punctuation punc = drainUpToPunc(q, dest);
+            if (puncDetector.isDone) {
                 conveyor.removeQueue(queueIndex);
+                continue;
+            }
+            if (punc != null) {
+                assert observedPuncSeqs[queueIndex] < punc.seq() : "Punctuations not monotonically increasing on queue";
+                observedPuncSeqs[queueIndex] = punc.seq();
+                // if this queue was the smallest, lets advance the punc seq
+                if (indexOfLeastPunc == queueIndex) {
+                    indexOfLeastPunc = indexOfMin(observedPuncSeqs);
+                    dest.add(punc);
+                }
             }
         }
         return tracker.toProgressState();
     }
 
     /**
+     * Drains the supplied queue into a {@code dest} collection, up to the next
+     * {@link Punctuation}. Also updates the {@code tracker} with new status.
+     *
+     * @return the drained punctuation, if any; {@code null} otherwise
+     */
+    private Punctuation drainUpToPunc(Pipe<Object> queue, Collection<Object> dest) {
+        puncDetector.reset(dest);
+
+        int drainedCount = queue.drain(puncDetector);
+        tracker.mergeWith(ProgressState.valueOf(drainedCount > 0, puncDetector.isDone));
+
+        puncDetector.dest = null;
+        return puncDetector.punc;
+    }
+
+    /**
      * Drains a concurrent conveyor's queue while watching for {@link Punctuation}s.
      * When encountering a punctuation, prevents draining more items.
      */
-    private static final class DoneDetector implements Predicate<Object> {
+    private static final class PunctuationDetector implements Predicate<Object> {
         Collection<Object> dest;
+        Punctuation punc;
         boolean isDone;
 
         void reset(Collection<Object> newDest) {
             dest = newDest;
+            punc = null;
             isDone = false;
         }
 
         @Override
         public boolean test(Object o) {
+            if (o instanceof Punctuation) {
+                assert punc == null : "Received multiple Punctuations without a call to reset()";
+                punc = (Punctuation) o;
+                return false;
+            }
             if (o == DONE_ITEM) {
                 isDone = true;
                 return false;

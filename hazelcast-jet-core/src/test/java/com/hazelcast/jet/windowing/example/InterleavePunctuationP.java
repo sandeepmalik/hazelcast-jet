@@ -153,12 +153,6 @@ public class InterleavePunctuationP<T> extends AbstractProcessor {
         }
     }
 
-    @Override
-    public boolean tryProcessPunctuation(int ordinal, Punctuation punc) {
-        getLogger().warning("Received unexpected punctuation:" + punc);
-        return true;
-    }
-
     public long getPunctuationLag() {
         return punctuationLag;
     }

@@ -16,10 +16,10 @@
 
 package com.hazelcast.jet.windowing.example;
 
-import com.hazelcast.jet.AbstractProcessor;
 import com.hazelcast.jet.Distributed;
 import com.hazelcast.jet.Distributed.Optional;
 import com.hazelcast.jet.Punctuation;
+import com.hazelcast.jet.StreamingProcessorBase;
 
 import javax.annotation.Nonnull;
 import java.util.HashMap;
@@ -29,7 +29,7 @@ import java.util.Map.Entry;
 /**
  * Javadoc pending.
  */
-public class CombineFramesP<K, F, R> extends AbstractProcessor {
+public class CombineFramesP<K, F, R> extends StreamingProcessorBase {
     private final SnapshottingCollector<?, F, R> tc;
     private final Map<Long, Map<K, F>> seqToKeyToFrame = new HashMap<>();
 
@@ -58,7 +58,7 @@ public class CombineFramesP<K, F, R> extends AbstractProcessor {
     }
 
     @Override
-    public boolean tryProcessPunctuation(int ordinal, Punctuation punc) {
+    protected boolean tryProcessPunc(int ordinal, @Nonnull Punctuation punc) {
         Punctuation frame = (Punctuation) punc;
         Map<K, F> keys = seqToKeyToFrame.remove(frame.seq());
         if (keys == null) {
