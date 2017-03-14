@@ -19,6 +19,7 @@ package com.hazelcast.jet;
 import com.hazelcast.jet.impl.util.FlatMappingTraverser;
 
 import javax.annotation.Nonnull;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -78,6 +79,32 @@ public interface Traverser<T> {
     }
 
     /**
+     * Returns a traverser that will emit the same items as this traverser,
+     * until either this traverser is exhausted or an item fails the supplied
+     * predicate, at which point it will return {@code null}.
+     */
+    @Nonnull
+    default Traverser<T> takeWhile(@Nonnull Predicate<? super T> pred) {
+        return () -> {
+            T t = next();
+            return t != null && pred.test(t) ? t : null;
+        };
+    }
+
+    /**
+     * Returns a traverser that will emit the same items as this traverser,
+     * additionally passing each item to the supplied consumer.
+     */
+    @Nonnull
+    default Traverser<T> peek(@Nonnull Consumer<? super T> action) {
+        return () -> {
+            T t = next();
+            action.accept(t);
+            return t;
+        };
+    }
+
+    /**
      * Returns a traverser over the supplied arguments (or item array).
      *
      * @param items the items to traverse over
@@ -86,5 +113,23 @@ public interface Traverser<T> {
     @SafeVarargs
     static <T> Traverser<T> over(T... items) {
         return Traversers.traverseArray(items);
+    }
+
+    /**
+     * Returns a traverser that emits the concatenation of the supplied
+     * traversers.
+     */
+    @SafeVarargs
+    static <T> Traverser<T> concat(Traverser<T>... travs) {
+        int[] i = {0};
+        return () -> {
+            for (; i[0] < travs.length; i[0]++) {
+                T t = travs[i[0]].next();
+                if (t != null) {
+                    return t;
+                }
+            }
+            return null;
+        };
     }
 }
