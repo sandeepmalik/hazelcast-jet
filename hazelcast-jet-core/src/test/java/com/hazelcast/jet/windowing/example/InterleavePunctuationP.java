@@ -65,20 +65,17 @@ public class InterleavePunctuationP<T> extends AbstractProcessor {
     private final long eventSeqTrigger;
     private final long timeTrigger;
     private final LongSupplier clock;
+    private final MaxRetain maxRetain;
 
     private long highestSeq = Long.MIN_VALUE;
     private long lastEmittedPunc;
-    private long[] historicSeqs;
-    private int historicSeqsPos;
-    private long historyInterval;
-    private long nextHistoryFrameStart;
 
     private long nextPuncEventSeq;
     private long nextPuncTime;
 
     @Override
     protected void init(@Nonnull Context context) throws Exception {
-        nextHistoryFrameStart = clock.getAsLong() + historyInterval;
+        maxRetain.init(clock.getAsLong());
     }
 
     /**
@@ -105,10 +102,7 @@ public class InterleavePunctuationP<T> extends AbstractProcessor {
         this.eventSeqTrigger = eventSeqTrigger;
         this.timeTrigger = timeTrigger;
 
-        historicSeqs = new long[HISTORIC_SEQS_COUNT];
-        Arrays.fill(historicSeqs, Long.MIN_VALUE);
-
-        historyInterval = maxRetain / HISTORIC_SEQS_COUNT;
+        this.maxRetain = new MaxRetain(HISTORIC_SEQS_COUNT, maxRetain);
     }
 
     @Override
@@ -128,26 +122,7 @@ public class InterleavePunctuationP<T> extends AbstractProcessor {
 
     @Override
     public void process() {
-        long now = clock.getAsLong();
-
-        if (nextHistoryFrameStart <= now) {
-            long punctToEmit = Long.MIN_VALUE;
-            while (nextHistoryFrameStart <= now) {
-                nextHistoryFrameStart += historyInterval;
-                historicSeqsPos++;
-                if (historicSeqsPos == HISTORIC_SEQS_COUNT) {
-                    historicSeqsPos = 0;
-                }
-                punctToEmit = historicSeqs[historicSeqsPos];
-
-                // initialize the new current bucket to current max.
-                // If this is an old bucket, initialize it to (current - lag)
-                historicSeqs[historicSeqsPos] = highestSeq - (nextHistoryFrameStart < now ? punctuationLag : 0);
-            }
-
-            // emit the punctuation
-            maybeEmitPunctuation(punctToEmit);
-        }
+        maybeEmitPunctuation(maxRetain.tick(clock.getAsLong(), highestSeq));
     }
 
     private void maybeEmitPunctuation(long punctuationTime) {

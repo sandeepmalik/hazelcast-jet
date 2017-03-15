@@ -20,10 +20,11 @@ import java.util.Arrays;
 
 public class MaxRetain {
 
-    private long[] seqs;
+    private final long[] seqs;
+    private final long interval;
+
     private int head = 0;
     private int tail = 1;
-    private long interval;
     private long nextSlotAt;
     private long lastVal;
 
