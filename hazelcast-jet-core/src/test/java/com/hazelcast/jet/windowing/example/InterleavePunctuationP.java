@@ -27,45 +27,54 @@ import java.util.function.LongSupplier;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
- * A processor to interleave the source with punctuations, when the source does not emit them.
+ * A processor that inserts punctuation into a data stream. Punctuation is
+ * defined as the top observed {@code eventSeq} minus the configured
+ * {@code punctuationLag}. We shall say that a punctuation is <em>behind</em>
+ * an item if the item's {@code eventSeq} is higher than it; we shall use
+ * the term <em>ahead</em> for the opposite case.
  * <p>
- * The emission is driven by incoming data and its time. If there is no input, the punctuations will
- * stop. New punctuations is emitted for each item, if it is the newest so far.
- * <p>
- * The {@code maxRetain} parameter specifies number of milliseconds (in terms of local system
- * time): if the last emitted punctuation is lower than the highest sequence {@code maxRetain}
- * milliseconds ago,
- *
- * If highest punctuation sequence {@code maxRetain} milliseconds
- *                          ago (in local system time) was higher than the current punctuation,
- *                          it will be emitted as a new punctuation.
- *                          This effectively causes, that if input events stop coming, the punctuation
- *                          after {@code maxRetain} milliseconds will advance to the highest seq value
- *                          seen.
- * <p>
- * Items can be out of order. Items older than the already emitted watermark are not dropped,
- * however you should set the {@link #getPunctuationLag()} to enough time to accommodate for
- * expected out-of-orderness.
+ * Since eagerly emitting punctuation every time a new top {@code eventSeq}
+ * is observed would cause too much overhead, there is throttling that skips
+ * some opportunities to emit punctuation. We shall therefore distinguish
+ * between the <em>ideal punctuation</em> and the <em>emitted punctuation</em>.
+ * There are two triggers that will cause a new punctuation to be emitted:
+ * <ol><li>
+ *     The difference between the ideal and the last emitted punctuation: when it
+ *     exceeds the configured {@code eventSeqTrigger}, a new punctuation is
+ *     emitted.
+ * </li><li>
+ *     The difference between the current time and the time the last punctuation
+ *     was emitted: when it exceeds the configured {@code timeTrigger}, and if the
+ *     current ideal punctuation is greater than the emitted punctuation, a new
+ *     punctuation will be emitted.
+ * </li></ol>
+ * If the top {@code eventSeq} observed {@code maxRetainTime} milliseconds
+ * ago was higher than the last emitted punctuation, a new punctuation will
+ * be emitted with that {@code eventSeq}. This limits the amount of time the
+ * emitted punctuation can stay behind any observed event. Since punctuation
+ * drives the emission and removal of aggregated state from processors, this
+ * is also the maximum time to retain data about an event in the system before
+ * sending it to the data sink.
  */
 public class InterleavePunctuationP<T> extends AbstractProcessor {
 
     private static final int HISTORIC_SEQS_COUNT = 16;
 
-    private final ToLongFunction<T> extractTimestampF;
+    private final ToLongFunction<T> extractEventSeqF;
     private final long punctuationLag;
-    private final long minEventTimeInterval;
-    private final long maxSystemTimeInterval;
+    private final long eventSeqTrigger;
+    private final long timeTrigger;
     private final LongSupplier clock;
 
     private long highestSeq = Long.MIN_VALUE;
-    private long highestPunctEmitted;
+    private long lastEmittedPunc;
     private long[] historicSeqs;
     private int historicSeqsPos;
     private long historyInterval;
     private long nextHistoryFrameStart;
 
-    private long nextPunctuationEventTimeAt;
-    private long nextPunctuationSystemTimeAt;
+    private long nextPuncEventSeq;
+    private long nextPuncTime;
 
     @Override
     protected void init(@Nonnull Context context) throws Exception {
@@ -73,30 +82,28 @@ public class InterleavePunctuationP<T> extends AbstractProcessor {
     }
 
     /**
-     * Time unit for {@code punctuationLag} and {@code punctuationInterval} is in the same
-     * units as {@code extractTimestampF}.
-     *
-     * @param extractTimestampF Function to extract timestamp from input items
-     * @param punctuationLag    Time the punctuation is behind the most recent event
-     * @param maxRetain         See {@link InterleavePunctuationP}
-     * @param minEventTimeInterval Minimum interval in terms of event time to pass, until next punctuation
-     *                             is emitted
-     * @param maxSystemTimeInterval Maximum interval in terms of system time to pass, until next
-     *                              punctuation is emitted
+     * @param extractEventSeqF function that extracts the {@code eventSeq} from an input item
+     * @param punctuationLag   the difference between the top observed {@code eventSeq} and
+     *                         the ideal punctuation
+     * @param maxRetainTime    maximum time the emitted punctuation can stay behind any observed
+     *                         event
+     * @param eventSeqTrigger the difference between the ideal and the last emitted punctuation
+     *                        that triggers the emission of a new punctuation
+     * @param timeTrigger maximum time that can pass between emitting successive punctuations
      */
-    public InterleavePunctuationP(ToLongFunction<T> extractTimestampF, long punctuationLag,
-            long maxRetain, long minEventTimeInterval, long maxSystemTimeInterval) {
-        this(extractTimestampF, punctuationLag, MILLISECONDS.toNanos(maxRetain),
-                minEventTimeInterval, MILLISECONDS.toNanos(maxSystemTimeInterval), System::nanoTime);
+    public InterleavePunctuationP(ToLongFunction<T> extractEventSeqF, long punctuationLag,
+            long maxRetainTime, long eventSeqTrigger, long timeTrigger) {
+        this(extractEventSeqF, punctuationLag, MILLISECONDS.toNanos(maxRetainTime),
+                eventSeqTrigger, MILLISECONDS.toNanos(timeTrigger), System::nanoTime);
     }
 
-    InterleavePunctuationP(ToLongFunction<T> extractTimestampF, long punctuationLag,
-            long maxRetain, long minEventTimeInterval, long maxSystemTimeInterval, LongSupplier clock) {
-        this.extractTimestampF = extractTimestampF;
+    InterleavePunctuationP(ToLongFunction<T> extractEventSeqF, long punctuationLag,
+                           long maxRetain, long eventSeqTrigger, long timeTrigger, LongSupplier clock) {
+        this.extractEventSeqF = extractEventSeqF;
         this.punctuationLag = punctuationLag;
         this.clock = clock;
-        this.minEventTimeInterval = minEventTimeInterval;
-        this.maxSystemTimeInterval = maxSystemTimeInterval;
+        this.eventSeqTrigger = eventSeqTrigger;
+        this.timeTrigger = timeTrigger;
 
         historicSeqs = new long[HISTORIC_SEQS_COUNT];
         Arrays.fill(historicSeqs, Long.MIN_VALUE);
@@ -106,15 +113,15 @@ public class InterleavePunctuationP<T> extends AbstractProcessor {
 
     @Override
     protected boolean tryProcess(int ordinal, @Nonnull Object item) throws Exception {
-        emit(item);
         T tItem = (T) item;
-        long itemSeq = extractTimestampF.applyAsLong(tItem);
+        long itemSeq = extractEventSeqF.applyAsLong(tItem);
 
         // if we have newest item so far, maybe emit punctuation
         if (itemSeq > highestSeq) {
             highestSeq = itemSeq;
             maybeEmitPunctuation(highestSeq - punctuationLag);
         }
+        emit(item);
 
         return true;
     }
@@ -133,7 +140,8 @@ public class InterleavePunctuationP<T> extends AbstractProcessor {
                 }
                 punctToEmit = historicSeqs[historicSeqsPos];
 
-                // initialize the new current bucket to current max. If this is an old bucket, initialize it to (current - lag)
+                // initialize the new current bucket to current max.
+                // If this is an old bucket, initialize it to (current - lag)
                 historicSeqs[historicSeqsPos] = highestSeq - (nextHistoryFrameStart < now ? punctuationLag : 0);
             }
 
@@ -144,12 +152,12 @@ public class InterleavePunctuationP<T> extends AbstractProcessor {
 
     private void maybeEmitPunctuation(long punctuationTime) {
         long now = clock.getAsLong();
-        if (highestPunctEmitted < punctuationTime &&
-                (punctuationTime >= nextPunctuationEventTimeAt || now >= nextPunctuationSystemTimeAt)) {
+        if (lastEmittedPunc < punctuationTime &&
+                (punctuationTime >= nextPuncEventSeq || now >= nextPuncTime)) {
             emit(new Punctuation(punctuationTime));
-            highestPunctEmitted = punctuationTime;
-            nextPunctuationEventTimeAt = punctuationTime + minEventTimeInterval;
-            nextPunctuationSystemTimeAt = now + maxSystemTimeInterval;
+            lastEmittedPunc = punctuationTime;
+            nextPuncEventSeq = punctuationTime + eventSeqTrigger;
+            nextPuncTime = now + timeTrigger;
         }
     }
 
