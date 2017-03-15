@@ -18,9 +18,16 @@ package com.hazelcast.jet.windowing.example;
 
 import java.util.Arrays;
 
+/**
+ * Helper class for maxRetain calculation.
+ *
+ * maxRetain is defined as maximum system time that can pass between
+ * observing an event with the top eventSeq and emitting a
+ * punctuation with that value.
+ */
 public class MaxRetain {
 
-    private final long[] seqs;
+    private final long[] slots;
     private final long interval;
 
     private int head = 0;
@@ -28,40 +35,54 @@ public class MaxRetain {
     private long nextSlotAt;
     private long lastVal;
 
-    MaxRetain(int count, long duration) {
-        seqs = new long[count];
-        Arrays.fill(seqs, Long.MIN_VALUE);
-        interval = duration / count;
+    /**
+     *
+     * @param maxRetain the maximum duration a top value can be retained
+     * @param numSlots how many slots to divide the duration into
+     */
+    MaxRetain(long maxRetain, int numSlots) {
+        slots = new long[numSlots];
+        interval = maxRetain / numSlots;
     }
 
-    public void init(long now) {
+    /**
+     * Reset to the initial time value.
+     */
+    void reset(long now) {
         nextSlotAt = now + interval;
+        Arrays.fill(slots, Long.MIN_VALUE);
     }
 
+    /**
+     *
+     * @param now current time
+     * @param topSeq current top sequence
+     * @return the top sequence from {@code maxRetain} units ago
+     */
     long tick(long now, long topSeq) {
         long val = lastVal;
         for (; now >= nextSlotAt; nextSlotAt += interval) {
             val = slide();
         }
-        seqs[head] = topSeq;
+        slots[head] = topSeq;
         return (lastVal = val);
     }
 
     private long slide() {
         // advance tail and keep value of current tail
-        long val = seqs[tail];
+        long val = slots[tail];
         tail = advance(tail);
 
         // advance head and copy value to new head
-        long currHead = seqs[head];
+        long currHead = slots[head];
         head = advance(head);
-        seqs[head] = currHead;
+        slots[head] = currHead;
 
         return val;
     }
 
     private int advance(int index) {
-        if (++index == seqs.length) {
+        if (++index == slots.length) {
             return 0;
         }
         return index;

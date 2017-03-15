@@ -21,7 +21,6 @@ import com.hazelcast.jet.Distributed.ToLongFunction;
 import com.hazelcast.jet.Punctuation;
 
 import javax.annotation.Nonnull;
-import java.util.Arrays;
 import java.util.function.LongSupplier;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -75,7 +74,7 @@ public class InterleavePunctuationP<T> extends AbstractProcessor {
 
     @Override
     protected void init(@Nonnull Context context) throws Exception {
-        maxRetain.init(clock.getAsLong());
+        maxRetain.reset(clock.getAsLong());
     }
 
     /**
@@ -102,7 +101,7 @@ public class InterleavePunctuationP<T> extends AbstractProcessor {
         this.eventSeqTrigger = eventSeqTrigger;
         this.timeTrigger = timeTrigger;
 
-        this.maxRetain = new MaxRetain(HISTORIC_SEQS_COUNT, maxRetain);
+        this.maxRetain = new MaxRetain(maxRetain, HISTORIC_SEQS_COUNT);
     }
 
     @Override

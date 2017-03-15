@@ -28,7 +28,7 @@ public class MaxRetainTest {
     @Before
     public void setup() {
         retain = new MaxRetain(4, 4);
-        retain.init(0);
+        retain.reset(0);
     }
 
     @Test
