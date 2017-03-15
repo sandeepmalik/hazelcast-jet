@@ -45,6 +45,24 @@ public final class Traversers {
     }
 
     /**
+     * Same as {@link #iterate(Iterator)}, it additionally removes elements from
+     * the iterator as they are iterated. This is useful to make the traversed item
+     * GCable after traversing.
+     */
+    @Nonnull
+    public static <T> Traverser<T> iterateWithRemoval(@Nonnull Iterator<T> iterator) {
+        return () -> {
+            if (!iterator.hasNext()) {
+                return null;
+            }
+            T t = iterator.next();
+            assert t != null : "Iterator returned null element";
+            iterator.remove();
+            return t;
+        };
+    }
+
+    /**
      * Returns a simple adapter from {@code Spliterator} to {@code Traverser}.
      * Each time its {@code next()} method is called, the traverser will take
      * another item from the spliterator and return it.
@@ -85,6 +103,18 @@ public final class Traversers {
     public static <T> Traverser<T> traverseIterable(@Nonnull Iterable<T> iterable) {
         return iterate(iterable.iterator());
     }
+
+    /**
+     * Returns a traverser over the given iterable. Items are removed as they are traversed.
+     * This is useful to make the traversed item GCable after traversing.
+     * <p>
+     * The iterator is obtained immediately.
+     */
+    @Nonnull
+    public static <T> Traverser<T> traverseIterableWithRemoval(@Nonnull  Iterable<T> iterable) {
+        return iterateWithRemoval(iterable.iterator());
+    }
+
 
     /**
      * Returns a traverser over the given array.

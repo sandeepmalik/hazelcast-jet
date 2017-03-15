@@ -26,16 +26,13 @@ import com.hazelcast.jet.Traverser;
 
 import javax.annotation.Nonnull;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
 import static com.hazelcast.jet.Traverser.concat;
-import static com.hazelcast.jet.Traversers.iterate;
 import static com.hazelcast.jet.Traversers.traverseIterable;
-import static com.hazelcast.jet.Util.triple;
+import static com.hazelcast.jet.Traversers.traverseIterableWithRemoval;
 
 public class GroupByFrameP<T, K, F, R> extends StreamingProcessorBase {
     private final SnapshottingCollector<? super T, F, R> sc;
@@ -98,13 +95,13 @@ public class GroupByFrameP<T, K, F, R> extends StreamingProcessorBase {
         if (!tryCompletePendingFrames()) {
             return false;
         }
-        long puncSeq = punc.seq();
-        frameTraverser = traverseWithRemoval(seqToFrame.entrySet())
-                .takeWhile(seqAndFrame -> seqAndFrame.getKey() <= puncSeq)
+
+        frameTraverser = traverseIterableWithRemoval(seqToFrame.headMap(punc.seq() + 1).entrySet())
                 .flatMap(seqAndFrame -> concat(
                         traverseIterable(seqAndFrame.getValue().entrySet())
-                                .map(e -> triple(seqAndFrame.getKey(), e.getKey(), e.getValue())),
+                                .map(e -> new KeyedFrame<>(seqAndFrame.getKey(), e.getKey(), e.getValue())),
                         Traverser.over(new Punctuation(seqAndFrame.getKey()))));
+
         return tryCompletePendingFrames();
     }
 
@@ -117,17 +114,5 @@ public class GroupByFrameP<T, K, F, R> extends StreamingProcessorBase {
             frameTraverser = null;
         }
         return done;
-    }
-
-    private static <T> Traverser<T> traverseWithRemoval(Iterable<T> iterable) {
-        Iterator<T> it = iterable.iterator();
-        return () -> {
-            if (!it.hasNext()) {
-                return null;
-            }
-            T t = it.next();
-            it.remove();
-            return t;
-        };
     }
 }

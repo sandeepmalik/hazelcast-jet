@@ -20,18 +20,25 @@ import com.hazelcast.jet.Distributed;
 import com.hazelcast.jet.Distributed.Optional;
 import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.StreamingProcessorBase;
+import com.hazelcast.jet.Traverser;
 
 import javax.annotation.Nonnull;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Map.Entry;
+import java.util.SortedMap;
+import java.util.TreeMap;
+
+import static com.hazelcast.jet.Traverser.concat;
+import static com.hazelcast.jet.Traversers.traverseIterable;
+import static com.hazelcast.jet.Traversers.traverseIterableWithRemoval;
 
 /**
  * Javadoc pending.
  */
 public class CombineFramesP<K, F, R> extends StreamingProcessorBase {
     private final SnapshottingCollector<?, F, R> tc;
-    private final Map<Long, Map<K, F>> seqToKeyToFrame = new HashMap<>();
+    private final SortedMap<Long, Map<K, F>> seqToFrame = new TreeMap<>();
+    private Traverser<Object> frameTraverser;
 
     private CombineFramesP(SnapshottingCollector<?, F, R> tc) {
         this.tc = tc;
@@ -48,7 +55,7 @@ public class CombineFramesP<K, F, R> extends StreamingProcessorBase {
         final KeyedFrame<K, F> e = (KeyedFrame) item;
         final Long frameSeq = e.getSeq();
         final F frame = e.getValue();
-        seqToKeyToFrame.computeIfAbsent(frameSeq, x -> new HashMap<>())
+        seqToFrame.computeIfAbsent(frameSeq, x -> new HashMap<>())
                        .compute(e.getKey(),
                                (s, f) -> tc.combiner().apply(
                                        Optional.ofNullable(f).orElseGet(tc.supplier()),
@@ -59,14 +66,32 @@ public class CombineFramesP<K, F, R> extends StreamingProcessorBase {
 
     @Override
     protected boolean tryProcessPunc(int ordinal, @Nonnull Punctuation punc) {
-        Punctuation frame = (Punctuation) punc;
-        Map<K, F> keys = seqToKeyToFrame.remove(frame.seq());
+        if (!tryCompletePendingFrames()) {
+            return false;
+        }
+
+        Map<K, F> keys = seqToFrame.remove(punc.seq());
         if (keys == null) {
             return true;
         }
-        for (Entry<K, F> entry : keys.entrySet()) {
-            emit(new KeyedFrame<>(frame.seq(), entry.getKey(), tc.finisher().apply(entry.getValue())));
+
+        frameTraverser = traverseIterableWithRemoval(seqToFrame.headMap(punc.seq() + 1).entrySet())
+                .flatMap(seqAndFrame -> concat(
+                        traverseIterable(seqAndFrame.getValue().entrySet())
+                                .map(e -> new KeyedFrame<>(seqAndFrame.getKey(), e.getKey(), tc.finisher().apply(e.getValue()))),
+                        Traverser.over(new Punctuation(seqAndFrame.getKey()))));
+
+        return tryCompletePendingFrames();
+    }
+
+    private boolean tryCompletePendingFrames() {
+        if (frameTraverser == null) {
+            return true;
         }
-        return true;
+        boolean done = emitCooperatively(frameTraverser);
+        if (done) {
+            frameTraverser = null;
+        }
+        return done;
     }
 }
