@@ -23,7 +23,6 @@ import javax.annotation.Nonnull;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Random;
 import java.util.function.Supplier;
 
 import static com.hazelcast.jet.impl.util.Util.memoize;
@@ -37,14 +36,22 @@ public class TradeGeneratorP extends AbstractProcessor {
     private final Supplier<String[]> tickers = memoize(() -> tickerToPrice.keySet().toArray(new String[0]));
 
     TradeGeneratorP(int periodMillis) {
-        final int[] i = {0};
-        Traverser<Trade> traverser = () -> {
-            String[] tickers = this.tickers.get();
-            String ticker = tickers[i[0]++];
-            if (i[0] == tickers.length) {
-                i[0] = 0;
+        Traverser<Trade> traverser = new Traverser<Trade>() {
+            public int tickerIndex;
+            public long lag;
+
+            @Override
+            public Trade next() {
+                String[] tickers = TradeGeneratorP.this. tickers.get();
+                String ticker = tickers[tickerIndex++];
+                if (tickerIndex == tickers.length) {
+                    tickerIndex = 0;
+                }
+                lag++;
+                if (lag == 2000)
+                    lag = 0;
+                return new Trade(System.currentTimeMillis() - lag, ticker, 100, 10000);
             }
-            return new Trade(ticker, 100, 10000);
         };
         this.traverser = periodMillis > 0 ? new PeriodicTraverser<>(traverser, periodMillis) : traverser;
     }

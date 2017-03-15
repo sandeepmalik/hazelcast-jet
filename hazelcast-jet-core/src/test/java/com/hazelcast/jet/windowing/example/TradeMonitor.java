@@ -23,6 +23,7 @@ import com.hazelcast.jet.DAG;
 import com.hazelcast.jet.Jet;
 import com.hazelcast.jet.JetInstance;
 import com.hazelcast.jet.Processors;
+import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.Vertex;
 import com.hazelcast.jet.config.InstanceConfig;
 import com.hazelcast.jet.config.JetConfig;
@@ -43,7 +44,6 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 import static com.hazelcast.jet.Edge.between;
-import static com.hazelcast.jet.Edge.from;
 import static com.hazelcast.jet.Partitioner.HASH_CODE;
 import static com.hazelcast.jet.Processors.readMap;
 import static com.hazelcast.jet.windowing.example.CombineFramesP.combineFrames;
@@ -89,23 +89,28 @@ public class TradeMonitor {
             DAG dag = new DAG();
             Vertex tickerSource = dag.newVertex("ticker-source", readMap(initial.getName()));
             Vertex generateEvents = dag.newVertex("generate-events", () -> new TradeGeneratorP(0));
+            Vertex interleavePunctuation = dag.newVertex("interleavePunctuation",
+                    () -> new InterleavePunctuationP<>(Trade::getTime, 3000L, 3000L, 500L, 500L));
             Vertex peek = dag.newVertex("peek", PeekP::new);
             Vertex groupByFrame = dag.newVertex("group-by-frame",
                     groupByFrame(Trade::getTicker,
-                            t -> System.currentTimeMillis(), ts -> ts / 1_000,
+                            Trade::getTime, ts -> ts / 1_000,
                             counting()
                     )
             );
             Vertex combineFrames = dag.newVertex("combine-frames", combineFrames(counting()));
+            Vertex filterPunctuations = dag.newVertex("filterPunctuations", Processors.filter(item -> !(item instanceof Punctuation)));
             Vertex sink = dag.newVertex("sink", Processors.writeMap("sink")).localParallelism(1);
 
             dag.edge(between(tickerSource, generateEvents).broadcast().distributed())
-               .edge(between(generateEvents, groupByFrame).partitioned(Trade::getTicker, HASH_CODE))
+               .edge(between(generateEvents, interleavePunctuation).partitioned(Trade::getTicker, HASH_CODE))
+               .edge(between(interleavePunctuation, groupByFrame))
                .edge(between(groupByFrame, combineFrames).partitioned((KeyedFrame f) -> f.getKey())
                                                          .distributed())
-               .edge(between(combineFrames, sink));
+               .edge(between(combineFrames, filterPunctuations))
+               .edge(between(filterPunctuations, sink));
 
-            dag.edge(from(generateEvents, 1).to(peek));
+//            dag.edge(from(generateEvents, 1).to(peek));
 //            dag.edge(from(groupByFrame, 1).to(peek, 0));
 //            dag.edge(from(combineFrames, 1).to(peek, 0));
 

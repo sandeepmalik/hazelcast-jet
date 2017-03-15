@@ -17,7 +17,6 @@
 package com.hazelcast.jet.windowing.example;
 
 import com.hazelcast.jet.Distributed;
-import com.hazelcast.jet.Distributed.Optional;
 import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.StreamingProcessorBase;
 import com.hazelcast.jet.Traverser;
@@ -58,7 +57,7 @@ public class CombineFramesP<K, F, R> extends StreamingProcessorBase {
         seqToFrame.computeIfAbsent(frameSeq, x -> new HashMap<>())
                        .compute(e.getKey(),
                                (s, f) -> tc.combiner().apply(
-                                       Optional.ofNullable(f).orElseGet(tc.supplier()),
+                                       f != null ? f : tc.supplier().get(),
                                        frame)
                        );
         return true;

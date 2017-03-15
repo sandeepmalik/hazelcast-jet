@@ -18,14 +18,20 @@ package com.hazelcast.jet.windowing.example;
 
 public class Trade {
 
+    private final long time;
     private final String ticker;
     private final int quantity;
     private final int price; // in cents
 
-    Trade(String ticker, int quantity, int price) {
+    Trade(long time, String ticker, int quantity, int price) {
+        this.time = time;
         this.ticker = ticker;
         this.quantity = quantity;
         this.price = price;
+    }
+
+    public long getTime() {
+        return time;
     }
 
     public String getTicker() {
@@ -42,6 +48,6 @@ public class Trade {
 
     @Override
     public String toString() {
-        return "TradeEvent{ticker='" + ticker + '\'' + ", quantity=" + quantity + ", price=" + price + '}';
+        return "Trade{time=" + time + ", ticker='" + ticker + '\'' + ", quantity=" + quantity + ", price=" + price + '}';
     }
 }
