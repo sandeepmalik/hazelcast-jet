@@ -16,6 +16,7 @@
 
 package com.hazelcast.jet.impl.execution;
 
+import com.hazelcast.jet.Inbox;
 import com.hazelcast.jet.Processor;
 import com.hazelcast.jet.Processor.Context;
 import com.hazelcast.jet.Punctuation;
@@ -193,6 +194,9 @@ public class ProcessorTasklet implements Tasklet {
     @Override
     public String toString() {
         return "ProcessorTasklet{vertex=" + vertexName + ", processor=" + processor + '}';
+    }
+
+    private static final class ArrayDequeInbox extends ArrayDeque<Object> implements Inbox {
     }
 }
 

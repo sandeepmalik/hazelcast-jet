@@ -251,12 +251,29 @@ public class AbstractProcessorTest {
         }
 
         @Override
+        public boolean isEmpty() {
+            return MOCK_ITEM == null;
+        }
+
+        @Override
         public Object peek() {
             return MOCK_ITEM;
         }
 
         @Override
         public Object poll() {
+            try {
+                return MOCK_ITEM;
+            } finally {
+                MOCK_ITEM = null;
+            }
+        }
+
+        @Override
+        public Object remove() {
+            if (MOCK_ITEM == null) {
+                throw new NoSuchElementException();
+            }
             try {
                 return MOCK_ITEM;
             } finally {

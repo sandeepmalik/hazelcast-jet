@@ -21,53 +21,41 @@ import java.util.NoSuchElementException;
 import java.util.function.Consumer;
 
 /**
- * Queue-like API with special treatment for the punctuation item. The inbox
- * is in a special state when it contains just a punctuation item. In that
- * state the standard {@link #peek()}, {@link #poll()}, and {@link #remove()}
- * behave as if the inbox is empty. The methods {@link #drain(Consumer) drain()}
- * and {@link #drainTo(Collection) drainTo()} behave as if implemented in terms
- * of {@code poll()} and therefore won't drain the final punctuation.
- * <p>
- * <strong>NOTE</strong> that any punctuation that is not the last item in
- * the inbox will be given no special treatment.
- * <p>
- * <strong>NOTE</strong> that the inbox may report {@code size() > 0} yet fail
- * to return anything from the dequeuing methods.
+ * A subset of {@code Queue<Object>} API restricted to the consumer side,
+ * with additional support for bulk draining operations.
  */
 public interface Inbox {
 
     /**
+     * Returns {@code true} if this inbox contains no elements, {@code false} otherwise.
+     */
+    boolean isEmpty();
+
+    /**
      * Retrieves, but does not remove, the head of this inbox, or returns
-     * {@code null} if it is empty or contains just a punctuation item.
+     * {@code null} if it is empty.
      */
     Object peek();
 
     /**
      * Retrieves and removes the head of this inbox, or returns {@code null}
-     * if it is empty or contains just a punctuation item.
+     * if it is empty.
      */
     Object poll();
 
     /**
-     * Retrieves and removes the head of this inbox. This method differs from
-     * {@link #poll poll} only in that it throws an exception if the inbox is
-     * empty or contains just a punctuation item.
+     * Retrieves and removes the head of this inbox.  This method differs from
+     * {@link #poll poll} only in that it throws an exception if the inbox is empty.
      *
      * @throws NoSuchElementException if this inbox is empty
      */
-    default Object remove() {
-        final Object item = poll();
-        if (item == null) {
-            throw new NoSuchElementException("remove()");
-        }
-        return item;
-    }
+    Object remove();
 
     /**
-     * Drains all the items except for any final {@link Punctuation} into the
-     * provided {@link Collection}.
+     * Drains all elements into the provided {@link Collection}.
      *
-     * @return the number of items drained
+     * @param target the collection to drain this object's items into
+     * @return the number of elements actually drained
      */
     default <E> int drainTo(Collection<E> target) {
         int drained = 0;
@@ -79,10 +67,9 @@ public interface Inbox {
     }
 
     /**
-     * Passes each of this inbox's items, except for any final {@link Punctuation},
-     * to the supplied consumer.
+     * Passes each of this object's items to the supplied consumer until it is empty.
      *
-     * @return the number of items drained
+     * @return the number of elements drained
      */
     default <E> int drain(Consumer<E> consumer) {
         int consumed = 0;
