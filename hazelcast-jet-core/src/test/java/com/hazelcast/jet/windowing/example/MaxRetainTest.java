@@ -44,6 +44,18 @@ public class MaxRetainTest {
     }
 
     @Test
+    public void when_clockIncreasingByOneStopAndResume() {
+        assertEquals(Long.MIN_VALUE, tick(1,1));
+        assertEquals(Long.MIN_VALUE, tick(2,2));
+        assertEquals(Long.MIN_VALUE, tick(3,3));
+        assertEquals(Long.MIN_VALUE, tick(4,4));
+        assertEquals(Long.MIN_VALUE, tick(4,5));
+        assertEquals(Long.MIN_VALUE, tick(4,6));
+        assertEquals(Long.MIN_VALUE, tick(4,7));
+        assertEquals(1, tick(5,8));
+    }
+
+    @Test
     public void when_clockIncreasingByTwo() {
         assertEquals(Long.MIN_VALUE, tick(1,1));
         assertEquals(Long.MIN_VALUE, tick(3,2));

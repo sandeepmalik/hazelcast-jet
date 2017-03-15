@@ -25,11 +25,12 @@ public class MaxRetain {
     private int tail = 1;
     private long interval;
     private long nextSlotAt;
+    private long lastVal;
 
-    MaxRetain(int count, long maxRetain) {
+    MaxRetain(int count, long duration) {
         seqs = new long[count];
         Arrays.fill(seqs, Long.MIN_VALUE);
-        interval = maxRetain / count;
+        interval = duration / count;
     }
 
     public void init(long now) {
@@ -37,12 +38,12 @@ public class MaxRetain {
     }
 
     long tick(long now, long topSeq) {
-        long val = seqs[tail];
+        long val = lastVal;
         for (; now >= nextSlotAt; nextSlotAt += interval) {
             val = slide();
         }
         seqs[head] = topSeq;
-        return val;
+        return (lastVal = val);
     }
 
     private long slide() {
