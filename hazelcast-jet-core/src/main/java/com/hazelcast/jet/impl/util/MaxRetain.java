@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.hazelcast.jet.windowing.example;
+package com.hazelcast.jet.impl.util;
 
 import java.util.Arrays;
 
@@ -33,14 +33,14 @@ public class MaxRetain {
     private int head = 0;
     private int tail = 1;
     private long nextSlotAt;
-    private long lastVal;
+    private long lastVal = Long.MIN_VALUE;
 
     /**
      *
      * @param maxRetain the maximum duration a top value can be retained
      * @param numSlots how many slots to divide the duration into
      */
-    MaxRetain(long maxRetain, int numSlots) {
+    public MaxRetain(long maxRetain, int numSlots) {
         if (numSlots < 2)
             throw new IllegalArgumentException("numSlots must be >=2");
         slots = new long[numSlots];
@@ -52,7 +52,7 @@ public class MaxRetain {
     /**
      * Reset to the initial time value.
      */
-    void reset(long now) {
+    public void reset(long now) {
         nextSlotAt = now + interval;
         Arrays.fill(slots, Long.MIN_VALUE);
     }
@@ -63,7 +63,7 @@ public class MaxRetain {
      * @param topSeq current top sequence
      * @return the top sequence from {@code maxRetain} units ago
      */
-    long tick(long now, long topSeq) {
+    public long tick(long now, long topSeq) {
         long val = lastVal;
         for (; now >= nextSlotAt; nextSlotAt += interval) {
             val = slide();
