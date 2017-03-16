@@ -43,6 +43,7 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
     private final PunctuationDetector puncDetector = new PunctuationDetector();
     private final long[] observedPuncSeqs;
     private int indexOfLeastPunc;
+    private long lastEmittedPunc = Long.MIN_VALUE;
 
     public ConcurrentInboundEdgeStream(ConcurrentConveyor<Object> conveyor, int ordinal, int priority) {
         this.conveyor = conveyor;
@@ -82,10 +83,16 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
             if (punc != null) {
                 assert observedPuncSeqs[queueIndex] < punc.seq() : "Punctuations not monotonically increasing on queue";
                 observedPuncSeqs[queueIndex] = punc.seq();
-                // if this queue was the smallest, lets advance the punc seq
+
+                // If this queue was the smallest and we advanced (we have a new punct), lets advance to the
+                // new smallest punct from some other queue.
                 if (indexOfLeastPunc == queueIndex) {
                     indexOfLeastPunc = indexOfMin(observedPuncSeqs);
-                    dest.add(punc);
+                    // the punct from new minimum queue could be the same as we were, only emit, if it is newer
+                    if (observedPuncSeqs[indexOfLeastPunc] > lastEmittedPunc) {
+                        dest.add(new Punctuation(observedPuncSeqs[indexOfLeastPunc]));
+                        lastEmittedPunc = observedPuncSeqs[indexOfLeastPunc];
+                    }
                 }
             }
         }
