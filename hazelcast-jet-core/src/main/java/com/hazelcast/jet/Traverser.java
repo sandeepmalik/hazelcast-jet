@@ -80,19 +80,6 @@ public interface Traverser<T> {
 
     /**
      * Returns a traverser that will emit the same items as this traverser,
-     * until either this traverser is exhausted or an item fails the supplied
-     * predicate, at which point it will return {@code null}.
-     */
-    @Nonnull
-    default Traverser<T> takeWhile(@Nonnull Predicate<? super T> pred) {
-        return () -> {
-            T t = next();
-            return t != null && pred.test(t) ? t : null;
-        };
-    }
-
-    /**
-     * Returns a traverser that will emit the same items as this traverser,
      * additionally passing each item to the supplied consumer.
      */
     @Nonnull
