@@ -37,7 +37,7 @@ public class MaxRetainTest {
         assertEquals(Long.MIN_VALUE, tick(2,2));
         assertEquals(Long.MIN_VALUE, tick(3,3));
         assertEquals(Long.MIN_VALUE, tick(4,4));
-        assertEquals(1,  tick(5,5));
+        assertEquals(1, tick(5,5));
         assertEquals(2, tick(6,6));
         assertEquals(3, tick(7,7));
         assertEquals(4, tick(8,8));

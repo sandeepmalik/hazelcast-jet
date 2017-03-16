@@ -41,8 +41,12 @@ public class MaxRetain {
      * @param numSlots how many slots to divide the duration into
      */
     MaxRetain(long maxRetain, int numSlots) {
+        if (numSlots < 2)
+            throw new IllegalArgumentException("numSlots must be >=2");
         slots = new long[numSlots];
         interval = maxRetain / numSlots;
+        if (interval < 0)
+            throw new IllegalArgumentException("maxRetain must be larger than numSlots");
     }
 
     /**
@@ -55,7 +59,7 @@ public class MaxRetain {
 
     /**
      *
-     * @param now current time
+     * @param now current system time
      * @param topSeq current top sequence
      * @return the top sequence from {@code maxRetain} units ago
      */
