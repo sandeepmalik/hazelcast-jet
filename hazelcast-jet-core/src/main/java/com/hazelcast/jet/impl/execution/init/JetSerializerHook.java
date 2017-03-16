@@ -22,6 +22,7 @@ import com.hazelcast.nio.ObjectDataOutput;
 import com.hazelcast.nio.serialization.Serializer;
 import com.hazelcast.nio.serialization.SerializerHook;
 import com.hazelcast.nio.serialization.StreamSerializer;
+import com.hazelcast.util.MutableLong;
 
 import java.io.IOException;
 import java.util.Map;
@@ -42,6 +43,7 @@ public final class JetSerializerHook {
     public static final int CUSTOM_CLASS_LOADED_OBJECT = -301;
     public static final int OBJECT_ARRAY = -302;
     public static final int KEYED_FRAME = -303;
+    public static final int MUTABLE_LONG = -304;
 
     // reserved for hadoop module -380 to -390
 
@@ -130,6 +132,44 @@ public final class JetSerializerHook {
                 @Override
                 public Entry read(ObjectDataInput in) throws IOException {
                     return entry(in.readObject(), in.readObject());
+                }
+            };
+        }
+
+        @Override
+        public boolean isOverwritable() {
+            return true;
+        }
+    }
+
+    public static final class MutableLongSerializer implements SerializerHook<MutableLong> {
+
+        @Override
+        public Class<MutableLong> getSerializationType() {
+            return MutableLong.class;
+        }
+
+        @Override
+        public Serializer createSerializer() {
+            return new StreamSerializer<MutableLong>() {
+                @Override
+                public int getTypeId() {
+                    return MUTABLE_LONG;
+                }
+
+                @Override
+                public void destroy() {
+
+                }
+
+                @Override
+                public void write(ObjectDataOutput out, MutableLong object) throws IOException {
+                    out.writeLong(object.value);
+                }
+
+                @Override
+                public MutableLong read(ObjectDataInput in) throws IOException {
+                    return MutableLong.valueOf(in.readLong());
                 }
             };
         }

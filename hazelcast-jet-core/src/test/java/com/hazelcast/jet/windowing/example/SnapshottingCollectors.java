@@ -17,6 +17,7 @@
 package com.hazelcast.jet.windowing.example;
 
 import com.hazelcast.jet.Distributed.Function;
+import com.hazelcast.util.MutableLong;
 
 public final class SnapshottingCollectors {
 
@@ -47,42 +48,15 @@ public final class SnapshottingCollectors {
                 a -> a[0]);
     }
 
-    private static class MutableLong {
-        public long val;
-
-        public MutableLong() {
-        }
-
-        // copy constructor
-        public MutableLong(MutableLong o) {
-            this.val = o.val;
-        }
-
-        @Override
-        public String toString() {
-            return "{" + val + '}';
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            return o != null && o instanceof MutableLong && ((MutableLong) o).val == val;
-        }
-
-        @Override
-        public int hashCode() {
-            return Long.hashCode(val);
-        }
-    }
-
     public static <T> SnapshottingCollector<T, MutableLong, Long> counting() {
         return SnapshottingCollector.of(
                 MutableLong::new,
-                (a, t) -> a.val++,
-                MutableLong::new,
+                (a, t) -> a.value++,
+                a -> MutableLong.valueOf(a.value),
                 (a, b) -> {
-                    a.val += b.val;
+                    a.value += b.value;
                     return a;
                 },
-                a -> a.val);
+                a -> a.value);
     }
 }
