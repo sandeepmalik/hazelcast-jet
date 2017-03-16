@@ -113,11 +113,13 @@ public class Vertex implements IdentifiedDataSerializable {
     /**
      * Sets the number of processors corresponding to this vertex that will be
      * created on each member.
+     * <p>
+     * If the value is -1, use the default local parallelism from configuration.
      */
     @Nonnull
     public Vertex localParallelism(int localParallelism) {
-        if (localParallelism <= 0) {
-            throw new IllegalArgumentException("Parallelism must be greater than 0");
+        if (localParallelism < -1 || localParallelism == 0) {
+            throw new IllegalArgumentException("Parallelism must be greater than 0 or -1");
         }
         this.localParallelism = localParallelism;
         return this;
