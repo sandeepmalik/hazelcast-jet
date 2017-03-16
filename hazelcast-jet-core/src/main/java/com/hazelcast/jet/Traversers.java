@@ -45,9 +45,8 @@ public final class Traversers {
     }
 
     /**
-     * Same as {@link #iterate(Iterator)}, it additionally removes elements from
-     * the iterator as they are iterated. This is useful to make the traversed item
-     * GCable after traversing.
+     * Same as {@link #iterate(Iterator)}, but additionally calls
+     * {@link Iterator#remove()} before returning an item.
      */
     @Nonnull
     public static <T> Traverser<T> iterateWithRemoval(@Nonnull Iterator<T> iterator) {
@@ -97,7 +96,8 @@ public final class Traversers {
     }
 
     /**
-     * Returns a traverser over the given iterable. The iterator is obtained immediately.
+     * Returns a traverser over the given iterable. The iterator is obtained
+     * immediately.
      */
     @Nonnull
     public static <T> Traverser<T> traverseIterable(@Nonnull Iterable<T> iterable) {
@@ -105,10 +105,8 @@ public final class Traversers {
     }
 
     /**
-     * Returns a traverser over the given iterable. Items are removed as they are traversed.
-     * This is useful to make the traversed item GCable after traversing.
-     * <p>
-     * The iterator is obtained immediately.
+     * Returns a traverser over the given iterable. Items are removed as they are
+     * traversed. The iterator is obtained immediately.
      */
     @Nonnull
     public static <T> Traverser<T> traverseIterableWithRemoval(@Nonnull  Iterable<T> iterable) {
@@ -125,9 +123,9 @@ public final class Traversers {
     }
 
     /**
-     * Flattens a supplier of traverser into a lazy-initialized traverser. The traverser
-     * is obtained from this method's argument just once, upon the first invocation of
-     * {@code get()}.
+     * Flattens a supplier of traverser into a lazy-initialized traverser. The
+     * traverser is obtained from this method's argument just once, upon the
+     * first invocation of {@code get()}.
      */
     @Nonnull
     public static <T> Traverser<T> lazy(@Nonnull Supplier<Traverser<T>> supplierOfTraverser) {
@@ -135,9 +133,9 @@ public final class Traversers {
     }
 
     /**
-     * Traverses over a single item which can be set from the outside, by using this
-     * traverser as a {@code Consumer<T>}. Another item can be set at any time and the
-     * subsequent {@code next()} call will consume it.
+     * Traverses over a single item which can be set from the outside, by using
+     * this traverser as a {@code Consumer<T>}. Another item can be set at any
+     * time and the subsequent {@code next()} call will consume it.
      *
      * @param <T> item type
      */
