@@ -260,6 +260,20 @@ public class Edge implements IdentifiedDataSerializable {
     }
 
     /**
+     * Activates {@link ForwardingPattern#ONE_TO_MANY ONE_TO_MANY} forwarding pattern where
+     * Each downstream processor consumes items always from the same upstream processor and
+     * never any items from any of the other upstream processors.
+     *
+     * Requires downstream parallelism to be greater than or equal to upstream parallelism.
+     *
+     * This pattern is only available for for local edges.
+     */
+    public Edge oneToMany() {
+        forwardingPattern = ForwardingPattern.ONE_TO_MANY;
+        return this;
+    }
+
+    /**
      * Returns the instance encapsulating the partitioning strategy in effect
      * on this edge.
      */
@@ -416,9 +430,19 @@ public class Edge implements IdentifiedDataSerializable {
      */
     public enum ForwardingPattern implements Serializable {
         /**
-         * For each item a single destination processor is chosen, with no restriction on the choice.
+         * For each item a single destination processor is chosen per item,
+         * with no restriction on the choice.
          */
         VARIABLE_UNICAST,
+        /**
+         * Each downstream processor consumes items always from the same upstream processor and
+         * no items from any of the other upstream processors.
+         *
+         * Requires downstream parallelism to be greater than or equal to upstream parallelism.
+         *
+         * This pattern is only available for for local edges.
+         */
+        ONE_TO_MANY,
         /**
          * Each item is sent to the one processor responsible for the item's partition ID. On
          * a distributed edge, the processor is unique across the cluster; on a non-distributed

@@ -148,4 +148,13 @@ public class EdgeDef implements IdentifiedDataSerializable {
         partitioner = CustomClassLoadedObject.read(in);
         config = in.readObject();
     }
+
+    @Override public String toString() {
+        return "Edge{" +
+                ", sourceVertex=" + sourceVertex +
+                "sourceOrdinal=" + sourceOrdinal +
+                ", destVertex=" + destVertex +
+                ", destOrdinal=" + destOrdinal +
+                '}';
+    }
 }

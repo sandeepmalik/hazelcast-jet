@@ -84,6 +84,7 @@ public class VertexDef implements IdentifiedDataSerializable {
     public int getProcIdxOffset() {
         return procIdxOffset;
     }
+
     @Override
     public int getFactoryId() {
         return JetImplDataSerializerHook.FACTORY_ID;
@@ -116,5 +117,10 @@ public class VertexDef implements IdentifiedDataSerializable {
         parallelism = in.readInt();
     }
 
-
+    @Override
+    public String toString() {
+        return "Vertex{" +
+                "name='" + name + '\'' +
+                '}';
+    }
 }

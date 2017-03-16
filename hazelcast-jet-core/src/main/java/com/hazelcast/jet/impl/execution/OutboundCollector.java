@@ -59,6 +59,7 @@ public interface OutboundCollector {
     ) {
         switch (outboundEdge.forwardingPattern()) {
             case VARIABLE_UNICAST:
+            case ONE_TO_MANY:
                 return new RoundRobin(collectors);
             case PARTITIONED:
                 return new Partitioned(collectors, outboundEdge.partitioner(), partitionCount);
