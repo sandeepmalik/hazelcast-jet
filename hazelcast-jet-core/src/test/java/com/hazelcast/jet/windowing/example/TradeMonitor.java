@@ -67,6 +67,8 @@ public class TradeMonitor {
         put("AAPL", 15000);
     }};
 
+    private static final boolean IS_SLOW = false;
+
     public static void main(String[] args) throws Exception {
         System.setProperty("hazelcast.logging.type", "log4j");
         final ILogger logger = Logger.getLogger(TradeMonitor.class);
@@ -79,27 +81,38 @@ public class TradeMonitor {
             final int defaultLocalParallelism = Math.max(1, getRuntime().availableProcessors() / 2);
             cfg.setInstanceConfig(new InstanceConfig().setCooperativeThreadCount(defaultLocalParallelism));
 
-            Jet.newJetInstance(cfg);
+            if (!IS_SLOW) {
+                Jet.newJetInstance(cfg);
+            }
             JetInstance jet = Jet.newJetInstance(cfg);
 
             IStreamMap<String, Integer> initial = jet.getMap("initial");
-            Stream<String> lines = Files.lines(Paths.get(TradeMonitor.class.getResource("/nasdaqlisted.txt").toURI()));
-            lines.skip(1).map(l -> l.split("\\|")[0]).forEach(t -> initial.put(t, 10000));
+            if (IS_SLOW) {
+                initial.putAll(TICKERS);
+            } else {
+                Stream<String> lines = Files.lines(Paths.get(TradeMonitor.class.getResource("/nasdaqlisted.txt").toURI()));
+                lines.skip(1).map(l -> l.split("\\|")[0]).forEach(t -> initial.put(t, 10000));
+            }
 
             DAG dag = new DAG();
             Vertex tickerSource = dag.newVertex("ticker-source", readMap(initial.getName()));
-            Vertex generateEvents = dag.newVertex("generate-events", () -> new TradeGeneratorP(0));
+            Vertex generateEvents = dag.newVertex("generate-events", () -> new TradeGeneratorP(IS_SLOW ? 500 : 0))
+                    .localParallelism(IS_SLOW ? 2 : -1);
             Vertex interleavePunctuation = dag.newVertex("interleavePunctuation",
                     () -> new InterleavePunctuationP<>(Trade::getTime, 3000L, 3000L, 500L, 500L));
-            Vertex peek = dag.newVertex("peek", PeekP::new);
+            Vertex peek = dag.newVertex("peek", PeekP::new)
+                    .localParallelism(1);
             Vertex groupByFrame = dag.newVertex("group-by-frame",
                     groupByFrame(Trade::getTicker,
-                            Trade::getTime, ts -> ts / 1_000,
+                            Trade::getTime,
+                            ts -> ts / 1_000,
                             counting()
                     )
-            );
-            Vertex combineFrames = dag.newVertex("combine-frames", combineFrames(counting()));
-            Vertex filterPunctuations = dag.newVertex("filterPunctuations", Processors.filter(item -> !(item instanceof Punctuation)));
+            ).localParallelism(IS_SLOW ? 2 : -1);
+            Vertex combineFrames = dag.newVertex("combine-frames", combineFrames(counting()))
+                    .localParallelism(IS_SLOW ? 2 : -1);
+            Vertex filterPunctuations = dag.newVertex("filterPunctuations", Processors.filter(item -> !(item instanceof Punctuation)))
+                    .localParallelism(IS_SLOW ? 2 : -1);
             Vertex sink = dag.newVertex("sink", Processors.writeMap("sink")).localParallelism(1);
 
             dag.edge(between(tickerSource, generateEvents).broadcast().distributed())
