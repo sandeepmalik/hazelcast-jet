@@ -55,11 +55,7 @@ public class CombineFramesP<K, F, R> extends StreamingProcessorBase {
         final Long frameSeq = e.getSeq();
         final F frame = e.getValue();
         seqToFrame.computeIfAbsent(frameSeq, x -> new HashMap<>())
-                       .compute(e.getKey(),
-                               (s, f) -> tc.combiner().apply(
-                                       f != null ? f : tc.supplier().get(),
-                                       frame)
-                       );
+                       .merge(e.getKey(), frame, tc.combiner());
         return true;
     }
 
@@ -67,11 +63,6 @@ public class CombineFramesP<K, F, R> extends StreamingProcessorBase {
     protected boolean tryProcessPunc(int ordinal, @Nonnull Punctuation punc) {
         if (!tryCompletePendingFrames()) {
             return false;
-        }
-
-        Map<K, F> keys = seqToFrame.remove(punc.seq());
-        if (keys == null) {
-            return true;
         }
 
         frameTraverser = traverseIterableWithRemoval(seqToFrame.headMap(punc.seq() + 1).entrySet())

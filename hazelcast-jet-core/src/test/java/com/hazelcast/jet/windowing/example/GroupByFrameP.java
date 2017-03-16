@@ -49,8 +49,8 @@ public class GroupByFrameP<T, K, F, R> extends StreamingProcessorBase {
             SnapshottingCollector<? super T, F, R> sc
     ) {
         this.sc = sc;
-        this.extractEventSeqF = extractEventSeqF;
         this.extractKeyF = extractKeyF;
+        this.extractEventSeqF = extractEventSeqF;
         this.toFrameSeqF = toFrameSeqF;
     }
 
