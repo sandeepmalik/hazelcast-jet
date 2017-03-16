@@ -119,7 +119,7 @@ public class VertexDef implements IdentifiedDataSerializable {
 
     @Override
     public String toString() {
-        return "Vertex{" +
+        return "VertexDef{" +
                 "name='" + name + '\'' +
                 '}';
     }

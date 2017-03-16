@@ -266,7 +266,7 @@ public class Edge implements IdentifiedDataSerializable {
      *
      * Requires downstream parallelism to be greater than or equal to upstream parallelism.
      *
-     * This pattern is only available for for local edges.
+     * This pattern is only available for local edges.
      */
     public Edge oneToMany() {
         forwardingPattern = ForwardingPattern.ONE_TO_MANY;
@@ -440,7 +440,7 @@ public class Edge implements IdentifiedDataSerializable {
          *
          * Requires downstream parallelism to be greater than or equal to upstream parallelism.
          *
-         * This pattern is only available for for local edges.
+         * This pattern is only available for local edges.
          */
         ONE_TO_MANY,
         /**
