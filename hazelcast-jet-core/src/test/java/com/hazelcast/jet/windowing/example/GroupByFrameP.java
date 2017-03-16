@@ -20,99 +20,73 @@ import com.hazelcast.jet.Distributed;
 import com.hazelcast.jet.Distributed.Function;
 import com.hazelcast.jet.Distributed.LongUnaryOperator;
 import com.hazelcast.jet.Distributed.ToLongFunction;
-import com.hazelcast.jet.Punctuation;
-import com.hazelcast.jet.StreamingProcessorBase;
-import com.hazelcast.jet.Traverser;
+import com.hazelcast.jet.stream.DistributedCollector;
 
 import javax.annotation.Nonnull;
 import java.util.HashMap;
-import java.util.Map;
-import java.util.SortedMap;
-import java.util.TreeMap;
+import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
-import static com.hazelcast.jet.Traverser.concat;
-import static com.hazelcast.jet.Traversers.traverseIterable;
-import static com.hazelcast.jet.Traversers.traverseIterableWithRemoval;
+import static com.hazelcast.jet.Distributed.Function.identity;
 
-public class GroupByFrameP<T, K, F, R> extends StreamingProcessorBase {
-    private final SnapshottingCollector<? super T, F, R> sc;
+/**
+ * Groups items into frames. A frame is identified by its {@code long frameSeq};
+ * the {@code extractFrameSeqF} function determines this number for each item.
+ * Within a frame items are further classified by a grouping key determined by
+ * the {@code extractKeyF} function. When the processor receives a punctuation
+ * with a given {@code puncSeq}, it emits the current state of all frames with
+ * {@code frameSeq <= puncSeq} and deletes these frames from its storage.
+ *
+ * @param <T> item type
+ * @param <K> type of key returned from {@code extractKeyF}
+ * @param <F> type of frame returned from {@code sc.supplier()}
+ */
+public class GroupByFrameP<T, K, F> extends FrameProcessorBase<K, F, F> {
     private final ToLongFunction<? super T> extractEventSeqF;
     private final Function<? super T, K> extractKeyF;
     private final LongUnaryOperator toFrameSeqF;
-    private final SortedMap<Long, Map<K, F>> seqToFrame = new TreeMap<>();
-    private Traverser<Object> frameTraverser;
+    private final Supplier<F> supplier;
+    private final BiConsumer<F, ? super T> accumulator;
 
     private GroupByFrameP(
             Function<? super T, K> extractKeyF,
             ToLongFunction<? super T> extractEventSeqF,
             LongUnaryOperator toFrameSeqF,
-            SnapshottingCollector<? super T, F, R> sc
+            DistributedCollector<? super T, F, ?> collector
     ) {
-        this.sc = sc;
+        super(identity());
         this.extractKeyF = extractKeyF;
         this.extractEventSeqF = extractEventSeqF;
         this.toFrameSeqF = toFrameSeqF;
+        this.supplier = collector.supplier();
+        this.accumulator = collector.accumulator();
     }
 
-    public static <T, F, R> Distributed.Supplier<GroupByFrameP> groupByFrame(
+    public static <T, F> Distributed.Supplier<GroupByFrameP> groupByFrame(
             ToLongFunction<? super T> extractTimestampF,
             LongUnaryOperator toFrameSeqF,
-            SnapshottingCollector<T, F, R> tc
+            DistributedCollector<T, F, ?> collector
     ) {
-        return groupByFrame(t -> "global", extractTimestampF, toFrameSeqF, tc);
+        return groupByFrame(t -> "global", extractTimestampF, toFrameSeqF, collector);
     }
 
-    public static <T, K, F, R> Distributed.Supplier<GroupByFrameP> groupByFrame(
+    public static <T, K, F> Distributed.Supplier<GroupByFrameP> groupByFrame(
             Function<? super T, K> extractKeyF,
             ToLongFunction<? super T> extractTimestampF,
             LongUnaryOperator toFrameSeqF,
-            SnapshottingCollector<T, F, R> tc
+            DistributedCollector<T, F, ?> collector
     ) {
-        return () -> new GroupByFrameP<>(extractKeyF, extractTimestampF, toFrameSeqF, tc);
-    }
-
-    @Override
-    public void process() {
-        tryCompletePendingFrames();
+        return () -> new GroupByFrameP<>(extractKeyF, extractTimestampF, toFrameSeqF, collector);
     }
 
     @Override
     protected boolean tryProcess0(@Nonnull Object item) {
-        if (!tryCompletePendingFrames()) {
-            return false;
-        }
         T t = (T) item;
         long eventSeq = extractEventSeqF.applyAsLong(t);
         K key = extractKeyF.apply(t);
         F frame = seqToFrame.computeIfAbsent(toFrameSeqF.applyAsLong(eventSeq), x -> new HashMap<>())
-                            .computeIfAbsent(key, x -> sc.supplier().get());
-        sc.accumulator().accept(frame, t);
+                            .computeIfAbsent(key, x -> supplier.get());
+        accumulator.accept(frame, t);
         return true;
-    }
-
-    @Override
-    protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
-        if (!tryCompletePendingFrames()) {
-            return false;
-        }
-
-        frameTraverser = traverseIterableWithRemoval(seqToFrame.headMap(punc.seq() + 1).entrySet())
-                .flatMap(seqAndFrame -> concat(
-                        traverseIterable(seqAndFrame.getValue().entrySet())
-                                .map(e -> new KeyedFrame<>(seqAndFrame.getKey(), e.getKey(), e.getValue())),
-                        Traverser.over(new Punctuation(seqAndFrame.getKey()))));
-
-        return tryCompletePendingFrames();
-    }
-
-    private boolean tryCompletePendingFrames() {
-        if (frameTraverser == null) {
-            return true;
-        }
-        boolean done = emitCooperatively(frameTraverser);
-        if (done) {
-            frameTraverser = null;
-        }
-        return done;
     }
 }

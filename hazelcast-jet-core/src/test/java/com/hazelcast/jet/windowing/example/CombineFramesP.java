@@ -17,36 +17,39 @@
 package com.hazelcast.jet.windowing.example;
 
 import com.hazelcast.jet.Distributed;
+import com.hazelcast.jet.Distributed.BinaryOperator;
 import com.hazelcast.jet.Punctuation;
-import com.hazelcast.jet.StreamingProcessorBase;
 import com.hazelcast.jet.Traverser;
+import com.hazelcast.jet.stream.DistributedCollector;
 
 import javax.annotation.Nonnull;
 import java.util.HashMap;
-import java.util.Map;
-import java.util.SortedMap;
-import java.util.TreeMap;
 
 import static com.hazelcast.jet.Traverser.concat;
 import static com.hazelcast.jet.Traversers.traverseIterable;
 import static com.hazelcast.jet.Traversers.traverseIterableWithRemoval;
 
 /**
- * Javadoc pending.
+ * Combines frames received from several upstream instances of
+ * {@link GroupByFrameP} into finalized frames. Applies the finisher
+ * function to produce its emitted output.
+ *
+ * @param <K> type of grouping key
+ * @param <F> type of the frame
+ * @param <R> type of the result derived from a frame
  */
-public class CombineFramesP<K, F, R> extends StreamingProcessorBase {
-    private final SnapshottingCollector<?, F, R> tc;
-    private final SortedMap<Long, Map<K, F>> seqToFrame = new TreeMap<>();
-    private Traverser<Object> frameTraverser;
+public class CombineFramesP<K, F, R> extends FrameProcessorBase<K, F, R> {
+    private final BinaryOperator<F> combiner;
 
-    private CombineFramesP(SnapshottingCollector<?, F, R> tc) {
-        this.tc = tc;
+    private CombineFramesP(DistributedCollector<?, F, R> collector) {
+        super(collector.finisher());
+        this.combiner = collector.combiner();
     }
 
     public static <K, B, R> Distributed.Supplier<CombineFramesP<K, B, R>> combineFrames(
-            SnapshottingCollector<?, B, R> tc
+            DistributedCollector<?, B, R> collector
     ) {
-        return () -> new CombineFramesP<>(tc);
+        return () -> new CombineFramesP<>(collector);
     }
 
     @Override
@@ -55,33 +58,7 @@ public class CombineFramesP<K, F, R> extends StreamingProcessorBase {
         final Long frameSeq = e.getSeq();
         final F frame = e.getValue();
         seqToFrame.computeIfAbsent(frameSeq, x -> new HashMap<>())
-                       .merge(e.getKey(), frame, tc.combiner());
+                  .merge(e.getKey(), frame, combiner);
         return true;
-    }
-
-    @Override
-    protected boolean tryProcessPunc(int ordinal, @Nonnull Punctuation punc) {
-        if (!tryCompletePendingFrames()) {
-            return false;
-        }
-
-        frameTraverser = traverseIterableWithRemoval(seqToFrame.headMap(punc.seq() + 1).entrySet())
-                .flatMap(seqAndFrame -> concat(
-                        traverseIterable(seqAndFrame.getValue().entrySet())
-                                .map(e -> new KeyedFrame<>(seqAndFrame.getKey(), e.getKey(), tc.finisher().apply(e.getValue()))),
-                        Traverser.over(new Punctuation(seqAndFrame.getKey()))));
-
-        return tryCompletePendingFrames();
-    }
-
-    private boolean tryCompletePendingFrames() {
-        if (frameTraverser == null) {
-            return true;
-        }
-        boolean done = emitCooperatively(frameTraverser);
-        if (done) {
-            frameTraverser = null;
-        }
-        return done;
     }
 }
