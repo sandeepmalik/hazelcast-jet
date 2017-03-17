@@ -122,7 +122,7 @@ public class InterleavePunctuationP<T> extends AbstractProcessor {
 
     @Override
     public void process() {
-        maybeEmitPunctuation(eventSeqHistory.tick(clock.getAsLong(), highestSeq));
+        maybeEmitPunctuation(eventSeqHistory.sample(clock.getAsLong(), highestSeq));
     }
 
     private void maybeEmitPunctuation(long punctuationTime) {

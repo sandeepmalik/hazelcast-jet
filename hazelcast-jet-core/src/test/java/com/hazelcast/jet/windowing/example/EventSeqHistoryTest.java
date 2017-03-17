@@ -33,15 +33,6 @@ public class EventSeqHistoryTest {
     }
 
     @Test
-    public void when_size1_then_works() {
-        histo = new EventSeqHistory(2, 1);
-        histo.reset(0);
-        assertEquals(Long.MIN_VALUE, tick(1, 1));
-        assertEquals(Long.MIN_VALUE, tick(2, 2));
-        assertEquals(1, tick(3, 3));
-    }
-
-    @Test
     public void when_clockIncreasingByOne() {
         assertEquals(Long.MIN_VALUE, tick(1, 1));
         assertEquals(Long.MIN_VALUE, tick(2, 2));
@@ -114,12 +105,12 @@ public class EventSeqHistoryTest {
 
     @Test
     public void when_minValuePunc_then_minValue() {
-        for (int i=0; i<100; i++) {
+        for (int i = 0; i < 100; i++) {
             assertEquals(Long.MIN_VALUE, tick(i, Long.MIN_VALUE));
         }
     }
 
     private long tick(long now, long topSeq) {
-        return histo.tick(now, topSeq);
+        return histo.sample(now, topSeq);
     }
 }

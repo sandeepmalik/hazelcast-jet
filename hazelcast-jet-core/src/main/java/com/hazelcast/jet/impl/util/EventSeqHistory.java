@@ -18,13 +18,18 @@ package com.hazelcast.jet.impl.util;
 
 import java.util.Arrays;
 
+import static com.hazelcast.util.Preconditions.checkNotNegative;
+import static com.hazelcast.util.Preconditions.checkPositive;
+
 /**
  * Helper class to implement the logic needed to enforce the maximum
  * retention time of events in a windowing stream processor. To use this
- * class, call {@link #tick(long, long) tick(currentTime, topEventSeq)} at
- * regular intervals with the current system time and the top observed
+ * class, call {@link #sample(long, long) sample(currentTime, topEventSeq)}
+ * at regular intervals with the current system time and the top observed
  * {@code eventSeq} so far, and interpret the returned value as the minimum
- * value of punctuation that should be/have been emitted.
+ * value of punctuation that should be/have been emitted. The current time
+ * should be obtained from {@code System.nanoTime()} because, unlike
+ * {@code System.currentTimeMillis()}, its source is a monotonic clock.
  * <p>
  * This class maintains an array of {@code topEventSeq} values observed at
  * evenly spaced points in time over the period extending from
@@ -39,12 +44,12 @@ import java.util.Arrays;
 public class EventSeqHistory {
 
     private final long[] slots;
-    private final long interval;
+    private final long slotInterval;
 
-    private int head = 0;
+    private int head;
     private int tail = 1;
-    private long nextSlotAt;
-    private long lastVal = Long.MIN_VALUE;
+    private long prevResult = Long.MIN_VALUE;
+    private long gotoNextSlotAt;
 
     /**
      * @param maxRetain the length of the period over which to keep the
@@ -52,8 +57,10 @@ public class EventSeqHistory {
      * @param numSlots the number of remembered historical {@code topEventSeq} values
      */
     public EventSeqHistory(long maxRetain, int numSlots) {
+        checkNotNegative(numSlots - 2, "Number of slots must be at least 2");
         slots = new long[numSlots];
-        interval = maxRetain / numSlots;
+        slotInterval = maxRetain / numSlots;
+        checkPositive(slotInterval, "maxRetain must be at least equal to numSlots");
     }
 
     /**
@@ -61,39 +68,44 @@ public class EventSeqHistory {
      * uses the supplied time as the initial point in time.
      */
     public void reset(long now) {
-        nextSlotAt = now + interval;
+        gotoNextSlotAt = now + slotInterval;
         Arrays.fill(slots, Long.MIN_VALUE);
+        prevResult = Long.MIN_VALUE;
     }
 
     /**
-     * Returns the {@code topEventSeq} from {@code maxRetain} units ago
+     * Called to report a new {@code topEventSeq} sample along with the timestamp
+     * when it was taken. Returns the sample from {@code maxRetain} time units
+     * ago, or {@link Long#MIN_VALUE} if sampling started less than
+     * {@code maxRetain} time units ago.
      *
-     * @param now current system time
-     * @param topEventSeq current top event sequence
+     * @param now current time
+     * @param sample current top event sequence
      */
-    public long tick(long now, long topEventSeq) {
-        long val = lastVal;
-        for (; now >= nextSlotAt; nextSlotAt += interval) {
-            val = slide();
+    public long sample(long now, long sample) {
+        long result = prevResult;
+        for (; gotoNextSlotAt <= now; gotoNextSlotAt += slotInterval) {
+            result = slide();
         }
-        slots[head] = topEventSeq;
-        return lastVal = val;
+        slots[head] = sample;
+        return prevResult = result;
     }
 
     private long slide() {
-        // remember the tail value and advance tail
-        long val = slots[tail];
+        long tailVal = slots[tail];
         tail = advance(tail);
 
-        // advance head and copy old head value to new head
-        long currHead = slots[head];
+        long headVal = slots[head];
         head = advance(head);
-        slots[head] = currHead;
+        // Initialize the new head with the previous head value.
+        // If sample() wasn't called for longer than the slot interval,
+        // this is the best estimate we have for the slot.
+        slots[head] = headVal;
 
-        return val;
+        return tailVal;
     }
 
     private int advance(int index) {
-        return index == slots.length - 1 ? 0 : index + 1;
+        return index + 1 < slots.length ? index + 1 : 0;
     }
 }
