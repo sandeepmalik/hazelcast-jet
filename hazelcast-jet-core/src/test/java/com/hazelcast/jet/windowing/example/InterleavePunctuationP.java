@@ -19,6 +19,7 @@ package com.hazelcast.jet.windowing.example;
 import com.hazelcast.jet.AbstractProcessor;
 import com.hazelcast.jet.Distributed.ToLongFunction;
 import com.hazelcast.jet.Punctuation;
+import com.hazelcast.jet.impl.util.EventSeqHistory;
 
 import javax.annotation.Nonnull;
 import java.util.function.LongSupplier;
@@ -64,18 +65,13 @@ public class InterleavePunctuationP<T> extends AbstractProcessor {
     private final long eventSeqTrigger;
     private final long timeTrigger;
     private final LongSupplier clock;
-    private final MaxRetain maxRetain;
+    private final EventSeqHistory eventSeqHistory;
 
     private long highestSeq = Long.MIN_VALUE;
     private long lastEmittedPunc;
 
     private long nextPuncEventSeq;
     private long nextPuncTime;
-
-    @Override
-    protected void init(@Nonnull Context context) throws Exception {
-        maxRetain.reset(clock.getAsLong());
-    }
 
     /**
      * @param extractEventSeqF function that extracts the {@code eventSeq} from an input item
@@ -101,7 +97,12 @@ public class InterleavePunctuationP<T> extends AbstractProcessor {
         this.eventSeqTrigger = eventSeqTrigger;
         this.timeTrigger = timeTrigger;
 
-        this.maxRetain = new MaxRetain(maxRetain, HISTORIC_SEQS_COUNT);
+        this.eventSeqHistory = new EventSeqHistory(maxRetain, HISTORIC_SEQS_COUNT);
+    }
+
+    @Override
+    protected void init(@Nonnull Context context) throws Exception {
+        eventSeqHistory.reset(clock.getAsLong());
     }
 
     @Override
@@ -121,7 +122,7 @@ public class InterleavePunctuationP<T> extends AbstractProcessor {
 
     @Override
     public void process() {
-        maybeEmitPunctuation(maxRetain.tick(clock.getAsLong(), highestSeq));
+        maybeEmitPunctuation(eventSeqHistory.tick(clock.getAsLong(), highestSeq));
     }
 
     private void maybeEmitPunctuation(long punctuationTime) {

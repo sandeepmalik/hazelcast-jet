@@ -28,6 +28,7 @@ import com.hazelcast.jet.Vertex;
 import com.hazelcast.jet.config.InstanceConfig;
 import com.hazelcast.jet.config.JetConfig;
 import com.hazelcast.jet.impl.execution.init.JetSerializerHook;
+import com.hazelcast.jet.stream.DistributedCollectors;
 import com.hazelcast.jet.stream.IStreamMap;
 import com.hazelcast.logging.ILogger;
 import com.hazelcast.logging.Logger;
@@ -48,7 +49,6 @@ import static com.hazelcast.jet.Partitioner.HASH_CODE;
 import static com.hazelcast.jet.Processors.readMap;
 import static com.hazelcast.jet.windowing.example.CombineFramesP.combineFrames;
 import static com.hazelcast.jet.windowing.example.GroupByFrameP.groupByFrame;
-import static com.hazelcast.jet.windowing.example.SnapshottingCollectors.counting;
 import static java.lang.Runtime.getRuntime;
 
 public class TradeMonitor {
@@ -106,10 +106,10 @@ public class TradeMonitor {
                     groupByFrame(Trade::getTicker,
                             Trade::getTime,
                             ts -> ts / 1_000,
-                            counting()
+                            DistributedCollectors.counting()
                     )
             ).localParallelism(IS_SLOW ? 2 : -1);
-            Vertex combineFrames = dag.newVertex("combine-frames", combineFrames(counting()))
+            Vertex combineFrames = dag.newVertex("combine-frames", combineFrames(DistributedCollectors.counting()))
                     .localParallelism(IS_SLOW ? 2 : -1);
             Vertex filterPunctuations = dag.newVertex("filterPunctuations", Processors.filter(item -> !(item instanceof Punctuation)))
                     .localParallelism(IS_SLOW ? 2 : -1);

@@ -18,6 +18,7 @@ package com.hazelcast.jet.windowing.example;
 
 import com.hazelcast.jet.AbstractProcessor;
 import com.hazelcast.jet.Distributed.BinaryOperator;
+import com.hazelcast.jet.stream.DistributedCollector;
 
 import javax.annotation.Nonnull;
 import java.util.Map.Entry;
@@ -38,7 +39,7 @@ public class SlidingWindowP<F> extends AbstractProcessor {
     private final Function<F, ?> finisher;
     private long nextFrameSeqToEmit;
 
-    public SlidingWindowP(int windowSize, SnapshottingCollector<?, F, ?> sc) {
+    public SlidingWindowP(int windowSize, DistributedCollector<?, F, ?> sc) {
         this.windowSize = windowSize;
         this.nextFrameSeqToEmit = windowSize;
         this.combiner = sc.combiner();

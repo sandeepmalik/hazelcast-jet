@@ -19,6 +19,7 @@ package com.hazelcast.jet.windowing.example;
 import com.hazelcast.jet.Inbox;
 import com.hazelcast.jet.Processor.Context;
 import com.hazelcast.jet.impl.util.ArrayDequeOutbox;
+import com.hazelcast.jet.stream.DistributedCollector;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -34,12 +35,12 @@ import static org.mockito.Mockito.mock;
 
 public class SlidingWindowPTest {
 
-    SlidingWindowP<Long> swp;
+    private SlidingWindowP<Long> swp;
     private ArrayDequeOutbox outbox;
 
     @Before
     public void before() {
-        swp = new SlidingWindowP<>(4, SnapshottingCollector.of(null, null, null, (a, b) -> a + b, x -> x));
+        swp = new SlidingWindowP<>(4, DistributedCollector.of(null, null, (a, b) -> a + b, x -> x));
         outbox = new ArrayDequeOutbox(1, new int[]{1});
         swp.init(outbox, mock(Context.class));
     }
