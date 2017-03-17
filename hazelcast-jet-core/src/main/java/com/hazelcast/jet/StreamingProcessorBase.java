@@ -40,6 +40,7 @@ public class StreamingProcessorBase extends AbstractProcessor {
         return tryProcessPunc(3, punc);
     }
 
+    @SuppressWarnings("checkstyle:magicnumber")
     protected boolean tryProcessPunc4(@Nonnull Punctuation punc) {
         return tryProcessPunc(4, punc);
     }
