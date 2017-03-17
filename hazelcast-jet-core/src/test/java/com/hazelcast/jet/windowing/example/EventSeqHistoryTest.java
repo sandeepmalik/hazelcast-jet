@@ -24,12 +24,21 @@ import static org.junit.Assert.assertEquals;
 
 public class EventSeqHistoryTest {
 
-    private EventSeqHistory retain;
+    private EventSeqHistory histo;
 
     @Before
     public void setup() {
-        retain = new EventSeqHistory(4, 4);
-        retain.reset(0);
+        histo = new EventSeqHistory(4, 4);
+        histo.reset(0);
+    }
+
+    @Test
+    public void when_size1_then_works() {
+        histo = new EventSeqHistory(2, 1);
+        histo.reset(0);
+        assertEquals(Long.MIN_VALUE, tick(1, 1));
+        assertEquals(Long.MIN_VALUE, tick(2, 2));
+        assertEquals(1, tick(3, 3));
     }
 
     @Test
@@ -46,7 +55,7 @@ public class EventSeqHistoryTest {
 
     @Test
     public void when_negativeClockIncreasingByOne() {
-        retain.reset(-10);
+        histo.reset(-10);
         assertEquals(Long.MIN_VALUE, tick(-10, 1));
         assertEquals(Long.MIN_VALUE, tick(-9, 2));
         assertEquals(Long.MIN_VALUE, tick(-8, 3));
@@ -111,6 +120,6 @@ public class EventSeqHistoryTest {
     }
 
     private long tick(long now, long topSeq) {
-        return retain.tick(now, topSeq);
+        return histo.tick(now, topSeq);
     }
 }

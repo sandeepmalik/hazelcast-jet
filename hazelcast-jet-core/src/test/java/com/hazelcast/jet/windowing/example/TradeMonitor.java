@@ -47,8 +47,8 @@ import java.util.stream.Stream;
 import static com.hazelcast.jet.Edge.between;
 import static com.hazelcast.jet.Partitioner.HASH_CODE;
 import static com.hazelcast.jet.Processors.readMap;
-import static com.hazelcast.jet.windowing.example.CombineFramesP.combineFrames;
-import static com.hazelcast.jet.windowing.example.GroupByFrameP.groupByFrame;
+import static com.hazelcast.jet.windowing.example.FrameProcessors.combineFrames;
+import static com.hazelcast.jet.windowing.example.FrameProcessors.groupByFrame;
 import static java.lang.Runtime.getRuntime;
 
 public class TradeMonitor {
