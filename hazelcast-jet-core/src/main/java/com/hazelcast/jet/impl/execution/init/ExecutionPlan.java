@@ -283,8 +283,9 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
         // in a one to many edge, each downstream processor is assigned only one processor.
         if (edge.forwardingPattern() == ForwardingPattern.ONE_TO_MANY) {
             if (downstreamParallelism < upstreamParallelism) {
-                throw new IllegalArgumentException("Downstream parallelism should be greater than or equal to " +
-                        "upstream parallelism for a ONE_TO_MANY edge " + edge.toString());
+                throw new IllegalArgumentException("Downstream parallelism (" + downstreamParallelism
+                        + ") should be greater than or equal to upstream parallelism (" + upstreamParallelism
+                        + ") for a ONE_TO_MANY edge " + edge.toString());
             }
             if (edge.isDistributed()) {
                 throw new IllegalArgumentException("One to many edges must be local: " + edge.toString());

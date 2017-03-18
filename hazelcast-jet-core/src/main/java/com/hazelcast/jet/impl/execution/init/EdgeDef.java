@@ -151,9 +151,9 @@ public class EdgeDef implements IdentifiedDataSerializable {
 
     @Override public String toString() {
         return "EdgeDef{" +
-                ", sourceVertex=" + sourceVertex +
+                "sourceVertex=" + sourceVertex.name() +
                 ", sourceOrdinal=" + sourceOrdinal +
-                ", destVertex=" + destVertex +
+                ", destVertex=" + destVertex.name() +
                 ", destOrdinal=" + destOrdinal +
                 '}';
     }

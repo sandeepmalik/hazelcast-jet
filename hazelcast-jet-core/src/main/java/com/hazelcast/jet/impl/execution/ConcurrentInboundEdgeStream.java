@@ -32,7 +32,7 @@ import static com.hazelcast.jet.impl.util.Util.indexOfMin;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
- * {@code InboundEdgeStream} implemented in terms of a {@code ConcurrentConveyor}.
+ * {@link InboundEdgeStream} implemented in terms of a {@link ConcurrentConveyor}.
  * The conveyor has as many 1-to-1 concurrent queues as there are upstream tasklets
  * contributing to it.
  */
