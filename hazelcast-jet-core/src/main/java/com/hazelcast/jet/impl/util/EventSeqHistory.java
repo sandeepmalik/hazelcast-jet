@@ -38,7 +38,7 @@ import static com.hazelcast.util.Preconditions.checkPositive;
  * A given {@code sample()} call maps the supplied timestamp to a slot in
  * the buffer, possibly remapping the slots to more recent intervals
  * (thereby automatically discarding the old intervals) and returns the
- * value of the oldests slot after remapping. This slot will be the one
+ * value of the oldest slot after remapping. This slot will be the one
  * that best matches the point in time {@code maxRetain} time units ago.
  * If this class has been used for less than {@code maxRetain} time units,
  * the return value will be {@link Long#MIN_VALUE}.
@@ -51,9 +51,11 @@ import static com.hazelcast.util.Preconditions.checkPositive;
  *     {@code maxRetain} is rounded down to the nearest multiple of
  *     {@code sampleCount}.
  * </li><li>
- *     {@link #sample(long, long) sample()} is expected to be called with
- *     monotonically increasing timestamps. If called with a lower timestamp,
- *     it will behave as if called with the most recent timestamp.
+ *     {@link #reset(long) reset()} and {@link #sample(long, long) sample()} are
+ *     expected to be called with monotonically increasing timestamps and therefore
+ *     {@code sample()} always updates the "head" slot, corresponding to the most
+ *     recent time interval. If called with a timestamp less than the highest
+ *     timestamp used so far, it will still update the head slot.
  * </li></ol>
  */
 public class EventSeqHistory {
@@ -93,8 +95,8 @@ public class EventSeqHistory {
      * units ago, or {@link Long#MIN_VALUE} if sampling started less than
      * {@code maxRetain} time units ago.
      *
-     * @param now current time; must not be less than the time used in a previous
-     *            call
+     * @param now current time; must not be less than the time used in the previous call
+     *            of either this method or {@link #reset(long) reset()}.
      * @param sample the current value of the tracked quantity
      */
     public long sample(long now, long sample) {
