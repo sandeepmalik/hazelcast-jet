@@ -33,15 +33,17 @@ import static com.hazelcast.util.Preconditions.checkPositive;
  * <p>
  * This class maintains a circular buffer of samples acquired over the
  * period starting at {@code maxRetain} time units ago and extending to the
- * present. The period is divided into {@code sampleCount} equally-sized
+ * present. The period is divided into {@code numStoredSamples} equally-sized
  * intervals and each such interval is mapped to a slot in the buffer.
  * A given {@code sample()} call maps the supplied timestamp to a slot in
  * the buffer, possibly remapping the slots to more recent intervals
  * (thereby automatically discarding the old intervals) and returns the
  * value of the oldest slot after remapping. This slot will be the one
  * that best matches the point in time {@code maxRetain} time units ago.
- * If this class has been used for less than {@code maxRetain} time units,
- * the return value will be {@link Long#MIN_VALUE}.
+ * <p>
+ * A new instance of this class must be initialized with a call to
+ * {@link #reset(long) reset()}. This will put the circular buffer
+ * into the initial state of all slots occupied with {@link Long#MIN_VALUE}.
  * <p>
  * <strong>NOTE:</strong> this class is implemented in terms of some
  * assumptions on the mode of usage:
@@ -68,15 +70,14 @@ public class EventSeqHistory {
     private long prevResult = Long.MIN_VALUE;
 
     /**
-     * @param maxRetain the length of the period over which to keep the
-     *                  {@code topEventSeq} history
-     * @param sampleCount the number of remembered historical {@code topEventSeq} values
+     * @param maxRetain the length of the period over which to keep the {@code eventSeq} history
+     * @param numStoredSamples the number of remembered historical {@code eventSeq} values
      */
-    public EventSeqHistory(long maxRetain, int sampleCount) {
-        checkNotNegative(sampleCount - 2, "sampleCount must be at least 2");
-        samples = new long[sampleCount];
-        slotInterval = maxRetain / sampleCount;
-        checkPositive(slotInterval, "maxRetain must be at least equal to sampleCount");
+    public EventSeqHistory(long maxRetain, int numStoredSamples) {
+        checkNotNegative(numStoredSamples - 2, "numStoredSamples must be at least 2");
+        samples = new long[numStoredSamples];
+        slotInterval = maxRetain / numStoredSamples;
+        checkPositive(slotInterval, "maxRetain must be at least equal to numStoredSamples");
     }
 
     /**
