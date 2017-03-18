@@ -16,11 +16,11 @@
 
 package com.hazelcast.jet.windowing.example;
 
-import com.hazelcast.jet.Distributed;
 import com.hazelcast.jet.Distributed.BinaryOperator;
 import com.hazelcast.jet.Distributed.Function;
 import com.hazelcast.jet.Distributed.LongUnaryOperator;
 import com.hazelcast.jet.Distributed.ToLongFunction;
+import com.hazelcast.jet.ProcessorSupplier;
 import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.StreamingProcessorBase;
 import com.hazelcast.jet.Traverser;
@@ -40,28 +40,12 @@ import static com.hazelcast.jet.Traversers.traverseIterable;
 import static com.hazelcast.jet.Traversers.traverseIterableWithRemoval;
 
 /**
- * Base class with logic common to {@link GroupByFrameP} and
- * {@link CombineFramesP}.
+ * Contains factory methods for processors dealing with windowing operations.
  */
-public abstract class FrameProcessors<K, F, R> extends StreamingProcessorBase {
-    final SortedMap<Long, Map<K, F>> seqToFrame = new TreeMap<>();
-    private final FlatMapper<Punctuation, Object> puncFlatMapper;
+public final class FrameProcessors {
 
-    FrameProcessors(Function<F, R> finisher) {
-        this.puncFlatMapper = flatMapper((Punctuation punc) ->
-                traverseIterableWithRemoval(seqToFrame.headMap(punc.seq() + 1).entrySet())
-                        .flatMap(seqAndFrame -> concat(
-                                traverseIterable(seqAndFrame.getValue().entrySet())
-                                        .map(e -> new KeyedFrame<>(
-                                                seqAndFrame.getKey(), e.getKey(), finisher.apply(e.getValue()))),
-                                Traverser.over(new Punctuation(seqAndFrame.getKey())))));
+    private FrameProcessors() {
     }
-
-    @Override
-    protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
-        return puncFlatMapper.tryProcess(punc);
-    }
-
 
     /**
      * Groups items into frames. A frame is identified by its {@code long frameSeq};
@@ -75,20 +59,20 @@ public abstract class FrameProcessors<K, F, R> extends StreamingProcessorBase {
      * @param <K> type of key returned from {@code extractKeyF}
      * @param <F> type of frame returned from {@code sc.supplier()}
      */
-    public static <T, K, F> Distributed.Supplier<GroupByFrameP> groupByFrame(
+    public static <T, K, F> ProcessorSupplier groupByFrame(
             Function<? super T, K> extractKeyF,
             ToLongFunction<? super T> extractTimestampF,
             LongUnaryOperator toFrameSeqF,
             DistributedCollector<T, F, ?> collector
     ) {
-        return () -> new GroupByFrameP<>(extractKeyF, extractTimestampF, toFrameSeqF, collector);
+        return ProcessorSupplier.of(() -> new GroupByFrameP<>(extractKeyF, extractTimestampF, toFrameSeqF, collector));
     }
 
     /**
      * Convenience for {@link #groupByFrame(Function, ToLongFunction, LongUnaryOperator, DistributedCollector)}
      * which doesn't group by key.
      */
-    public static <T, F> Distributed.Supplier<GroupByFrameP> groupByFrame(
+    public static <T, F> ProcessorSupplier groupByFrame(
             ToLongFunction<? super T> extractTimestampF,
             LongUnaryOperator toFrameSeqF,
             DistributedCollector<T, F, ?> collector
@@ -101,17 +85,36 @@ public abstract class FrameProcessors<K, F, R> extends StreamingProcessorBase {
      * {@link GroupByFrameP} into finalized frames. Applies the finisher
      * function to produce its emitted output.
      *
-     * @param <K> type of grouping key
+     * @param <K> type of the grouping key
      * @param <F> type of the frame
      * @param <R> type of the result derived from a frame
      */
-    public static <K, F, R> Distributed.Supplier<CombineFramesP<K, F, R>> combineFrames(
-            DistributedCollector<?, F, R> collector
-    ) {
-        return () -> new CombineFramesP<>(collector);
+    public static <K, F, R> ProcessorSupplier combineFrames(DistributedCollector<K, F, R> collector) {
+        return ProcessorSupplier.of(() -> new CombineFramesP<>(collector));
     }
 
-    static class GroupByFrameP<T, K, F> extends FrameProcessors<K, F, F> {
+
+    private static abstract class FrameProcessorBase<K, F, R> extends StreamingProcessorBase {
+        final SortedMap<Long, Map<K, F>> seqToFrame = new TreeMap<>();
+        private final FlatMapper<Punctuation, Object> puncFlatMapper;
+
+        FrameProcessorBase(Function<F, R> finisher) {
+            this.puncFlatMapper = flatMapper((Punctuation punc) ->
+                    traverseIterableWithRemoval(seqToFrame.headMap(punc.seq() + 1).entrySet())
+                            .flatMap(seqAndFrame -> concat(
+                                    traverseIterable(seqAndFrame.getValue().entrySet())
+                                            .map(e -> new KeyedFrame<>(
+                                                    seqAndFrame.getKey(), e.getKey(), finisher.apply(e.getValue()))),
+                                    Traverser.over(new Punctuation(seqAndFrame.getKey())))));
+        }
+
+        @Override
+        protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
+            return puncFlatMapper.tryProcess(punc);
+        }
+    }
+
+    private static class GroupByFrameP<T, K, F> extends FrameProcessorBase<K, F, F> {
         private final ToLongFunction<? super T> extractEventSeqF;
         private final Function<? super T, K> extractKeyF;
         private final LongUnaryOperator toFrameSeqF;
@@ -144,10 +147,10 @@ public abstract class FrameProcessors<K, F, R> extends StreamingProcessorBase {
         }
     }
 
-    static class CombineFramesP<K, F, R> extends FrameProcessors<K, F, R> {
+    private static class CombineFramesP<K, F, R> extends FrameProcessorBase<K, F, R> {
         private final BinaryOperator<F> combiner;
 
-        CombineFramesP(DistributedCollector<?, F, R> collector) {
+        CombineFramesP(DistributedCollector<K, F, R> collector) {
             super(collector.finisher());
             this.combiner = collector.combiner();
         }
