@@ -99,7 +99,8 @@ public class TradeMonitor {
             Vertex generateEvents = dag.newVertex("generate-events", () -> new TradeGeneratorP(IS_SLOW ? 500 : 0))
                     .localParallelism(IS_SLOW ? 2 : -1);
             Vertex interleavePunctuation = dag.newVertex("interleavePunctuation",
-                    () -> new InterleavePunctuationP<>(Trade::getTime, 3000L, 3000L, 500L, 500L));
+                    () -> new InterleavePunctuationP<>(Trade::getTime, 3000L, 3000L, 500L, 500L))
+                    .localParallelism(IS_SLOW ? 2 : -1);
             Vertex peek = dag.newVertex("peek", PeekP::new)
                     .localParallelism(1);
             Vertex groupByFrame = dag.newVertex("group-by-frame",
@@ -116,8 +117,8 @@ public class TradeMonitor {
             Vertex sink = dag.newVertex("sink", Processors.writeMap("sink")).localParallelism(1);
 
             dag.edge(between(tickerSource, generateEvents).broadcast().distributed())
-               .edge(between(generateEvents, interleavePunctuation).partitioned(Trade::getTicker, HASH_CODE))
-               .edge(between(interleavePunctuation, groupByFrame))
+               .edge(between(generateEvents, interleavePunctuation).oneToMany())
+               .edge(between(interleavePunctuation, groupByFrame).partitioned(Trade::getTicker, HASH_CODE))
                .edge(between(groupByFrame, combineFrames).partitioned((KeyedFrame f) -> f.getKey())
                                                          .distributed())
                .edge(between(combineFrames, filterPunctuations))
