@@ -31,36 +31,50 @@ import static com.hazelcast.util.Preconditions.checkPositive;
  * should be obtained from {@code System.nanoTime()} because, unlike
  * {@code System.currentTimeMillis()}, its source is a monotonic clock.
  * <p>
- * This class maintains an array of {@code topEventSeq} values observed at
- * evenly spaced points in time over the period extending from
- * {@code maxRetain} time units ago till the present. The size of the array
- * is configured by the {@code numSlots} constructor parameter. A given
- * {@code tick()} call will get the oldest remembered value, which
- * corresponds to the point in time best matching the ideal point exactly
- * {@code maxRetain} time units ago. If this class has been used for less
- * than {@code maxRetain} time units, the return value will be
- * {@link Long#MIN_VALUE}.
+ * This class maintains a circular buffer of samples acquired over the
+ * period starting at {@code maxRetain} time units ago and extending to the
+ * present. The period is divided into {@code sampleCount} equally-sized
+ * intervals and each such interval is mapped to a slot in the buffer.
+ * A given {@code sample()} call maps the supplied timestamp to a slot in
+ * the buffer, possibly remapping the slots to more recent intervals
+ * (thereby automatically discarding the old intervals) and returns the
+ * value of the oldests slot after remapping. This slot will be the one
+ * that best matches the point in time {@code maxRetain} time units ago.
+ * If this class has been used for less than {@code maxRetain} time units,
+ * the return value will be {@link Long#MIN_VALUE}.
+ * <p>
+ * <strong>NOTE:</strong> this class is implemented in terms of some
+ * assumptions on the mode of usage:
+ * <ol><li>
+ *     {@code maxRetain} is expected to be much larger than {@code sampleCount}
+ *     and uses an integer size of the sample interval. Therefore the supplied
+ *     {@code maxRetain} is rounded down to the nearest multiple of
+ *     {@code sampleCount}.
+ * </li><li>
+ *     {@link #sample(long, long) sample()} is expected to be called with
+ *     monotonically increasing timestamps. If called with a lower timestamp,
+ *     it will behave as if called with the most recent timestamp.
+ * </li></ol>
  */
 public class EventSeqHistory {
 
-    private final long[] slots;
+    private final long[] samples;
     private final long slotInterval;
 
     private int head;
-    private int tail = 1;
+    private long advanceHeadAt;
     private long prevResult = Long.MIN_VALUE;
-    private long gotoNextSlotAt;
 
     /**
      * @param maxRetain the length of the period over which to keep the
      *                  {@code topEventSeq} history
-     * @param numSlots the number of remembered historical {@code topEventSeq} values
+     * @param sampleCount the number of remembered historical {@code topEventSeq} values
      */
-    public EventSeqHistory(long maxRetain, int numSlots) {
-        checkNotNegative(numSlots - 2, "Number of slots must be at least 2");
-        slots = new long[numSlots];
-        slotInterval = maxRetain / numSlots;
-        checkPositive(slotInterval, "maxRetain must be at least equal to numSlots");
+    public EventSeqHistory(long maxRetain, int sampleCount) {
+        checkNotNegative(sampleCount - 2, "sampleCount must be at least 2");
+        samples = new long[sampleCount];
+        slotInterval = maxRetain / sampleCount;
+        checkPositive(slotInterval, "maxRetain must be at least equal to sampleCount");
     }
 
     /**
@@ -68,44 +82,38 @@ public class EventSeqHistory {
      * uses the supplied time as the initial point in time.
      */
     public void reset(long now) {
-        gotoNextSlotAt = now + slotInterval;
-        Arrays.fill(slots, Long.MIN_VALUE);
+        advanceHeadAt = now + slotInterval;
+        Arrays.fill(samples, Long.MIN_VALUE);
         prevResult = Long.MIN_VALUE;
     }
 
     /**
-     * Called to report a new {@code topEventSeq} sample along with the timestamp
-     * when it was taken. Returns the sample from {@code maxRetain} time units
-     * ago, or {@link Long#MIN_VALUE} if sampling started less than
+     * Called to report a new sample along with the timestamp when it was taken.
+     * Returns the sample that best matches the point in time {@code maxRetain}
+     * units ago, or {@link Long#MIN_VALUE} if sampling started less than
      * {@code maxRetain} time units ago.
      *
-     * @param now current time
-     * @param sample current top event sequence
+     * @param now current time; must not be less than the time used in a previous
+     *            call
+     * @param sample the current value of the tracked quantity
      */
     public long sample(long now, long sample) {
         long result = prevResult;
-        for (; gotoNextSlotAt <= now; gotoNextSlotAt += slotInterval) {
-            result = slide();
+        for (; advanceHeadAt <= now; advanceHeadAt += slotInterval) {
+            result = advanceHead();
         }
-        slots[head] = sample;
+        samples[head] = sample;
         return prevResult = result;
     }
 
-    private long slide() {
-        long tailVal = slots[tail];
-        tail = advance(tail);
-
-        long headVal = slots[head];
-        head = advance(head);
-        // Initialize the new head with the previous head value.
+    private long advanceHead() {
+        int nextHead = head + 1 < samples.length ? head + 1 : 0;
+        long tailVal = samples[nextHead];
+        // Initialize the next head with the previous head value.
         // If sample() wasn't called for longer than the slot interval,
         // this is the best estimate we have for the slot.
-        slots[head] = headVal;
-
+        samples[nextHead] = samples[head];
+        head = nextHead;
         return tailVal;
-    }
-
-    private int advance(int index) {
-        return index + 1 < slots.length ? index + 1 : 0;
     }
 }
