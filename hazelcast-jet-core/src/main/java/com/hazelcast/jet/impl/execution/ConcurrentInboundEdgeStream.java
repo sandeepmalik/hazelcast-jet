@@ -19,6 +19,7 @@ package com.hazelcast.jet.impl.execution;
 import com.hazelcast.internal.util.concurrent.update.ConcurrentConveyor;
 import com.hazelcast.internal.util.concurrent.update.Pipe;
 import com.hazelcast.jet.Punctuation;
+import com.hazelcast.jet.impl.util.EventSeqHistory;
 import com.hazelcast.jet.impl.util.ProgressState;
 import com.hazelcast.jet.impl.util.ProgressTracker;
 import com.hazelcast.util.function.Predicate;
@@ -28,6 +29,7 @@ import java.util.Collection;
 
 import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
 import static com.hazelcast.jet.impl.util.Util.indexOfMin;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
  * {@code InboundEdgeStream} implemented in terms of a {@code ConcurrentConveyor}.
@@ -36,22 +38,28 @@ import static com.hazelcast.jet.impl.util.Util.indexOfMin;
  */
 public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
 
+    private static final int HISTORIC_SEQS_COUNT = 16;
+
     private final int ordinal;
     private final int priority;
     private final ConcurrentConveyor<Object> conveyor;
     private final ProgressTracker tracker = new ProgressTracker();
     private final PunctuationDetector puncDetector = new PunctuationDetector();
     private final long[] observedPuncSeqs;
-    private int indexOfLeastPunc;
+    private int indexOfBottomPunc;
     private long lastEmittedPunc = Long.MIN_VALUE;
+    private long topReceivedPunc = Long.MIN_VALUE;
+    private EventSeqHistory eventSeqHistory;
 
-    public ConcurrentInboundEdgeStream(ConcurrentConveyor<Object> conveyor, int ordinal, int priority) {
+    public ConcurrentInboundEdgeStream(ConcurrentConveyor<Object> conveyor, int ordinal, int priority, long maxRetainMs) {
         this.conveyor = conveyor;
         this.ordinal = ordinal;
         this.priority = priority;
+        this.eventSeqHistory = new EventSeqHistory(MILLISECONDS.toNanos(maxRetainMs), HISTORIC_SEQS_COUNT);
 
         observedPuncSeqs = new long[conveyor.queueCount()];
         Arrays.fill(observedPuncSeqs, Long.MIN_VALUE);
+        eventSeqHistory.reset(System.nanoTime());
     }
 
     @Override
@@ -82,20 +90,25 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
             }
             if (punc != null) {
                 assert observedPuncSeqs[queueIndex] < punc.seq() : "Punctuations not monotonically increasing on queue";
+                topReceivedPunc = Math.max(topReceivedPunc, punc.seq());
                 observedPuncSeqs[queueIndex] = punc.seq();
 
-                // If this queue was the smallest and we advanced (we have a new punct), lets advance to the
-                // new smallest punct from some other queue.
-                if (indexOfLeastPunc == queueIndex) {
-                    indexOfLeastPunc = indexOfMin(observedPuncSeqs);
-                    // the punct from new minimum queue could be the same as we were, only emit, if it is newer
-                    if (observedPuncSeqs[indexOfLeastPunc] > lastEmittedPunc) {
-                        dest.add(new Punctuation(observedPuncSeqs[indexOfLeastPunc]));
-                        lastEmittedPunc = observedPuncSeqs[indexOfLeastPunc];
-                    }
+                // If this queue was the smallest and has a newer punc, lets find the new smallest punct
+                // from some other queue.
+                if (indexOfBottomPunc == queueIndex) {
+                    indexOfBottomPunc = indexOfMin(observedPuncSeqs);
                 }
             }
         }
+
+        long topPunctSomeTimeAgo = eventSeqHistory.sample(System.nanoTime(), topReceivedPunc);
+        long bottomPunctNow = observedPuncSeqs[indexOfBottomPunc];
+        long puncToEmit = Math.max(topPunctSomeTimeAgo, bottomPunctNow);
+        if (puncToEmit > lastEmittedPunc) {
+            dest.add(new Punctuation(puncToEmit));
+            lastEmittedPunc = puncToEmit;
+        }
+
         return tracker.toProgressState();
     }
 

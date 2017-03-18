@@ -19,7 +19,6 @@ package com.hazelcast.jet.impl.execution;
 import com.hazelcast.internal.util.concurrent.update.ConcurrentConveyor;
 import com.hazelcast.internal.util.concurrent.update.OneToOneConcurrentArrayQueue;
 import com.hazelcast.internal.util.concurrent.update.QueuedPipe;
-import com.hazelcast.jet.JetException;
 import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.impl.util.ProgressState;
 import org.junit.Before;
@@ -51,7 +50,7 @@ public class ConcurrentInboundEdgeStreamTest {
         //noinspection unchecked
         ConcurrentConveyor<Object> conveyor = ConcurrentConveyor.concurrentConveyor(senderGone, q1, q2);
 
-        stream = new ConcurrentInboundEdgeStream(conveyor, 0, 0);
+        stream = new ConcurrentInboundEdgeStream(conveyor, 0, 0, 16_000);
     }
 
     @Test
@@ -160,79 +159,5 @@ public class ConcurrentInboundEdgeStreamTest {
         progressState = stream.drainTo(list);
         assertEquals(Arrays.asList(2, 2), list);
         assertEquals(DONE, progressState);
-    }
-
-    @Test
-    public void when_punctuationFromSomeEmitter_then_dontEmit() {
-        ArrayList<Object> list = new ArrayList<>();
-        q1.add(0);
-        q1.add(1);
-        q1.add(new Punctuation(1));
-        q1.add(2);
-        q1.add(DONE_ITEM);
-        q2.add(3);
-        q2.add(4);
-        ProgressState progressState = stream.drainTo(list);
-        assertEquals(Arrays.asList(0, 1, 3, 4), list);
-        assertEquals(MADE_PROGRESS, progressState);
-
-        list.clear();
-        q2.add(5);
-        q2.add(6);
-        q2.add(new Punctuation(1));
-        q2.add(DONE_ITEM);
-        progressState = stream.drainTo(list);
-        assertEquals(Arrays.asList(5, 6, new Punctuation(1)), list);
-        assertEquals(MADE_PROGRESS, progressState);
-
-        list.clear();
-        progressState = stream.drainTo(list);
-        assertEquals(Collections.singletonList(2), list);
-        assertEquals(DONE, progressState);
-    }
-
-    @Test
-    public void when_punctuationsDontMatch_then_error() {
-        Punctuation wm1 = new Punctuation(0);
-        Punctuation wm2 = new Punctuation(1);
-
-        ArrayList<Object> list = new ArrayList<>();
-        q1.add(wm1);
-        q1.add(DONE_ITEM);
-        q2.add(wm2);
-        q2.add(DONE_ITEM);
-
-        exception.expect(JetException.class);
-        exception.expectMessage("Punctuation emitted by one processor not equal to punctuation emitted by another one");
-        exception.expectMessage(wm1.toString());
-        exception.expectMessage(wm2.toString());
-        stream.drainTo(list);
-    }
-
-    @Test
-    public void when_oneWithPuncOtherDone_then_error() {
-        ArrayList<Object> list = new ArrayList<>();
-        Punctuation punc = new Punctuation(0);
-        q1.add(punc);
-        q1.add(DONE_ITEM);
-        q2.add(DONE_ITEM);
-
-        exception.expect(JetException.class);
-        exception.expectMessage("Processor completed without first emitting a punctuation, that was already emitted by "
-                + "another processor (punc=" + punc + ')');
-        stream.drainTo(list);
-    }
-
-    @Test
-    public void when_oneDoneOtherWithPunc_then_error() {
-        ArrayList<Object> list = new ArrayList<>();
-        Punctuation punc = new Punctuation(0);
-        q1.add(DONE_ITEM);
-        q2.add(punc);
-        q2.add(DONE_ITEM);
-
-        exception.expect(JetException.class);
-        exception.expectMessage("Received a new punctuation after some processor already completed (punc=" + punc + ')');
-        stream.drainTo(list);
     }
 }

@@ -68,6 +68,7 @@ import static java.util.stream.Collectors.toMap;
 
 public class ExecutionPlan implements IdentifiedDataSerializable {
 
+    private static final long DEFAULT_MAX_RETAIN = 16_000L;
     private static final ILogger LOGGER = Logger.getLogger(ExecutionPlan.class);
 
     private final List<Tasklet> tasklets = new ArrayList<>();
@@ -381,7 +382,7 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
     private static ConcurrentInboundEdgeStream createInboundEdgeStream(
             int ordinal, int priority, ConcurrentConveyor<Object> conveyor
     ) {
-        return new ConcurrentInboundEdgeStream(conveyor, ordinal, priority);
+        return new ConcurrentInboundEdgeStream(conveyor, ordinal, priority, DEFAULT_MAX_RETAIN);
     }
 }
 
