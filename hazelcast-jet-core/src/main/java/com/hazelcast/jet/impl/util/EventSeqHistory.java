@@ -37,13 +37,16 @@ import static com.hazelcast.util.Preconditions.checkPositive;
  * intervals and each such interval is mapped to a slot in the buffer.
  * A given {@code sample()} call maps the supplied timestamp to a slot in
  * the buffer, possibly remapping the slots to more recent intervals
- * (thereby automatically discarding the old intervals) and returns the
- * value of the oldest slot after remapping. This slot will be the one
- * that best matches the point in time {@code maxRetain} time units ago.
+ * (thereby automatically discarding the old intervals), updates that slot,
+ * and returns the value of the oldest ("head") slot after remapping. This
+ * slot will contain a sample acquired at most {@code maxRetain} time units
+ * ago.
  * <p>
  * A new instance of this class must be initialized with a call to
  * {@link #reset(long) reset()}. This will put the circular buffer
- * into the initial state where all slots contain {@link Long#MIN_VALUE}.
+ * into the initial state where all slots contain {@link Long#MIN_VALUE}
+ * and set the timestamp of the most recent ("tail") slot to the supplied
+ * value.
  * <p>
  * <strong>NOTE:</strong> this class is implemented in terms of some
  * assumptions on the mode of usage:
@@ -73,7 +76,7 @@ public class EventSeqHistory {
      * @param numStoredSamples the number of remembered historical {@code eventSeq} values
      */
     public EventSeqHistory(long maxRetain, int numStoredSamples) {
-        checkPositive(numStoredSamples, "numStoredSamples must be greater than zero");
+        checkPositive(numStoredSamples, "numStoredSamples must be at least one");
         samples = new long[numStoredSamples + 1];
         sampleInterval = maxRetain / numStoredSamples;
         checkPositive(sampleInterval, "maxRetain must be at least equal to numStoredSamples");
