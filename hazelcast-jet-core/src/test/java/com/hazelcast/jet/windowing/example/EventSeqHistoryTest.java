@@ -28,89 +28,107 @@ public class EventSeqHistoryTest {
 
     @Before
     public void setup() {
-        histo = new EventSeqHistory(4, 4);
-        histo.reset(0);
+        histo = new EventSeqHistory(6, 3);
+        histo.reset(-20);
     }
 
     @Test
     public void when_clockIncreasingByOne() {
-        assertEquals(Long.MIN_VALUE, tick(1, 1));
-        assertEquals(Long.MIN_VALUE, tick(2, 2));
-        assertEquals(Long.MIN_VALUE, tick(3, 3));
-        assertEquals(Long.MIN_VALUE, tick(4, 4));
-        assertEquals(1, tick(5, 5));
-        assertEquals(2, tick(6, 6));
-        assertEquals(3, tick(7, 7));
-        assertEquals(4, tick(8, 8));
+        validateSample(1, 1, Long.MIN_VALUE);
+        validateSample(2, 2, Long.MIN_VALUE);
+        validateSample(3, 3, Long.MIN_VALUE);
+        validateSample(4, 4, Long.MIN_VALUE);
+        validateSample(5, 5, Long.MIN_VALUE);
+        validateSample(6, 6, 1);
+        validateSample(7, 7, 1);
+        validateSample(8, 8, 3);
+        validateSample(9, 8, 3);
+        validateSample(10, 10, 5);
+        validateSample(11, 10, 5);
+        validateSample(12, 10, 7);
+        validateSample(13, 10, 7);
     }
 
     @Test
     public void when_negativeClockIncreasingByOne() {
-        histo.reset(-10);
-        assertEquals(Long.MIN_VALUE, tick(-10, 1));
-        assertEquals(Long.MIN_VALUE, tick(-9, 2));
-        assertEquals(Long.MIN_VALUE, tick(-8, 3));
-        assertEquals(Long.MIN_VALUE, tick(-7, 4));
-        assertEquals(1, tick(-6, 5));
-        assertEquals(2, tick(-5, 6));
-        assertEquals(3, tick(-4, 7));
-        assertEquals(4, tick(-3, 8));
+        validateSample(-10, 1, Long.MIN_VALUE);
+        validateSample(-9, 2, Long.MIN_VALUE);
+        validateSample(-8, 3, Long.MIN_VALUE);
+        validateSample(-7, 4, Long.MIN_VALUE);
+        validateSample(-6, 5, Long.MIN_VALUE);
+        validateSample(-5, 6, Long.MIN_VALUE);
+        validateSample(-4, 7, 2);
+        validateSample(-3, 8, 2);
+        validateSample(-2, 9, 4);
+        validateSample(-1, 9, 4);
+        validateSample(0, 9, 6);
+        validateSample(1, 9, 6);
     }
 
     @Test
-    public void when_clockIncreasingByOneStopAndResume() {
-        assertEquals(Long.MIN_VALUE, tick(1, 1));
-        assertEquals(Long.MIN_VALUE, tick(2, 2));
-        assertEquals(Long.MIN_VALUE, tick(3, 3));
-        assertEquals(Long.MIN_VALUE, tick(4, 4));
-        assertEquals(Long.MIN_VALUE, tick(4, 5));
-        assertEquals(Long.MIN_VALUE, tick(4, 6));
-        assertEquals(Long.MIN_VALUE, tick(4, 7));
-        assertEquals(1, tick(5, 8));
+    public void when_clockIncreasingByTwoStopAndResume() {
+        validateSample(1, 1, Long.MIN_VALUE);
+        validateSample(3, 2, Long.MIN_VALUE);
+        validateSample(5, 3, Long.MIN_VALUE);
+        validateSample(5, 4, Long.MIN_VALUE);
+        validateSample(5, 5, Long.MIN_VALUE);
+        validateSample(5, 6, Long.MIN_VALUE);
+        validateSample(5, 7, Long.MIN_VALUE);
+        validateSample(7, 8, 1);
     }
 
     @Test
     public void when_clockIncreasingByTwo() {
-        assertEquals(Long.MIN_VALUE, tick(1, 1));
-        assertEquals(Long.MIN_VALUE, tick(3, 2));
-        assertEquals(1, tick(5, 3));
-        assertEquals(2, tick(7, 4));
-        assertEquals(3,  tick(9, 5));
+        validateSample(1, 1, Long.MIN_VALUE);
+        validateSample(3, 2, Long.MIN_VALUE);
+        validateSample(5, 3, Long.MIN_VALUE);
+        validateSample(7, 4, 1);
+        validateSample(9, 5, 2);
     }
 
     @Test
     public void when_clockIncreasingByThree() {
-        assertEquals(Long.MIN_VALUE, tick(1, 1));
-        assertEquals(Long.MIN_VALUE, tick(4, 2));
-        assertEquals(1, tick(7, 3));
-        assertEquals(2, tick(10, 4));
+        validateSample(1, 1, Long.MIN_VALUE);
+        validateSample(4, 2, Long.MIN_VALUE);
+        validateSample(7, 3, 1);
+        validateSample(10, 4, 2);
     }
 
     @Test
     public void when_clockIncreasingByFour() {
-        assertEquals(Long.MIN_VALUE, tick(1, 1));
-        assertEquals(1, tick(5, 2));
-        assertEquals(2, tick(9, 3));
-        assertEquals(3, tick(13, 4));
-        assertEquals(4,  tick(17, 5));
+        validateSample(1, 1, Long.MIN_VALUE);
+        validateSample(5, 2, Long.MIN_VALUE);
+        validateSample(9, 3, 1);
+        validateSample(13, 4, 2);
+        validateSample(17, 5, 3);
     }
 
     @Test
     public void when_clockIncreasingByFive() {
-        assertEquals(Long.MIN_VALUE, tick(1, 1));
-        assertEquals(1, tick(6, 2));
-        assertEquals(2, tick(11, 3));
-        assertEquals(3, tick(16, 4));
+        validateSample(1, 1, Long.MIN_VALUE);
+        validateSample(6, 2, 1);
+        validateSample(11, 3, 1);
+        validateSample(16, 4, 3);
+    }
+
+    @Test
+    public void when_historySize1() {
+        histo = new EventSeqHistory(3, 1);
+        histo.reset(0);
+        validateSample(0, 0, Long.MIN_VALUE);
+        validateSample(1, 1, Long.MIN_VALUE);
+        validateSample(2, 2, Long.MIN_VALUE);
+        validateSample(3, 3, 2);
     }
 
     @Test
     public void when_minValuePunc_then_minValue() {
         for (int i = 0; i < 100; i++) {
-            assertEquals(Long.MIN_VALUE, tick(i, Long.MIN_VALUE));
+            validateSample(i, Long.MIN_VALUE, Long.MIN_VALUE);
         }
     }
 
-    private long tick(long now, long topSeq) {
-        return histo.sample(now, topSeq);
+    private void validateSample(long now, long sampleVal, long expectedResult) {
+        assertEquals(expectedResult, histo.sample(now, sampleVal));
     }
 }
