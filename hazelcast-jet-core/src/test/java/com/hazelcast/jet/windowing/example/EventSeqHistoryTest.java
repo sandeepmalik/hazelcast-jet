@@ -29,7 +29,6 @@ public class EventSeqHistoryTest {
     @Before
     public void setup() {
         histo = new EventSeqHistory(6, 3);
-        histo.reset(-20);
     }
 
     @Test
@@ -39,14 +38,14 @@ public class EventSeqHistoryTest {
         validateSample(3, 3, Long.MIN_VALUE);
         validateSample(4, 4, Long.MIN_VALUE);
         validateSample(5, 5, Long.MIN_VALUE);
-        validateSample(6, 6, 1);
-        validateSample(7, 7, 1);
-        validateSample(8, 8, 3);
-        validateSample(9, 8, 3);
-        validateSample(10, 10, 5);
-        validateSample(11, 10, 5);
-        validateSample(12, 10, 7);
-        validateSample(13, 10, 7);
+        validateSample(6, 6, Long.MIN_VALUE);
+        validateSample(7, 7, 2);
+        validateSample(8, 8, 2);
+        validateSample(9, 8, 4);
+        validateSample(10, 10, 4);
+        validateSample(11, 10, 6);
+        validateSample(12, 10, 6);
+        validateSample(13, 10, 8);
     }
 
     @Test
@@ -106,15 +105,35 @@ public class EventSeqHistoryTest {
     @Test
     public void when_clockIncreasingByFive() {
         validateSample(1, 1, Long.MIN_VALUE);
-        validateSample(6, 2, 1);
-        validateSample(11, 3, 1);
-        validateSample(16, 4, 3);
+        validateSample(6, 2, Long.MIN_VALUE);
+        validateSample(11, 3, 2);
+        validateSample(16, 4, 2);
+        validateSample(17, 4, 3);
+        validateSample(18, 4, 3);
+        validateSample(19, 4, 3);
+        validateSample(20, 4, 3);
+        validateSample(21, 4, 4);
+    }
+
+    @Test
+    public void when_clockIncreasingBySix() {
+        validateSample(1, 1, Long.MIN_VALUE);
+        validateSample(7, 2, 1);
+        validateSample(13, 3, 2);
+        validateSample(19, 4, 3);
+    }
+
+    @Test
+    public void when_clockIncreasingBySeven() {
+        validateSample(1, 1, Long.MIN_VALUE);
+        validateSample(8, 2, 1);
+        validateSample(15, 3, 2);
+        validateSample(22, 4, 3);
     }
 
     @Test
     public void when_historySize1() {
         histo = new EventSeqHistory(3, 1);
-        histo.reset(0);
         validateSample(0, 0, Long.MIN_VALUE);
         validateSample(1, 1, Long.MIN_VALUE);
         validateSample(2, 2, Long.MIN_VALUE);

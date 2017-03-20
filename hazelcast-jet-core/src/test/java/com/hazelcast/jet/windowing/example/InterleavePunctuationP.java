@@ -101,11 +101,6 @@ public class InterleavePunctuationP<T> extends AbstractProcessor {
     }
 
     @Override
-    protected void init(@Nonnull Context context) throws Exception {
-        eventSeqHistory.reset(clock.getAsLong());
-    }
-
-    @Override
     protected boolean tryProcess(int ordinal, @Nonnull Object item) throws Exception {
         T tItem = (T) item;
         long itemSeq = extractEventSeqF.applyAsLong(tItem);

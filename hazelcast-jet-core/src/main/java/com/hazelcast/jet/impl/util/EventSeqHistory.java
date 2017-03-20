@@ -18,15 +18,14 @@ package com.hazelcast.jet.impl.util;
 
 import java.util.Arrays;
 
-import static com.hazelcast.util.Preconditions.checkNotNegative;
 import static com.hazelcast.util.Preconditions.checkPositive;
 
 /**
  * Helper class to implement the logic needed to enforce the maximum
  * retention time of events in a windowing stream processor. To use this
- * class, call {@link #sample(long, long) sample(currentTime, topEventSeq)}
+ * class, call {@link #sample(long, long) sample(now, sample)}
  * at regular intervals with the current system time and the top observed
- * {@code eventSeq} so far, and interpret the returned value as the minimum
+ * {@code sample} so far, and interpret the returned value as the minimum
  * value of punctuation that should be/have been emitted. The current time
  * should be obtained from {@code System.nanoTime()} because, unlike
  * {@code System.currentTimeMillis()}, its source is a monotonic clock.
@@ -42,12 +41,6 @@ import static com.hazelcast.util.Preconditions.checkPositive;
  * slot will contain a sample acquired at most {@code maxRetain} time units
  * ago.
  * <p>
- * A new instance of this class must be initialized with a call to
- * {@link #reset(long) reset()}. This will put the circular buffer
- * into the initial state where all slots contain {@link Long#MIN_VALUE}
- * and set the timestamp of the most recent ("tail") slot to the supplied
- * value.
- * <p>
  * <strong>NOTE:</strong> this class is implemented in terms of some
  * assumptions on the mode of usage:
  * <ol><li>
@@ -56,8 +49,8 @@ import static com.hazelcast.util.Preconditions.checkPositive;
  *     {@code maxRetain} is rounded down to the nearest multiple of
  *     {@code numStoredSamples}.
  * </li><li>
- *     {@link #reset(long) reset()} and {@link #sample(long, long) sample()} are
- *     expected to be called with monotonically increasing timestamps and therefore
+ *     {@link #sample(long, long) sample()} method is expected to be called with
+ *     monotonically increasing timestamps and samples and therefore
  *     {@code sample()} always updates the "tail" slot, corresponding to the most
  *     recent time interval. If called with a timestamp less than the highest
  *     timestamp used so far, it will still update the tail slot.
@@ -69,25 +62,17 @@ public class EventSeqHistory {
     private final long sampleInterval;
 
     private int tailIndex;
-    private long advanceAt;
+    private long advanceAt = Long.MIN_VALUE;
 
     /**
-     * @param maxRetain the length of the period over which to keep the {@code eventSeq} history
-     * @param numStoredSamples the number of remembered historical {@code eventSeq} values
+     * @param maxRetain the length of the period over which to keep the {@code sample} history
+     * @param numStoredSamples the number of remembered historical {@code sample} values
      */
     public EventSeqHistory(long maxRetain, int numStoredSamples) {
         checkPositive(numStoredSamples, "numStoredSamples must be at least one");
         samples = new long[numStoredSamples + 1];
         sampleInterval = maxRetain / numStoredSamples;
         checkPositive(sampleInterval, "maxRetain must be at least equal to numStoredSamples");
-    }
-
-    /**
-     * Resets this object's history to {@code Long.MIN_VALUE} and
-     * uses the supplied time as the initial point in time.
-     */
-    public void reset(long now) {
-        advanceAt = now + sampleInterval;
         Arrays.fill(samples, Long.MIN_VALUE);
     }
 
@@ -97,12 +82,12 @@ public class EventSeqHistory {
      * units ago, or {@link Long#MIN_VALUE} if sampling started less than
      * {@code maxRetain} time units ago.
      *
-     * @param now current time; must not be less than the time used in the previous call
-     *            of either this method or {@link #reset(long) reset()}.
+     * @param now current system time; must not be less than the time used in the previous call
      * @param sample the current value of the tracked quantity
      */
     public long sample(long now, long sample) {
-        for (; advanceAt <= now; advanceAt += sampleInterval) {
+        int i = 0;
+        for (; advanceAt <= now && i < samples.length; advanceAt += sampleInterval, i++) {
             int oldTailIdx = tailIndex;
             tailIndex = nextTailIndex();
             // Initialize the next tail with the previous tail value.
@@ -110,6 +95,11 @@ public class EventSeqHistory {
             // this is the best estimate we have for the slot.
             samples[tailIndex] = samples[oldTailIdx];
         }
+
+        if (i == samples.length) {
+            advanceAt = now + sampleInterval;
+        }
+
         samples[tailIndex] = sample;
         // `samples` is a circular buffer which is always full,
         // so `samples[nextTailIndex()]` is the head value (the oldest one)

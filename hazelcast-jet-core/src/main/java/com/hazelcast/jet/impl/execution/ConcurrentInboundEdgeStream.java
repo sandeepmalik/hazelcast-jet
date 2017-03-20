@@ -59,7 +59,6 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
 
         observedPuncSeqs = new long[conveyor.queueCount()];
         Arrays.fill(observedPuncSeqs, Long.MIN_VALUE);
-        eventSeqHistory.reset(System.nanoTime());
     }
 
     @Override
