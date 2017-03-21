@@ -273,7 +273,7 @@ public abstract class AbstractProcessor implements Processor {
     /**
      * Emits the items obtained from the traverser to the outbox bucket with the
      * supplied ordinal, in a cooperative fashion: if the outbox reports it has
-     * {@link Outbox#hasReachedLimit()}  reached the limit}, backs off and
+     * {@link Outbox#hasReachedLimit() reached the limit}, backs off and
      * returns {@code false}.
      * <p>
      * If this method returns {@code false}, then the same traverser must be
