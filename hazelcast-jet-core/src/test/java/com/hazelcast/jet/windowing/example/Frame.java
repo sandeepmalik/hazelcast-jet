@@ -74,6 +74,6 @@ public final class Frame<K, V> implements Serializable, Map.Entry<K,V> {
     public String toString() {
         //hack
         String valueStr = value instanceof long[] ? Arrays.toString((long[])value) : value.toString();
-        return "KeyedWindowEntry{seq=" + seq + ", key=" + key + ", value=" + valueStr + '}';
+        return "Frame{seq=" + seq + ", key=" + key + ", value=" + valueStr + '}';
     }
 }
