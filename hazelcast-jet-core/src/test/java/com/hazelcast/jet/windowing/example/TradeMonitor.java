@@ -16,7 +16,6 @@
 
 package com.hazelcast.jet.windowing.example;
 
-import com.hazelcast.aggregation.Aggregators;
 import com.hazelcast.config.SerializerConfig;
 import com.hazelcast.jet.AbstractProcessor;
 import com.hazelcast.jet.DAG;
@@ -131,8 +130,8 @@ public class TradeMonitor {
             jet.newJob(dag).execute();
 
             while (true) {
-                Long sum = jet.getMap("sink").aggregate(Aggregators.longSum());
-                logger.info("Sum: " + sum);
+                logger.info("Trade count: " + TradeGeneratorP.tradeCount);
+                TradeGeneratorP.tradeCount.set(0);
                 Thread.sleep(1000);
             }
 

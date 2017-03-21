@@ -23,11 +23,14 @@ import javax.annotation.Nonnull;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 import static com.hazelcast.jet.impl.util.Util.memoize;
 
 public class TradeGeneratorP extends AbstractProcessor {
+
+    public static final AtomicLong tradeCount = new AtomicLong();
 
     private final Traverser<Trade> traverser;
 
@@ -50,6 +53,7 @@ public class TradeGeneratorP extends AbstractProcessor {
                 lag++;
                 if (lag == 2000)
                     lag = 0;
+                tradeCount.incrementAndGet();
                 return new Trade(System.currentTimeMillis() - lag, ticker, 100, 10000);
             }
         };
