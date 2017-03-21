@@ -46,8 +46,8 @@ import java.util.stream.Stream;
 import static com.hazelcast.jet.Edge.between;
 import static com.hazelcast.jet.Partitioner.HASH_CODE;
 import static com.hazelcast.jet.Processors.readMap;
-import static com.hazelcast.jet.windowing.example.FrameProcessors.combineFrames;
 import static com.hazelcast.jet.windowing.example.FrameProcessors.groupByFrame;
+import static com.hazelcast.jet.windowing.example.FrameProcessors.slidingWindow;
 import static java.lang.Runtime.getRuntime;
 
 public class TradeMonitor {
@@ -109,9 +109,10 @@ public class TradeMonitor {
                             DistributedCollectors.counting()
                     )
             ).localParallelism(IS_SLOW ? 2 : -1);
-            Vertex combineFrames = dag.newVertex("combine-frames", combineFrames(DistributedCollectors.counting()))
+            Vertex combineFrames = dag.newVertex("combine-frames", slidingWindow(1, DistributedCollectors.counting()))
                     .localParallelism(IS_SLOW ? 2 : -1);
-            Vertex filterPunctuations = dag.newVertex("filterPunctuations", Processors.filter(item -> !(item instanceof Punctuation)))
+            Vertex filterPunctuations = dag.newVertex("filterPunctuations",
+                    Processors.filter(item -> !(item instanceof Punctuation)))
                     .localParallelism(IS_SLOW ? 2 : -1);
             Vertex sink = dag.newVertex("sink", Processors.writeMap("sink")).localParallelism(1);
 

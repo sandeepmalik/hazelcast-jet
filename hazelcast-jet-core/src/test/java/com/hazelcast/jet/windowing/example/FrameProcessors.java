@@ -28,16 +28,17 @@ import com.hazelcast.jet.stream.DistributedCollector;
 
 import javax.annotation.Nonnull;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
-import static com.hazelcast.jet.Distributed.Function.identity;
 import static com.hazelcast.jet.Traverser.concat;
 import static com.hazelcast.jet.Traversers.traverseIterable;
-import static com.hazelcast.jet.Traversers.traverseIterableWithRemoval;
+import static java.util.stream.Collectors.toMap;
 
 /**
  * Contains factory methods for processors dealing with windowing operations.
@@ -82,44 +83,26 @@ public final class FrameProcessors {
 
     /**
      * Combines frames received from several upstream instances of
-     * {@link GroupByFrameP} into finalized frames. Applies the finisher
-     * function to produce its emitted output.
+     * {@link GroupByFrameP} into finalized frames. Combines frames into sliding
+     * windows. Applies the finisher function to produce its emitted output.
      *
      * @param <K> type of the grouping key
      * @param <F> type of the frame
      * @param <R> type of the result derived from a frame
      */
-    public static <K, F, R> ProcessorSupplier combineFrames(DistributedCollector<K, F, R> collector) {
-        return ProcessorSupplier.of(() -> new CombineFramesP<>(collector));
+    public static <K, F, R> ProcessorSupplier slidingWindow(int windowSize, DistributedCollector<K, F, R> collector) {
+        return ProcessorSupplier.of(() -> new SlidingWindowP<>(windowSize, collector));
     }
 
 
-    private static abstract class FrameProcessorBase<K, F, R> extends StreamingProcessorBase {
-        final SortedMap<Long, Map<K, F>> seqToFrame = new TreeMap<>();
-        private final FlatMapper<Punctuation, Object> puncFlatMapper;
-
-        FrameProcessorBase(Function<F, R> finisher) {
-            this.puncFlatMapper = flatMapper((Punctuation punc) ->
-                    traverseIterableWithRemoval(seqToFrame.headMap(punc.seq() + 1).entrySet())
-                            .flatMap(seqAndFrame -> concat(
-                                    traverseIterable(seqAndFrame.getValue().entrySet())
-                                            .map(e -> new KeyedFrame<>(
-                                                    seqAndFrame.getKey(), e.getKey(), finisher.apply(e.getValue()))),
-                                    Traverser.over(new Punctuation(seqAndFrame.getKey())))));
-        }
-
-        @Override
-        protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
-            return puncFlatMapper.tryProcess(punc);
-        }
-    }
-
-    private static class GroupByFrameP<T, K, F> extends FrameProcessorBase<K, F, F> {
+    private static class GroupByFrameP<T, K, F> extends StreamingProcessorBase {
+        private final SortedMap<Long, Map<K, F>> seqToKeyToFrame = new TreeMap<>();
         private final ToLongFunction<? super T> extractEventSeqF;
         private final Function<? super T, K> extractKeyF;
         private final LongUnaryOperator toFrameSeqF;
         private final Supplier<F> supplier;
         private final BiConsumer<F, ? super T> accumulator;
+        private final FlatMapper<Punctuation, Object> puncFlatMapper;
 
         GroupByFrameP(
                 Function<? super T, K> extractKeyF,
@@ -127,12 +110,18 @@ public final class FrameProcessors {
                 LongUnaryOperator toFrameSeqF,
                 DistributedCollector<? super T, F, ?> collector
         ) {
-            super(identity());
             this.extractKeyF = extractKeyF;
             this.extractEventSeqF = extractEventSeqF;
             this.toFrameSeqF = toFrameSeqF;
             this.supplier = collector.supplier();
             this.accumulator = collector.accumulator();
+            this.puncFlatMapper = flatMapper(punc ->
+                    traverseIterable(seqToKeyToFrame.headMap(punc.seq() + 1).entrySet())
+                            .flatMap(seqAndFrame -> concat(
+                                    traverseIterable(seqAndFrame.getValue().entrySet())
+                                            .map(e -> new Frame<>(
+                                                    seqAndFrame.getKey(), e.getKey(), e.getValue())),
+                                    Traverser.over(new Punctuation(seqAndFrame.getKey())))));
         }
 
         @Override
@@ -140,29 +129,61 @@ public final class FrameProcessors {
             T t = (T) item;
             long eventSeq = extractEventSeqF.applyAsLong(t);
             K key = extractKeyF.apply(t);
-            F frame = seqToFrame.computeIfAbsent(toFrameSeqF.applyAsLong(eventSeq), x -> new HashMap<>())
-                                .computeIfAbsent(key, x -> supplier.get());
+            F frame = seqToKeyToFrame.computeIfAbsent(toFrameSeqF.applyAsLong(eventSeq), x -> new HashMap<>())
+                                     .computeIfAbsent(key, x -> supplier.get());
             accumulator.accept(frame, t);
             return true;
         }
+
+        @Override
+        protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
+            boolean done = puncFlatMapper.tryProcess(punc);
+            if (done) {
+                for (Iterator<Long> it = seqToKeyToFrame.headMap(punc.seq() + 1).keySet().iterator(); it.hasNext();) {
+                    it.remove();
+                }
+            }
+            return done;
+        }
     }
 
-    private static class CombineFramesP<K, F, R> extends FrameProcessorBase<K, F, R> {
+    private static class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
+        private final SortedMap<Long, Map<K, F>> seqToKeyToFrame = new TreeMap<>();
         private final BinaryOperator<F> combiner;
+        private final FlatMapper<Punctuation, Frame<K, R>> puncFlatMapper;
+        private final int windowSize;
 
-        CombineFramesP(DistributedCollector<K, F, R> collector) {
-            super(collector.finisher());
+        SlidingWindowP(int windowSize, DistributedCollector<K, F, R> collector) {
+            this.windowSize = windowSize;
             this.combiner = collector.combiner();
+            Function<F, R> finisher = collector.finisher();
+            this.puncFlatMapper = flatMapper(punc -> {
+                Map<K, F> mx = seqToKeyToFrame.headMap(punc.seq() + 1)
+                                              .values().stream()
+                                              .flatMap(m -> m.entrySet().stream())
+                                              .collect(toMap(Entry::getKey, Entry::getValue, combiner));
+                return traverseIterable(mx.entrySet())
+                        .map(e -> new Frame<>(punc.seq(), e.getKey(), finisher.apply(e.getValue())));
+            });
         }
 
         @Override
         protected boolean tryProcess0(@Nonnull Object item) {
-            final KeyedFrame<K, F> e = (KeyedFrame) item;
+            final Frame<K, F> e = (Frame) item;
             final Long frameSeq = e.getSeq();
             final F frame = e.getValue();
-            seqToFrame.computeIfAbsent(frameSeq, x -> new HashMap<>())
-                      .merge(e.getKey(), frame, combiner);
+            seqToKeyToFrame.computeIfAbsent(frameSeq, x -> new HashMap<>())
+                           .merge(e.getKey(), frame, combiner);
             return true;
+        }
+
+        @Override
+        protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
+            boolean done = puncFlatMapper.tryProcess(punc);
+            if (done) {
+                seqToKeyToFrame.remove(punc.seq() - windowSize);
+            }
+            return done;
         }
     }
 }
