@@ -140,6 +140,7 @@ public final class FrameProcessors {
             boolean done = puncFlatMapper.tryProcess(punc);
             if (done) {
                 for (Iterator<Long> it = seqToKeyToFrame.headMap(punc.seq() + 1).keySet().iterator(); it.hasNext();) {
+                    it.next();
                     it.remove();
                 }
             }
