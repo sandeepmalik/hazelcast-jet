@@ -23,12 +23,12 @@ import java.util.Map;
 /**
  * Javadoc pending.
  */
-public final class KeyedFrame<K, V> implements Serializable, Map.Entry<K,V> {
+public final class Frame<K, V> implements Serializable, Map.Entry<K,V> {
     private final long seq;
     private final K key;
     private final V value;
 
-    KeyedFrame(long seq, K key, V value) {
+    Frame(long seq, K key, V value) {
         this.seq = seq;
         this.key = key;
         this.value = value;
@@ -62,10 +62,10 @@ public final class KeyedFrame<K, V> implements Serializable, Map.Entry<K,V> {
 
     @Override
     public boolean equals(Object obj) {
-        final KeyedFrame that;
+        final Frame that;
         return this == obj
-                || obj instanceof KeyedFrame
-                && this.seq == (that = (KeyedFrame) obj).seq
+                || obj instanceof Frame
+                && this.seq == (that = (Frame) obj).seq
                 && this.key.equals(that.key)
                 && this.value.equals(that.value);
     }

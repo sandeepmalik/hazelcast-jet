@@ -75,7 +75,7 @@ public class TradeMonitor {
         try {
             JetConfig cfg = new JetConfig();
             cfg.getHazelcastConfig().getSerializationConfig().addSerializerConfig(new SerializerConfig()
-                    .setImplementation(new KeyedFrameSerializer()).setTypeClass(KeyedFrame.class));
+                    .setImplementation(new KeyedFrameSerializer()).setTypeClass(Frame.class));
 
             final int defaultLocalParallelism = Math.max(1, getRuntime().availableProcessors() / 2);
             cfg.setInstanceConfig(new InstanceConfig().setCooperativeThreadCount(defaultLocalParallelism));
@@ -118,7 +118,7 @@ public class TradeMonitor {
             dag.edge(between(tickerSource, generateEvents).broadcast().distributed())
                .edge(between(generateEvents, interleavePunctuation).oneToMany())
                .edge(between(interleavePunctuation, groupByFrame).partitioned(Trade::getTicker, HASH_CODE))
-               .edge(between(groupByFrame, combineFrames).partitioned((KeyedFrame f) -> f.getKey())
+               .edge(between(groupByFrame, combineFrames).partitioned(Frame<Object, Object>::getKey)
                                                          .distributed())
                .edge(between(combineFrames, filterPunctuations))
                .edge(between(filterPunctuations, sink));
@@ -148,21 +148,21 @@ public class TradeMonitor {
         }
     }
 
-    public static final class KeyedFrameSerializer implements StreamSerializer<KeyedFrame> {
+    public static final class KeyedFrameSerializer implements StreamSerializer<Frame> {
 
         @Override
-        public void write(ObjectDataOutput out, KeyedFrame object) throws IOException {
+        public void write(ObjectDataOutput out, Frame object) throws IOException {
             out.writeLong(object.getSeq());
             out.writeObject(object.getKey());
             out.writeObject(object.getValue());
         }
 
         @Override
-        public KeyedFrame read(ObjectDataInput in) throws IOException {
+        public Frame read(ObjectDataInput in) throws IOException {
             long seq = in.readLong();
             Object key = in.readObject();
             Object value = in.readObject();
-            return new KeyedFrame<>(seq, key, value);
+            return new Frame<>(seq, key, value);
         }
 
         @Override
