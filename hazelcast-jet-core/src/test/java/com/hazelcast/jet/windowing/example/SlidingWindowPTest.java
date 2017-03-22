@@ -19,6 +19,7 @@ package com.hazelcast.jet.windowing.example;
 import com.hazelcast.jet.Inbox;
 import com.hazelcast.jet.Processor;
 import com.hazelcast.jet.Processor.Context;
+import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.impl.util.ArrayDequeOutbox;
 import com.hazelcast.jet.stream.DistributedCollector;
 import org.junit.Before;
@@ -29,6 +30,7 @@ import java.util.List;
 import java.util.stream.LongStream;
 
 import static com.hazelcast.jet.Util.entry;
+import static com.hazelcast.jet.windowing.example.FrameProcessors.slidingWindow;
 import static java.util.Collections.shuffle;
 import static java.util.stream.Collectors.toList;
 import static org.junit.Assert.assertEquals;
@@ -41,9 +43,9 @@ public class SlidingWindowPTest {
 
     @Before
     public void before() {
-        swp = FrameProcessors.slidingWindow(4, DistributedCollector.of(null, null, (Long a, Long b) -> a + b, x -> x))
-                             .get(1).iterator().next();
-        outbox = new ArrayDequeOutbox(1, new int[]{1});
+        swp = slidingWindow(4, DistributedCollector.of(() -> null, (a, b) -> {}, (Long a, Long b) -> a + b, x -> x))
+                .get(1).iterator().next();
+        outbox = new ArrayDequeOutbox(1, new int[] {101});
         swp.init(outbox, mock(Context.class));
     }
 
@@ -52,16 +54,22 @@ public class SlidingWindowPTest {
         // Given
         MockInbox inbox = new MockInbox();
         for (long i = 0; i <= 4; i++) {
-            inbox.add(entry(i, 1L));
+            inbox.add(frame(i, 1));
+        }
+        for (long i = 0; i <= 4; i++) {
+            inbox.add(new Punctuation(i));
         }
 
         // When
         swp.process(0, inbox);
 
         // Then
-        assertEquals(entry(3L, 4L), outbox.queueWithOrdinal(0).poll());
-        assertEquals(entry(4L, 4L), outbox.queueWithOrdinal(0).poll());
-        assertEquals(null, outbox.queueWithOrdinal(0).poll());
+        assertEquals(frame(0, 1), pollOutbox());
+        assertEquals(frame(1, 2), pollOutbox());
+        assertEquals(frame(2, 3), pollOutbox());
+        assertEquals(frame(3, 4), pollOutbox());
+        assertEquals(frame(4, 4), pollOutbox());
+        assertEquals(null, pollOutbox());
     }
 
     @Test
@@ -69,16 +77,22 @@ public class SlidingWindowPTest {
         // Given
         MockInbox inbox = new MockInbox();
         for (long i = 4; i >= 0; i--) {
-            inbox.add(entry(i, 1L));
+            inbox.add(frame(i, 1));
+        }
+        for (long i = 0; i <= 4; i++) {
+            inbox.add(new Punctuation(i));
         }
 
         // When
         swp.process(0, inbox);
 
         // Then
-        assertEquals(entry(3L, 4L), outbox.queueWithOrdinal(0).poll());
-        assertEquals(entry(4L, 4L), outbox.queueWithOrdinal(0).poll());
-        assertEquals(null, outbox.queueWithOrdinal(0).poll());
+        assertEquals(frame(0, 1), pollOutbox());
+        assertEquals(frame(1, 2), pollOutbox());
+        assertEquals(frame(2, 3), pollOutbox());
+        assertEquals(frame(3, 4), pollOutbox());
+        assertEquals(frame(4, 4), pollOutbox());
+        assertEquals(null, pollOutbox());
     }
 
     @Test
@@ -87,19 +101,34 @@ public class SlidingWindowPTest {
         final List<Long> streamSeqsToAdd = LongStream.range(0, 100).boxed().collect(toList());
         shuffle(streamSeqsToAdd);
         MockInbox inbox = new MockInbox();
-        for (Long i : streamSeqsToAdd) {
-            inbox.add(entry(i, 1L));
+        for (long i : streamSeqsToAdd) {
+            inbox.add(frame(i, 1));
+        }
+        for (long i = 0; i < 100; i++) {
+            inbox.add(new Punctuation(i));
         }
 
         // When
         swp.process(0, inbox);
 
         // Then
-        for (long i = 3; i < 100; i++) {
-            assertEquals(entry(i, 4L), outbox.queueWithOrdinal(0).poll());
+        assertEquals(frame(0, 1), pollOutbox());
+        assertEquals(frame(1, 2), pollOutbox());
+        assertEquals(frame(2, 3), pollOutbox());
+        assertEquals(frame(3, 4), pollOutbox());
+        for (long i = 4; i < 100; i++) {
+            assertEquals(frame(i, 4), pollOutbox());
 
         }
-        assertEquals(null, outbox.queueWithOrdinal(0).poll());
+        assertEquals(null, pollOutbox());
+    }
+
+    private Object pollOutbox() {
+        return outbox.queueWithOrdinal(0).poll();
+    }
+
+    private static Frame<Long, Long> frame(long seq, long value) {
+        return new Frame<>(seq, 77L, value);
     }
 
     static class MockInbox extends ArrayDeque implements Inbox {}

@@ -94,7 +94,6 @@ public final class FrameProcessors {
         return ProcessorSupplier.of(() -> new SlidingWindowP<>(windowSize, collector));
     }
 
-
     private static class GroupByFrameP<T, K, F> extends StreamingProcessorBase {
         private final SortedMap<Long, Map<K, F>> seqToKeyToFrame = new TreeMap<>();
         private final ToLongFunction<? super T> extractEventSeqF;
@@ -116,7 +115,7 @@ public final class FrameProcessors {
             this.supplier = collector.supplier();
             this.accumulator = collector.accumulator();
             this.puncFlatMapper = flatMapper(punc ->
-                    traverseIterable(seqToKeyToFrame.headMap(punc.seq() + 1).entrySet())
+                    traverseWithRemoval(seqToKeyToFrame.headMap(punc.seq() + 1).entrySet())
                             .flatMap(seqAndFrame -> concat(
                                     traverseIterable(seqAndFrame.getValue().entrySet())
                                             .map(e -> new Frame<>(
@@ -137,14 +136,20 @@ public final class FrameProcessors {
 
         @Override
         protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
-            boolean done = puncFlatMapper.tryProcess(punc);
-            if (done) {
-                for (Iterator<Long> it = seqToKeyToFrame.headMap(punc.seq() + 1).keySet().iterator(); it.hasNext();) {
-                    it.next();
-                    it.remove();
+            return puncFlatMapper.tryProcess(punc);
+        }
+
+        private static <T> Traverser<T> traverseWithRemoval(Iterable<T> iterable) {
+            Iterator<T> iterator = iterable.iterator();
+            return () -> {
+                if (!iterator.hasNext()) {
+                    return null;
                 }
-            }
-            return done;
+                T t = iterator.next();
+                assert t != null : "Iterator returned null element";
+                iterator.remove();
+                return t;
+            };
         }
     }
 
@@ -182,7 +187,7 @@ public final class FrameProcessors {
         protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
             boolean done = puncFlatMapper.tryProcess(punc);
             if (done) {
-                seqToKeyToFrame.remove(punc.seq() - windowSize);
+                seqToKeyToFrame.remove(punc.seq() + 1 - windowSize);
             }
             return done;
         }
