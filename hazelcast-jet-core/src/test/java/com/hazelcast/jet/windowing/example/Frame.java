@@ -74,8 +74,12 @@ public final class Frame<K, V> implements Serializable, Map.Entry<K,V> {
 
     @Override
     public String toString() {
-        //hack
-        String valueStr = value instanceof long[] ? Arrays.toString((long[])value) : value.toString();
+        // Here's some hacky code that special-cases some types of value
+        // which lack a proper toString implementation
+        String valueStr =
+                value instanceof long[] ? Arrays.toString((long[])value)
+              : value instanceof Object[] ? Arrays.toString((Object[])value)
+              : value.toString();
         return "Frame{seq=" + seq + ", key=" + key + ", value=" + valueStr + '}';
     }
 }
