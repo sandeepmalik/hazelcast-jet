@@ -66,7 +66,7 @@ public class TradeMonitor {
         put("AAPL", 15000);
     }};
 
-    private static final boolean IS_SLOW = true;
+    private static final boolean IS_SLOW = false;
 
     public static void main(String[] args) throws Exception {
         System.setProperty("hazelcast.logging.type", "log4j");
@@ -99,7 +99,7 @@ public class TradeMonitor {
             Vertex generateEvents = slow(dag.newVertex("generate-events", () -> new GenerateTradesP(IS_SLOW ? 500 : 0)));
             Vertex insertPunctuation = slow(dag.newVertex("insert-punctuation",
                     () -> new InsertPunctuationP<>(Trade::getTime, 3000L, 3000L, 500L, 500L)));
-            Vertex peek = dag.newVertex("peek", PeekP::new).localParallelism(1);
+//            Vertex peek = dag.newVertex("peek", PeekP::new).localParallelism(1);
             Vertex groupByFrame = slow(dag.newVertex("group-by-frame",
                     groupByFrame(Trade::getTicker, Trade::getTime, ts -> ts / 1_000, counting())
             ));
@@ -114,7 +114,7 @@ public class TradeMonitor {
                .edge(between(slidingWindow, sink));
 
 //            dag.edge(from(generateEvents, 1).to(peek));
-            dag.edge(from(groupByFrame, 1).to(peek, 0));
+//            dag.edge(from(groupByFrame, 1).to(peek, 0));
 //            dag.edge(from(slidingWindow, 1).to(peek, 0));
 
             jet.newJob(dag).execute();

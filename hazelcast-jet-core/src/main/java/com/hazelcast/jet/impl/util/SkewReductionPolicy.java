@@ -111,15 +111,12 @@ public class SkewReductionPolicy {
      */
     public boolean observePunc(int realQueueIndex, final long puncSeq) {
         if (observedPuncSeqs[realQueueIndex] >= puncSeq) {
-            // this is possible with SKIP scenario, as we increase observedPuncSeqs value without receiving punct
-            // from that queue
-            if (skewExceededAction == SkewExceededAction.SKIP) {
-                return false;
-            } else {
-                // TODO this happens, why?
-//                throw new AssertionError("Punctuations not monotonically increasing on queue");
-                return false;
+            // this is possible with SKIP scenario, where we increase observedPuncSeqs value
+            // without receiving punct from that queue
+            if (skewExceededAction != SkewExceededAction.SKIP) {
+                throw new AssertionError("Punctuations not monotonically increasing on queue");
             }
+            return false;
         }
 
         boolean res = reorderQueues(realQueueIndex, puncSeq);

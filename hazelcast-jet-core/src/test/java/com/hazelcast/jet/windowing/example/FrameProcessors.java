@@ -116,7 +116,7 @@ public final class FrameProcessors {
             this.supplier = collector.supplier();
             this.accumulator = collector.accumulator();
             this.puncFlatMapper = flatMapper(punc ->
-                    traverseWithRemoval(seqToKeyToFrame.headMap(punc.seq() + 1).entrySet())
+                    traverseWithRemoval(seqToKeyToFrame.headMap(toFrameSeqF.applyAsLong(punc.seq()) + 1).entrySet())
                             .flatMap(seqAndFrame -> concat(
                                     traverseIterable(seqAndFrame.getValue().entrySet())
                                             .map(e -> new Frame<>(seqAndFrame.getKey(), e.getKey(), e.getValue())),
@@ -139,6 +139,8 @@ public final class FrameProcessors {
 
         @Override
         protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
+            assert punc.seq() >= currentPunc
+                    : "Non-monotonic punctuation in GBF: already saw " + currentPunc + ", now getting " + punc.seq();
             currentPunc = punc.seq();
             return puncFlatMapper.tryProcess(punc);
         }
