@@ -29,7 +29,6 @@ import java.util.ArrayDeque;
 import java.util.List;
 import java.util.stream.LongStream;
 
-import static com.hazelcast.jet.Util.entry;
 import static com.hazelcast.jet.windowing.example.FrameProcessors.slidingWindow;
 import static java.util.Collections.shuffle;
 import static java.util.stream.Collectors.toList;
@@ -39,6 +38,7 @@ import static org.mockito.Mockito.mock;
 public class SlidingWindowPTest {
 
     private Processor swp;
+    private MockInbox inbox;
     private ArrayDequeOutbox outbox;
 
     @Before
@@ -47,12 +47,12 @@ public class SlidingWindowPTest {
                 .get(1).iterator().next();
         outbox = new ArrayDequeOutbox(1, new int[] {101});
         swp.init(outbox, mock(Context.class));
+        inbox = new MockInbox();
     }
 
     @Test
     public void when_receiveAscendingSeqs_then_emitAscending() {
         // Given
-        MockInbox inbox = new MockInbox();
         for (long i = 0; i <= 4; i++) {
             inbox.add(frame(i, 1));
         }
@@ -75,7 +75,6 @@ public class SlidingWindowPTest {
     @Test
     public void when_receiveDescendingSeqs_then_emitAscending() {
         // Given
-        MockInbox inbox = new MockInbox();
         for (long i = 4; i >= 0; i--) {
             inbox.add(frame(i, 1));
         }
@@ -100,7 +99,6 @@ public class SlidingWindowPTest {
         // Given
         final List<Long> streamSeqsToAdd = LongStream.range(0, 100).boxed().collect(toList());
         shuffle(streamSeqsToAdd);
-        MockInbox inbox = new MockInbox();
         for (long i : streamSeqsToAdd) {
             inbox.add(frame(i, 1));
         }

@@ -118,8 +118,7 @@ public final class FrameProcessors {
                     traverseWithRemoval(seqToKeyToFrame.headMap(punc.seq() + 1).entrySet())
                             .flatMap(seqAndFrame -> concat(
                                     traverseIterable(seqAndFrame.getValue().entrySet())
-                                            .map(e -> new Frame<>(
-                                                    seqAndFrame.getKey(), e.getKey(), e.getValue())),
+                                            .map(e -> new Frame<>(seqAndFrame.getKey(), e.getKey(), e.getValue())),
                                     Traverser.over(new Punctuation(seqAndFrame.getKey())))));
         }
 
@@ -155,6 +154,7 @@ public final class FrameProcessors {
 
     private static class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
         private final SortedMap<Long, Map<K, F>> seqToKeyToFrame = new TreeMap<>();
+        private SortedMap<Long, Map<K, F>> headMap;
         private final BinaryOperator<F> combiner;
         private final FlatMapper<Punctuation, Frame<K, R>> puncFlatMapper;
         private final int windowSize;
@@ -164,11 +164,11 @@ public final class FrameProcessors {
             this.combiner = collector.combiner();
             Function<F, R> finisher = collector.finisher();
             this.puncFlatMapper = flatMapper(punc -> {
-                Map<K, F> mx = seqToKeyToFrame.headMap(punc.seq() + 1)
-                                              .values().stream()
-                                              .flatMap(m -> m.entrySet().stream())
-                                              .collect(toMap(Entry::getKey, Entry::getValue, combiner));
-                return traverseIterable(mx.entrySet())
+                Map<K, F> windows = seqToKeyToFrame.headMap(punc.seq() + 1)
+                                                   .values().stream()
+                                                   .flatMap(m -> m.entrySet().stream())
+                                                   .collect(toMap(Entry::getKey, Entry::getValue, combiner));
+                return traverseIterable(windows.entrySet())
                         .map(e -> new Frame<>(punc.seq(), e.getKey(), finisher.apply(e.getValue())));
             });
         }

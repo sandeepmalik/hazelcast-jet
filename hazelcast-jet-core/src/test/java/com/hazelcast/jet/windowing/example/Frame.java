@@ -38,10 +38,12 @@ public final class Frame<K, V> implements Serializable, Map.Entry<K,V> {
         return seq;
     }
 
+    @Override
     public K getKey() {
         return key;
     }
 
+    @Override
     public V getValue() {
         return value;
     }
