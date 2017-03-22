@@ -102,6 +102,7 @@ public final class FrameProcessors {
         private final Supplier<F> supplier;
         private final BiConsumer<F, ? super T> accumulator;
         private final FlatMapper<Punctuation, Object> puncFlatMapper;
+        private long currentPunc = Long.MIN_VALUE;
 
         GroupByFrameP(
                 Function<? super T, K> extractKeyF,
@@ -126,6 +127,9 @@ public final class FrameProcessors {
         protected boolean tryProcess0(@Nonnull Object item) {
             T t = (T) item;
             long eventSeq = extractEventSeqF.applyAsLong(t);
+            if (eventSeq <= currentPunc) {
+                return true;
+            }
             K key = extractKeyF.apply(t);
             F frame = seqToKeyToFrame.computeIfAbsent(toFrameSeqF.applyAsLong(eventSeq), x -> new HashMap<>())
                                      .computeIfAbsent(key, x -> supplier.get());
@@ -135,6 +139,7 @@ public final class FrameProcessors {
 
         @Override
         protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
+            currentPunc = punc.seq();
             return puncFlatMapper.tryProcess(punc);
         }
 
