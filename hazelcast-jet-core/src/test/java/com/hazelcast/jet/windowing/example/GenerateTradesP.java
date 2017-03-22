@@ -28,7 +28,7 @@ import java.util.function.Supplier;
 
 import static com.hazelcast.jet.impl.util.Util.memoize;
 
-public class TradeGeneratorP extends AbstractProcessor {
+public class GenerateTradesP extends AbstractProcessor {
 
     public static final AtomicLong tradeCount = new AtomicLong();
 
@@ -39,14 +39,14 @@ public class TradeGeneratorP extends AbstractProcessor {
     private final Supplier<String[]> tickers = memoize(() -> tickerToPrice.keySet().toArray(new String[0]));
     private int tradeCountLocal;
 
-    TradeGeneratorP(int periodMillis) {
+    GenerateTradesP(int periodMillis) {
         Traverser<Trade> traverser = new Traverser<Trade>() {
-            public int tickerIndex;
-            public long lag;
+            int tickerIndex;
+            long lag;
 
             @Override
             public Trade next() {
-                String[] tickers = TradeGeneratorP.this. tickers.get();
+                String[] tickers = GenerateTradesP.this. tickers.get();
                 String ticker = tickers[tickerIndex++];
                 if (tickerIndex == tickers.length) {
                     tickerIndex = 0;

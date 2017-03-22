@@ -96,7 +96,7 @@ public class TradeMonitor {
 
             DAG dag = new DAG();
             Vertex tickerSource = dag.newVertex("ticker-source", readMap(initial.getName()));
-            Vertex generateEvents = slow(dag.newVertex("generate-events", () -> new TradeGeneratorP(IS_SLOW ? 500 : 0)));
+            Vertex generateEvents = slow(dag.newVertex("generate-events", () -> new GenerateTradesP(IS_SLOW ? 500 : 0)));
             Vertex insertPunctuation = slow(dag.newVertex("insert-punctuation",
                     () -> new InsertPunctuationP<>(Trade::getTime, 3000L, 3000L, 500L, 500L)));
             Vertex peek = dag.newVertex("peek", PeekP::new).localParallelism(1);
@@ -120,8 +120,8 @@ public class TradeMonitor {
             jet.newJob(dag).execute();
 
             while (true) {
-                logger.info("Trade count: " + TradeGeneratorP.tradeCount);
-                TradeGeneratorP.tradeCount.set(0);
+                logger.info("Trade count: " + GenerateTradesP.tradeCount);
+                GenerateTradesP.tradeCount.set(0);
                 Thread.sleep(1000);
             }
 
