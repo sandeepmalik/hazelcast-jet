@@ -83,16 +83,12 @@ public final class Util {
         void run() throws Exception;
     }
 
-    public static int indexOfMin(@Nonnull long[] items) {
-        int indexOfMin = -1;
-        long min = Long.MAX_VALUE;
-        for (int i = 0; i < items.length; i++) {
-            if (items[i] < min) {
-                min = items[i];
-                indexOfMin = i;
-            }
+    public static int indexOf(int[] haystack, int needle) {
+        for (int i = 0; i < haystack.length; i++) {
+            if (haystack[i] == needle)
+                return i;
         }
-        return indexOfMin;
+        return -1;
     }
 
     @Nonnull

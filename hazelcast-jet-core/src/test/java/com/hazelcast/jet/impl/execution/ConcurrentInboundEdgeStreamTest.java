@@ -21,6 +21,7 @@ import com.hazelcast.internal.util.concurrent.update.OneToOneConcurrentArrayQueu
 import com.hazelcast.internal.util.concurrent.update.QueuedPipe;
 import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.impl.util.ProgressState;
+import com.hazelcast.jet.impl.util.SkewReductionPolicy.SkewExceededAction;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -50,7 +51,7 @@ public class ConcurrentInboundEdgeStreamTest {
         //noinspection unchecked
         ConcurrentConveyor<Object> conveyor = ConcurrentConveyor.concurrentConveyor(senderGone, q1, q2);
 
-        stream = new ConcurrentInboundEdgeStream(conveyor, 0, 0, 16_000);
+        stream = new ConcurrentInboundEdgeStream(conveyor, 0, 0, 16_000, 0, 0, SkewExceededAction.NO_ACTION);
     }
 
     @Test

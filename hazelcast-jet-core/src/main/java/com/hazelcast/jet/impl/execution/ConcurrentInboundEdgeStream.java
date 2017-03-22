@@ -22,13 +22,13 @@ import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.impl.util.EventSeqHistory;
 import com.hazelcast.jet.impl.util.ProgressState;
 import com.hazelcast.jet.impl.util.ProgressTracker;
+import com.hazelcast.jet.impl.util.SkewReductionPolicy;
+import com.hazelcast.jet.impl.util.SkewReductionPolicy.SkewExceededAction;
 import com.hazelcast.util.function.Predicate;
 
-import java.util.Arrays;
 import java.util.Collection;
 
 import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
-import static com.hazelcast.jet.impl.util.Util.indexOfMin;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
@@ -45,20 +45,18 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
     private final ConcurrentConveyor<Object> conveyor;
     private final ProgressTracker tracker = new ProgressTracker();
     private final PunctuationDetector puncDetector = new PunctuationDetector();
-    private final long[] observedPuncSeqs;
-    private int indexOfBottomPunc;
     private long lastEmittedPunc = Long.MIN_VALUE;
-    private long topReceivedPunc = Long.MIN_VALUE;
-    private EventSeqHistory eventSeqHistory;
+    private final EventSeqHistory eventSeqHistory;
+    private final SkewReductionPolicy skewReductionPolicy;
 
-    public ConcurrentInboundEdgeStream(ConcurrentConveyor<Object> conveyor, int ordinal, int priority, long maxRetainMs) {
+    public ConcurrentInboundEdgeStream(ConcurrentConveyor<Object> conveyor, int ordinal, int priority,
+            long maxRetainMs, long maxSkew, long applyPriorityThreshold, SkewExceededAction skewExceededAction) {
         this.conveyor = conveyor;
         this.ordinal = ordinal;
         this.priority = priority;
         this.eventSeqHistory = new EventSeqHistory(MILLISECONDS.toNanos(maxRetainMs), HISTORIC_SEQS_COUNT);
 
-        observedPuncSeqs = new long[conveyor.queueCount()];
-        Arrays.fill(observedPuncSeqs, Long.MIN_VALUE);
+        skewReductionPolicy = new SkewReductionPolicy(conveyor.queueCount(), maxSkew, applyPriorityThreshold, skewExceededAction);
     }
 
     @Override
@@ -77,7 +75,11 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
     @Override
     public ProgressState drainTo(Collection<Object> dest) {
         tracker.reset();
-        for (int queueIndex = 0; queueIndex < conveyor.queueCount(); queueIndex++) {
+        for (int orderedQueueIndex = 0; orderedQueueIndex < conveyor.queueCount(); orderedQueueIndex++) {
+            if (!skewReductionPolicy.shouldDrainQueue(orderedQueueIndex, tracker.isMadeProgress())) {
+                break;
+            }
+            int queueIndex = skewReductionPolicy.realQueueIndex(orderedQueueIndex);
             final Pipe<Object> q = conveyor.queue(queueIndex);
             if (q == null) {
                 continue;
@@ -87,21 +89,13 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
                 conveyor.removeQueue(queueIndex);
                 continue;
             }
-            if (punc != null) {
-                assert observedPuncSeqs[queueIndex] < punc.seq() : "Punctuations not monotonically increasing on queue";
-                topReceivedPunc = Math.max(topReceivedPunc, punc.seq());
-                observedPuncSeqs[queueIndex] = punc.seq();
-
-                // If this queue was the smallest and has a newer punc, lets find the new smallest punct
-                // from some other queue.
-                if (indexOfBottomPunc == queueIndex) {
-                    indexOfBottomPunc = indexOfMin(observedPuncSeqs);
-                }
+            if (punc != null && skewReductionPolicy.observePunc(queueIndex, punc.seq())) {
+                break;
             }
         }
 
-        long topPunctSomeTimeAgo = eventSeqHistory.sample(System.nanoTime(), topReceivedPunc);
-        long bottomPunctNow = observedPuncSeqs[indexOfBottomPunc];
+        long topPunctSomeTimeAgo = eventSeqHistory.sample(System.nanoTime(), skewReductionPolicy.topObservedPunc());
+        long bottomPunctNow = skewReductionPolicy.bottomObservedPunc();
         long puncToEmit = Math.max(topPunctSomeTimeAgo, bottomPunctNow);
         if (puncToEmit > lastEmittedPunc) {
             dest.add(new Punctuation(puncToEmit));

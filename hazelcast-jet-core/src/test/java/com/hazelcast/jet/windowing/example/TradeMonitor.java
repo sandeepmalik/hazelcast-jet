@@ -121,7 +121,7 @@ public class TradeMonitor {
                .edge(between(interleavePunctuation, groupByFrame).partitioned(Trade::getTicker, HASH_CODE))
                .edge(between(groupByFrame, combineFrames).partitioned(Frame<Object, Object>::getKey)
                                                          .distributed())
-               .edge(between(combineFrames, filterPunctuations))
+               .edge(between(combineFrames, filterPunctuations).oneToMany())
                .edge(between(filterPunctuations, sink));
 
 //            dag.edge(from(generateEvents, 1).to(peek));
