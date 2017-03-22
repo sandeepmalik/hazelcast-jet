@@ -29,12 +29,12 @@ import java.util.stream.Collectors;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
 
-public class InterleavePunctuationPTest {
+public class InsertPunctuationPTest {
 
     private static final long LAG = 3;
 
     private MyClock clock;
-    private InterleavePunctuationP<Item> p;
+    private InsertPunctuationP<Item> p;
     private ArrayDequeOutbox outbox;
 
     class Item {
@@ -83,7 +83,7 @@ public class InterleavePunctuationPTest {
     @Before
     public void setUp() {
         clock = new MyClock(100);
-        p = new InterleavePunctuationP<>(Item::getTime, LAG, 16L, 3, 3, clock::time);
+        p = new InsertPunctuationP<>(Item::getTime, LAG, 16L, 3, 3, clock::time);
 
         outbox = new ArrayDequeOutbox(128, new int[]{128});
         Context context = mock(Context.class);

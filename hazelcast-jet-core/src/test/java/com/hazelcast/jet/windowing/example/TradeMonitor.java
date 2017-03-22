@@ -22,7 +22,6 @@ import com.hazelcast.jet.DAG;
 import com.hazelcast.jet.Jet;
 import com.hazelcast.jet.JetInstance;
 import com.hazelcast.jet.Processors;
-import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.Vertex;
 import com.hazelcast.jet.config.InstanceConfig;
 import com.hazelcast.jet.config.JetConfig;
@@ -45,7 +44,6 @@ import java.util.stream.Stream;
 import static com.hazelcast.jet.Edge.between;
 import static com.hazelcast.jet.Edge.from;
 import static com.hazelcast.jet.Partitioner.HASH_CODE;
-import static com.hazelcast.jet.Processors.filter;
 import static com.hazelcast.jet.Processors.readMap;
 import static com.hazelcast.jet.stream.DistributedCollectors.counting;
 import static com.hazelcast.jet.windowing.example.FrameProcessors.groupByFrame;
@@ -99,8 +97,8 @@ public class TradeMonitor {
             DAG dag = new DAG();
             Vertex tickerSource = dag.newVertex("ticker-source", readMap(initial.getName()));
             Vertex generateEvents = slow(dag.newVertex("generate-events", () -> new TradeGeneratorP(IS_SLOW ? 500 : 0)));
-            Vertex interleavePunctuation = slow(dag.newVertex("interleavePunctuation",
-                    () -> new InterleavePunctuationP<>(Trade::getTime, 3000L, 3000L, 500L, 500L)));
+            Vertex insertPunctuation = slow(dag.newVertex("insert-punctuation",
+                    () -> new InsertPunctuationP<>(Trade::getTime, 3000L, 3000L, 500L, 500L)));
             Vertex peek = dag.newVertex("peek", PeekP::new).localParallelism(1);
             Vertex groupByFrame = slow(dag.newVertex("group-by-frame",
                     groupByFrame(Trade::getTicker, Trade::getTime, ts -> ts / 1_000, counting())
@@ -109,8 +107,8 @@ public class TradeMonitor {
             Vertex sink = dag.newVertex("sink", Processors.writeMap("sink")).localParallelism(1);
 
             dag.edge(between(tickerSource, generateEvents).broadcast().distributed())
-               .edge(between(generateEvents, interleavePunctuation).oneToMany())
-               .edge(between(interleavePunctuation, groupByFrame).partitioned(Trade::getTicker, HASH_CODE))
+               .edge(between(generateEvents, insertPunctuation).oneToMany())
+               .edge(between(insertPunctuation, groupByFrame).partitioned(Trade::getTicker, HASH_CODE))
                .edge(between(groupByFrame, slidingWindow).partitioned(Frame<Object, Object>::getKey)
                                                          .distributed())
                .edge(between(slidingWindow, sink));

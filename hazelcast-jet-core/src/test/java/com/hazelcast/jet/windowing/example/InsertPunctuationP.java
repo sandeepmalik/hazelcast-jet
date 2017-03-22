@@ -56,7 +56,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  * is also the maximum time to retain data about an event in the system before
  * sending it to the data sink.
  */
-public class InterleavePunctuationP<T> extends AbstractProcessor {
+public class InsertPunctuationP<T> extends AbstractProcessor {
 
     private static final int HISTORIC_SEQS_COUNT = 16;
 
@@ -83,14 +83,14 @@ public class InterleavePunctuationP<T> extends AbstractProcessor {
      *                        that triggers the emission of a new punctuation
      * @param timeTrigger maximum time that can pass between emitting successive punctuations
      */
-    public InterleavePunctuationP(ToLongFunction<T> extractEventSeqF, long punctuationLag,
-            long maxRetainTime, long eventSeqTrigger, long timeTrigger) {
+    public InsertPunctuationP(ToLongFunction<T> extractEventSeqF, long punctuationLag,
+                              long maxRetainTime, long eventSeqTrigger, long timeTrigger) {
         this(extractEventSeqF, punctuationLag, MILLISECONDS.toNanos(maxRetainTime),
                 eventSeqTrigger, MILLISECONDS.toNanos(timeTrigger), System::nanoTime);
     }
 
-    InterleavePunctuationP(ToLongFunction<T> extractEventSeqF, long punctuationLag,
-                           long maxRetain, long eventSeqTrigger, long timeTrigger, LongSupplier clock) {
+    InsertPunctuationP(ToLongFunction<T> extractEventSeqF, long punctuationLag,
+                       long maxRetain, long eventSeqTrigger, long timeTrigger, LongSupplier clock) {
         this.extractEventSeqF = extractEventSeqF;
         this.punctuationLag = punctuationLag;
         this.clock = clock;
