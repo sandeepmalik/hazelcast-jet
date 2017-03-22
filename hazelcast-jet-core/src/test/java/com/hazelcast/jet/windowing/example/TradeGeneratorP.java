@@ -37,6 +37,7 @@ public class TradeGeneratorP extends AbstractProcessor {
     private final Map<String, Integer> tickerToPrice = new HashMap<>();
 
     private final Supplier<String[]> tickers = memoize(() -> tickerToPrice.keySet().toArray(new String[0]));
+    private int tradeCountLocal;
 
     TradeGeneratorP(int periodMillis) {
         Traverser<Trade> traverser = new Traverser<Trade>() {
@@ -53,7 +54,11 @@ public class TradeGeneratorP extends AbstractProcessor {
                 lag++;
                 if (lag == 2000)
                     lag = 0;
-                tradeCount.incrementAndGet();
+                tradeCountLocal++;
+                if (tradeCountLocal == 1000) {
+                    tradeCount.addAndGet(tradeCountLocal);
+                    tradeCountLocal = 0;
+                }
                 return new Trade(System.currentTimeMillis() - lag, ticker, 100, 10000);
             }
         };
