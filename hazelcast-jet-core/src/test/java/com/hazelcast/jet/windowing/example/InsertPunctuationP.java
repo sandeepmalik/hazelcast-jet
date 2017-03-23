@@ -130,8 +130,4 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
             nextPuncTime = now + timeTrigger;
         }
     }
-
-    public long getPunctuationLag() {
-        return punctuationLag;
-    }
 }

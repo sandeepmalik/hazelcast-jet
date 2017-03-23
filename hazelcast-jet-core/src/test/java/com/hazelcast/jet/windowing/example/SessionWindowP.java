@@ -23,10 +23,14 @@ import com.hazelcast.jet.StreamingProcessorBase;
 import com.hazelcast.jet.stream.DistributedCollector;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Queue;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.function.BiConsumer;
 
 public class SessionWindowP<T, K, A> extends StreamingProcessorBase {
@@ -34,80 +38,93 @@ public class SessionWindowP<T, K, A> extends StreamingProcessorBase {
     private final ToLongFunction<? super T> extractEventSeqF;
     private final Function<? super T, K> extractKeyF;
     private final BiConsumer<? super A, ? super T> accumulateF;
+    private final Map<K, Session> keyToSession = new HashMap<>();
+    private final SortedMap<Long, Map<K, Session>> deadlineToKeyToSession = new TreeMap<>();
+    private final Queue<Session> expiredSessionQueue = new ArrayDeque<>();
     private final long maxSeqGap;
-    private final long emissionInterval;
-
-    private Map<K, Session> keyToSession = new HashMap<>();
-    private long lastPunc;
-    private long nextEmission;
 
     private Iterator<Entry<K, Session>> sessionIterator;
 
-    public SessionWindowP(ToLongFunction<? super T> extractEventSeqF, Function<? super T, K> extractKeyF,
-                          long maxSeqGap, DistributedCollector<T, A, ?> collector, long emissionInterval
+    public SessionWindowP(
+            long maxSeqGap,
+            ToLongFunction<? super T> extractEventSeqF,
+            Function<? super T, K> extractKeyF,
+            DistributedCollector<T, A, ?> collector
     ) {
         this.extractEventSeqF = extractEventSeqF;
         this.extractKeyF = extractKeyF;
         this.accumulateF = collector.accumulator();
         this.maxSeqGap = maxSeqGap;
-        this.emissionInterval = emissionInterval;
     }
 
     @Override
     protected boolean tryProcess0(@Nonnull Object item) {
-        T t = (T) item;
-        K key = extractKeyF.apply(t);
-        // note that we might accumulate to windows, that should be already closed, but are not
-        // due to full outbox. I don't think this is a concern...
-        keyToSession.computeIfAbsent(key, k -> new Session())
-                    .merge(t);
+        T event = (T) item;
+        K key = extractKeyF.apply(event);
+        Session s = keyToSession.computeIfAbsent(key, Session::new);
 
+        // move session in deadline map from old deadline to new deadline
+        Map<K, Session> oldDeadlineMap = deadlineToKeyToSession.get(s.expiresAtPunc);
+        if (oldDeadlineMap != null) {
+            oldDeadlineMap.remove(s.key);
+        }
+        s.accept(event);
+        deadlineToKeyToSession.computeIfAbsent(s.expiresAtPunc, x -> new HashMap<>())
+                              .put(key, s);
         return true;
     }
 
     @Override
     protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
-        // now is the punc we received. This way we account for input stream lag
-        lastPunc = punc.seq();
+        // move expired sessions from deadline map to expired session queue
+        for (Iterator<Map<K, Session>> it = deadlineToKeyToSession.headMap(punc.seq() + 1).values().iterator();
+             it.hasNext();
+        ) {
+            for (Session ses : it.next().values()) {
+                expiredSessionQueue.add(ses);
+            }
+            it.remove();
+        }
         return true;
     }
 
     @Override
     public void process() {
-        if (sessionIterator == null) {
-            if (lastPunc <= nextEmission) {
-                return;
-            }
-            sessionIterator = keyToSession.entrySet().iterator();
-        }
-
-        // close windows that timed out
-        while (sessionIterator.hasNext()) {
+        for (Session ses; (ses = expiredSessionQueue.poll()) != null;) {
             if (getOutbox().hasReachedLimit()) {
                 return;
             }
-
-            Entry<K, Session> entry = sessionIterator.next();
-            if (entry.getValue().closeAtPunc <= lastPunc) {
-                sessionIterator.remove();
-                // frame seq is the end of session
-                emit(new Frame<>(entry.getValue().closeAtPunc, entry.getKey(), entry.getValue().acc));
-            }
+            emit(new Frame<>(ses.expiresAtPunc, ses.key, ses.acc));
+            expiredSessionQueue.remove();
         }
-
-        // we are done emitting this iterator
-        sessionIterator = null;
-        nextEmission = lastPunc + emissionInterval;
     }
 
     private final class Session {
-        long closeAtPunc;
+        K key;
+        long expiresAtPunc;
         A acc;
 
-        void merge(T item) {
-            long eventSeq = extractEventSeqF.applyAsLong(item);
-            closeAtPunc = Math.max(closeAtPunc, eventSeq + maxSeqGap);
-            accumulateF.accept(acc, item);
+        Session(K key) {
+            this.key = key;
+        }
+
+        void accept(T event) {
+            long eventSeq = extractEventSeqF.applyAsLong(event);
+            expiresAtPunc = Math.max(expiresAtPunc, eventSeq + maxSeqGap);
+            accumulateF.accept(acc, event);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return this == obj
+                    || obj != null
+                        && this.getClass() == obj.getClass()
+                        && this.key.equals(((Session) obj).key);
+        }
+
+        @Override
+        public int hashCode() {
+            return key.hashCode();
         }
     }
 }
