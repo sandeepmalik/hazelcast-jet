@@ -19,7 +19,6 @@ package com.hazelcast.jet.impl.util;
 import javax.annotation.Nonnull;
 import java.util.Arrays;
 
-import static com.hazelcast.jet.impl.util.Util.indexOf;
 import static com.hazelcast.util.Preconditions.checkNotNegative;
 import static com.hazelcast.util.Preconditions.checkTrue;
 
@@ -223,8 +222,16 @@ public class SkewReductionPolicy {
         return aheadPunc > behindPunc + maxSkew;
     }
 
-    public long getMaxSkew() {
+    long getMaxSkew() {
         return maxSkew;
     }
 
+    private static int indexOf(int[] haystack, int needle) {
+        for (int i = 0; i < haystack.length; i++) {
+            if (haystack[i] == needle) {
+                return i;
+            }
+        }
+        return -1;
+    }
 }

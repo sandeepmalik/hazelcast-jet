@@ -83,14 +83,6 @@ public final class Util {
         void run() throws Exception;
     }
 
-    public static int indexOf(int[] haystack, int needle) {
-        for (int i = 0; i < haystack.length; i++) {
-            if (haystack[i] == needle)
-                return i;
-        }
-        return -1;
-    }
-
     @Nonnull
     public static List<Address> getRemoteMembers(@Nonnull NodeEngine engine) {
         final Member localMember = engine.getLocalMember();
