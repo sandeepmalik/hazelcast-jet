@@ -43,8 +43,6 @@ public class SessionWindowP<T, K, A> extends StreamingProcessorBase {
     private final Queue<Session> expiredSessionQueue = new ArrayDeque<>();
     private final long maxSeqGap;
 
-    private Iterator<Entry<K, Session>> sessionIterator;
-
     public SessionWindowP(
             long maxSeqGap,
             ToLongFunction<? super T> extractEventSeqF,
