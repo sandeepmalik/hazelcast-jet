@@ -31,6 +31,8 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
 
+import static com.hazelcast.jet.Traversers.traverseIterable;
+
 public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
 
     private final long maxSeqGap;
@@ -56,9 +58,11 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
         this.finishAccumulationF = collector.finisher();
         this.maxSeqGap = maxSeqGap;
 
-        expiredSesFlatmapper = flatMapper(punc -> Traversers.traverseIterable(deadlineToKeyToSession.headMap(punc.seq() + 1).entrySet())
-                .flatMap(entry -> Traversers.traverseIterable(entry.getValue().entrySet())
-                        .map(entry2 -> new Frame<>(entry.getKey(), entry2.getKey(), finishAccumulationF.apply(entry2.getValue())))));
+        expiredSesFlatmapper = flatMapper(punc ->
+                traverseIterable(deadlineToKeyToSession.headMap(punc.seq() + 1).entrySet())
+                        .flatMap(entry -> traverseIterable(entry.getValue().entrySet())
+                                .map(entry2 -> new Frame<>(entry.getKey(), entry2.getKey(),
+                                        finishAccumulationF.apply(entry2.getValue())))));
     }
 
     @Override
