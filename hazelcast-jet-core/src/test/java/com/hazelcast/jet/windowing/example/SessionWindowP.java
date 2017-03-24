@@ -100,6 +100,7 @@ public class SessionWindowP<T, K, A> extends StreamingProcessorBase {
         ) {
             expiredSessionQueue.add(it.next());
             it.remove();
+            sesMap.keySet().forEach(keyToSession::remove);
         }
         return true;
     }
