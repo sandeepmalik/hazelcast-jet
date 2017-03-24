@@ -42,7 +42,7 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
     private final BiConsumer<? super A, ? super T> accumulateF;
     private final Function<A, R> finishAccumulationF;
     private final Map<K, Long> keyToDeadline = new HashMap<>();
-    private final SortedMap<Long, Map<K, A>> deadlineToKeyToSession = new TreeMap<>();
+    private final SortedMap<Long, Map<K, A>> deadlineToKeyToAcc = new TreeMap<>();
     private final FlatMapper<Punctuation, Frame<K, R>> expiredSessFlatmapper;
     private long lastObservedPunc;
 
@@ -60,14 +60,13 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
         this.maxSeqGap = maxSeqGap;
 
         expiredSessFlatmapper = flatMapper(punc ->
-                traverseIterableWithRemoval(deadlineToKeyToSession.headMap(punc.seq() + 1).entrySet())
-                    .flatMap(entry -> traverseIterable(entry.getValue().entrySet())
-                        .map(entry2 -> {
-                            keyToDeadline.remove(entry2.getKey());
-                            return new Frame<>(entry.getKey(), entry2.getKey(),
-                                    finishAccumulationF.apply(entry2.getValue()));
-                        })
-                    ));
+                traverseIterableWithRemoval(deadlineToKeyToAcc.headMap(punc.seq() + 1).entrySet())
+                        .flatMap(deadlineAndKeyToAcc -> traverseIterable(deadlineAndKeyToAcc.getValue().entrySet())
+                                .peek(keyAndAcc -> keyToDeadline.remove(keyAndAcc.getKey()))
+                                .map(keyAndAcc -> new Frame<>(
+                                        deadlineAndKeyToAcc.getKey(), keyAndAcc.getKey(),
+                                        finishAccumulationF.apply(keyAndAcc.getValue())))
+                        ));
     }
 
     @Override
@@ -80,7 +79,7 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
         }
         K key = extractKeyF.apply(event);
         Long oldDeadline = keyToDeadline.get(key);
-        Map<K, A> oldDeadlineMap = oldDeadline != null ? deadlineToKeyToSession.get(oldDeadline) : null;
+        Map<K, A> oldDeadlineMap = oldDeadline != null ? deadlineToKeyToAcc.get(oldDeadline) : null;
         A acc = oldDeadline != null ? oldDeadlineMap.get(key) : newAccumulatorF.get();
         accumulateF.accept(acc, event);
         long newDeadline = eventTime + maxSeqGap;
@@ -94,11 +93,11 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
         if (oldDeadlineMap != null) {
             oldDeadlineMap.remove(key);
             if (oldDeadlineMap.isEmpty()) {
-                deadlineToKeyToSession.remove(oldDeadline);
+                deadlineToKeyToAcc.remove(oldDeadline);
             }
         }
-        deadlineToKeyToSession.computeIfAbsent(newDeadline, x -> new HashMap<>())
-                              .put(key, acc);
+        deadlineToKeyToAcc.computeIfAbsent(newDeadline, x -> new HashMap<>())
+                          .put(key, acc);
         keyToDeadline.put(key, newDeadline);
         return true;
     }
