@@ -16,10 +16,7 @@
 
 package com.hazelcast.jet.windowing.example;
 
-import com.hazelcast.jet.Distributed.BinaryOperator;
-import com.hazelcast.jet.Distributed.Function;
-import com.hazelcast.jet.Distributed.LongUnaryOperator;
-import com.hazelcast.jet.Distributed.ToLongFunction;
+import com.hazelcast.jet.Distributed;
 import com.hazelcast.jet.ProcessorSupplier;
 import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.StreamingProcessorBase;
@@ -34,7 +31,11 @@ import java.util.Map.Entry;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
+import java.util.function.BinaryOperator;
+import java.util.function.Function;
+import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
+import java.util.function.ToLongFunction;
 
 import static com.hazelcast.jet.Traverser.concat;
 import static com.hazelcast.jet.Traversers.traverseIterable;
@@ -61,9 +62,9 @@ public final class FrameProcessors {
      * @param <F> type of frame returned from {@code sc.supplier()}
      */
     public static <T, K, F> ProcessorSupplier groupByFrame(
-            Function<? super T, K> extractKeyF,
-            ToLongFunction<? super T> extractTimestampF,
-            LongUnaryOperator toFrameSeqF,
+            Distributed.Function<? super T, K> extractKeyF,
+            Distributed.ToLongFunction<? super T> extractTimestampF,
+            Distributed.LongUnaryOperator toFrameSeqF,
             DistributedCollector<T, F, ?> collector
     ) {
         return ProcessorSupplier.of(() -> new GroupByFrameP<>(extractKeyF, extractTimestampF, toFrameSeqF, collector));
@@ -74,8 +75,8 @@ public final class FrameProcessors {
      * which doesn't group by key.
      */
     public static <T, F> ProcessorSupplier groupByFrame(
-            ToLongFunction<? super T> extractTimestampF,
-            LongUnaryOperator toFrameSeqF,
+            Distributed.ToLongFunction<? super T> extractTimestampF,
+            Distributed.LongUnaryOperator toFrameSeqF,
             DistributedCollector<T, F, ?> collector
     ) {
         return groupByFrame(t -> "global", extractTimestampF, toFrameSeqF, collector);
