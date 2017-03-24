@@ -66,6 +66,11 @@ public class SessionWindowP<T, K, A> extends StreamingProcessorBase {
     }
 
     @Override
+    public void process() {
+        expiredSesFlatmapper.tryProcess(0);
+    }
+
+    @Override
     protected boolean tryProcess0(@Nonnull Object item) {
         if (!expiredSesFlatmapper.tryProcess(0)) {
             return false;
@@ -76,6 +81,7 @@ public class SessionWindowP<T, K, A> extends StreamingProcessorBase {
         long oldDeadline = s.expiresAtPunc;
         s.accept(event);
         long newDeadline = s.expiresAtPunc;
+        assert newDeadline != Long.MIN_VALUE : "Broken event time: " + extractEventSeqF.applyAsLong(event);
         if (newDeadline == oldDeadline) {
             return true;
         }
@@ -98,16 +104,12 @@ public class SessionWindowP<T, K, A> extends StreamingProcessorBase {
         for (Iterator<Map<K, Session>> it = deadlineToKeyToSession.headMap(punc.seq() + 1).values().iterator();
              it.hasNext();
         ) {
-            expiredSessionQueue.add(it.next());
+            Map<K, Session> sesMap = it.next();
+            expiredSessionQueue.add(sesMap);
             it.remove();
             sesMap.keySet().forEach(keyToSession::remove);
         }
         return true;
-    }
-
-    @Override
-    public void process() {
-        expiredSesFlatmapper.tryProcess(0);
     }
 
     private final class Session {
