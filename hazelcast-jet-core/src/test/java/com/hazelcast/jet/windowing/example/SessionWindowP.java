@@ -17,6 +17,7 @@
 package com.hazelcast.jet.windowing.example;
 
 import com.hazelcast.jet.Distributed.Function;
+import com.hazelcast.jet.Distributed.Supplier;
 import com.hazelcast.jet.Distributed.ToLongFunction;
 import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.StreamingProcessorBase;
@@ -27,7 +28,6 @@ import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Queue;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -35,13 +35,14 @@ import java.util.function.BiConsumer;
 
 public class SessionWindowP<T, K, A> extends StreamingProcessorBase {
 
+    private final long maxSeqGap;
     private final ToLongFunction<? super T> extractEventSeqF;
     private final Function<? super T, K> extractKeyF;
+    private final Supplier<A> newAccumulatorF;
     private final BiConsumer<? super A, ? super T> accumulateF;
     private final Map<K, Session> keyToSession = new HashMap<>();
     private final SortedMap<Long, Map<K, Session>> deadlineToKeyToSession = new TreeMap<>();
     private final Queue<Session> expiredSessionQueue = new ArrayDeque<>();
-    private final long maxSeqGap;
 
     public SessionWindowP(
             long maxSeqGap,
@@ -51,6 +52,7 @@ public class SessionWindowP<T, K, A> extends StreamingProcessorBase {
     ) {
         this.extractEventSeqF = extractEventSeqF;
         this.extractKeyF = extractKeyF;
+        this.newAccumulatorF = collector.supplier();
         this.accumulateF = collector.accumulator();
         this.maxSeqGap = maxSeqGap;
     }
@@ -98,12 +100,13 @@ public class SessionWindowP<T, K, A> extends StreamingProcessorBase {
     }
 
     private final class Session {
-        K key;
+        final K key;
+        final A acc;
         long expiresAtPunc;
-        A acc;
 
         Session(K key) {
             this.key = key;
+            this.acc = newAccumulatorF.get();
         }
 
         void accept(T event) {
