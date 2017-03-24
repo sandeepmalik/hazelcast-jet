@@ -21,6 +21,7 @@ import com.hazelcast.jet.Distributed.Supplier;
 import com.hazelcast.jet.Distributed.ToLongFunction;
 import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.StreamingProcessorBase;
+import com.hazelcast.jet.Traverser;
 import com.hazelcast.jet.stream.DistributedCollector;
 
 import javax.annotation.Nonnull;
@@ -33,6 +34,8 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
 
+import static com.hazelcast.jet.Traversers.traverseIterable;
+
 public class SessionWindowP<T, K, A> extends StreamingProcessorBase {
 
     private final long maxSeqGap;
@@ -42,7 +45,8 @@ public class SessionWindowP<T, K, A> extends StreamingProcessorBase {
     private final BiConsumer<? super A, ? super T> accumulateF;
     private final Map<K, Session> keyToSession = new HashMap<>();
     private final SortedMap<Long, Map<K, Session>> deadlineToKeyToSession = new TreeMap<>();
-    private final Queue<Session> expiredSessionQueue = new ArrayDeque<>();
+    private final Queue<Map<K, Session>> expiredSessionQueue = new ArrayDeque<>();
+    private final FlatMapper<Object, Frame<K, A>> expiredSesFlatmapper;
 
     public SessionWindowP(
             long maxSeqGap,
@@ -55,40 +59,46 @@ public class SessionWindowP<T, K, A> extends StreamingProcessorBase {
         this.newAccumulatorF = collector.supplier();
         this.accumulateF = collector.accumulator();
         this.maxSeqGap = maxSeqGap;
+        Traverser<Map<K, Session>> trav = expiredSessionQueue::poll;
+        expiredSesFlatmapper = flatMapper(x -> trav.flatMap(sesMap -> traverseIterable(sesMap.values()))
+                                                   .map(ses -> new Frame<>(ses.expiresAtPunc, ses.key, ses.acc))
+        );
     }
 
     @Override
     protected boolean tryProcess0(@Nonnull Object item) {
+        if (!expiredSesFlatmapper.tryProcess(0)) {
+            return false;
+        }
         T event = (T) item;
         K key = extractKeyF.apply(event);
         Session s = keyToSession.computeIfAbsent(key, Session::new);
-
-        // move session in deadline map from old deadline to new deadline
-        Map<K, Session> oldDeadlineMap = deadlineToKeyToSession.get(s.expiresAtPunc);
-        assert oldDeadlineMap != null;
-
-        if (oldDeadlineMap.size() == 1) {
-            deadlineToKeyToSession.remove(s.expiresAtPunc);
-        } else {
-            oldDeadlineMap.remove(s.key);
-        }
-
+        long oldDeadline = s.expiresAtPunc;
         s.accept(event);
-        deadlineToKeyToSession.computeIfAbsent(s.expiresAtPunc, x -> new HashMap<>())
+        long newDeadline = s.expiresAtPunc;
+        if (newDeadline == oldDeadline) {
+            return true;
+        }
+        // move session in deadline map from old deadline to new deadline
+        Map<K, Session> oldDeadlineMap = deadlineToKeyToSession.get(oldDeadline);
+        if (oldDeadlineMap != null) {
+            oldDeadlineMap.remove(s.key);
+            if (oldDeadlineMap.isEmpty()) {
+                deadlineToKeyToSession.remove(oldDeadline);
+            }
+        }
+        deadlineToKeyToSession.computeIfAbsent(newDeadline, x -> new HashMap<>())
                               .put(key, s);
         return true;
     }
 
     @Override
     protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
-        // move expired sessions from deadline map to expired session queue
+        // move expired session maps from deadline map to expired session queue
         for (Iterator<Map<K, Session>> it = deadlineToKeyToSession.headMap(punc.seq() + 1).values().iterator();
              it.hasNext();
         ) {
-            for (Session ses : it.next().values()) {
-                expiredSessionQueue.add(ses);
-                keyToSession.remove(ses.key);
-            }
+            expiredSessionQueue.add(it.next());
             it.remove();
         }
         return true;
@@ -96,19 +106,13 @@ public class SessionWindowP<T, K, A> extends StreamingProcessorBase {
 
     @Override
     public void process() {
-        for (Session ses; (ses = expiredSessionQueue.poll()) != null;) {
-            if (getOutbox().hasReachedLimit()) {
-                return;
-            }
-            emit(new Frame<>(ses.expiresAtPunc, ses.key, ses.acc));
-            expiredSessionQueue.remove();
-        }
+        expiredSesFlatmapper.tryProcess(0);
     }
 
     private final class Session {
         final K key;
         final A acc;
-        long expiresAtPunc;
+        long expiresAtPunc = Long.MIN_VALUE;
 
         Session(K key) {
             this.key = key;
