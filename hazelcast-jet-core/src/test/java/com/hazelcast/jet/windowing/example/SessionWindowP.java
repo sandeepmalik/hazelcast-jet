@@ -21,7 +21,6 @@ import com.hazelcast.jet.Distributed.Supplier;
 import com.hazelcast.jet.Distributed.ToLongFunction;
 import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.StreamingProcessorBase;
-import com.hazelcast.jet.Traverser;
 import com.hazelcast.jet.Traversers;
 import com.hazelcast.jet.stream.DistributedCollector;
 
@@ -42,7 +41,7 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
     private final Function<A, R> finishAccumulationF;
     private final Map<K, Long> keyToDeadline = new HashMap<>();
     private final SortedMap<Long, Map<K, A>> deadlineToKeyToSession = new TreeMap<>();
-    private Traverser<Frame<K, R>> expiredSesTraverser;
+    private final FlatMapper<Punctuation, Frame<K, R>> expiredSesFlatmapper;
 
     public SessionWindowP(
             long maxSeqGap,
@@ -56,6 +55,10 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
         this.accumulateF = collector.accumulator();
         this.finishAccumulationF = collector.finisher();
         this.maxSeqGap = maxSeqGap;
+
+        expiredSesFlatmapper = flatMapper(punc -> Traversers.traverseIterable(deadlineToKeyToSession.headMap(punc.seq() + 1).entrySet())
+                .flatMap(entry -> Traversers.traverseIterable(entry.getValue().entrySet())
+                        .map(entry2 -> new Frame<>(entry.getKey(), entry2.getKey(), finishAccumulationF.apply(entry2.getValue())))));
     }
 
     @Override
@@ -88,20 +91,6 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
 
     @Override
     protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
-        if (expiredSesTraverser != null) {
-            if (emitCooperatively(expiredSesTraverser)) {
-                expiredSesTraverser = null;
-            } else {
-                return false;
-            }
-        }
-
-        expiredSesTraverser =
-                Traversers.traverseIterable(deadlineToKeyToSession.headMap(punc.seq() + 1).entrySet())
-                        .flatMap(entry -> Traversers.traverseIterable(entry.getValue().entrySet())
-                                .map(entry2 -> new Frame<>(entry.getKey(), entry2.getKey(), finishAccumulationF.apply(entry2.getValue()))));
-
-        // we don't consume the punc, until we are done emitting
-        return false;
+        return expiredSesFlatmapper.tryProcess(punc);
     }
 }
