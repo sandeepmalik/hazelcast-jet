@@ -45,8 +45,8 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
     private final BiConsumer<? super A, ? super T> accumulateF;
     private final Function<A, R> finishAccumulationF;
     private final Map<K, Session> keyToSession = new HashMap<>();
-    private final SortedMap<Long, Map<K, Session>> deadlineToKeyToSession = new TreeMap<>();
-    private final Queue<Map<K, Session>> expiredSessionQueue = new ArrayDeque<>();
+    private final SortedMap<Long, Map<K, Session<A>>> deadlineToKeyToSession = new TreeMap<>();
+    private final Queue<Map<K, Session<A>>> expiredSessionQueue = new ArrayDeque<>();
     private final FlatMapper<Object, Frame<K, R>> expiredSesFlatmapper;
 
     public SessionWindowP(
@@ -61,10 +61,10 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
         this.accumulateF = collector.accumulator();
         this.finishAccumulationF = collector.finisher();
         this.maxSeqGap = maxSeqGap;
-        Traverser<Map<K, Session>> trav = expiredSessionQueue::poll;
+        Traverser<Map<K, Session<A>>> trav = expiredSessionQueue::poll;
         expiredSesFlatmapper = flatMapper(x ->
-                trav.flatMap(sesMap -> traverseIterable(sesMap.values()))
-                    .map(ses -> new Frame<>(ses.expiresAtPunc, ses.key, finishAccumulationF.apply(ses.acc)))
+                trav.flatMap(sesMap -> traverseIterable(sesMap.entrySet()))
+                    .map(entry -> new Frame<>(entry.getValue().expiresAtPunc, entry.getKey(), finishAccumulationF.apply(entry.getValue().acc)))
         );
     }
 
@@ -80,18 +80,20 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
         }
         T event = (T) item;
         K key = extractKeyF.apply(event);
-        Session s = keyToSession.computeIfAbsent(key, Session::new);
+        Session<A> s = keyToSession.computeIfAbsent(key, k -> new Session(newAccumulatorF.get()));
         long oldDeadline = s.expiresAtPunc;
-        s.accept(event);
+        accumulateF.accept(s.acc, event);
+        long eventSeq = extractEventSeqF.applyAsLong(event);
+        s.expiresAtPunc = Math.max(s.expiresAtPunc, eventSeq + maxSeqGap);
         long newDeadline = s.expiresAtPunc;
         assert newDeadline != Long.MIN_VALUE : "Broken event time: " + extractEventSeqF.applyAsLong(event);
         if (newDeadline == oldDeadline) {
             return true;
         }
         // move session in deadline map from old deadline to new deadline
-        Map<K, Session> oldDeadlineMap = deadlineToKeyToSession.get(oldDeadline);
+        Map<K, Session<A>> oldDeadlineMap = deadlineToKeyToSession.get(oldDeadline);
         if (oldDeadlineMap != null) {
-            oldDeadlineMap.remove(s.key);
+            oldDeadlineMap.remove(key);
             if (oldDeadlineMap.isEmpty()) {
                 deadlineToKeyToSession.remove(oldDeadline);
             }
@@ -104,10 +106,10 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
     @Override
     protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
         // move expired session maps from deadline map to expired session queue
-        for (Iterator<Map<K, Session>> it = deadlineToKeyToSession.headMap(punc.seq() + 1).values().iterator();
+        for (Iterator<Map<K, Session<A>>> it = deadlineToKeyToSession.headMap(punc.seq() + 1).values().iterator();
              it.hasNext();
         ) {
-            Map<K, Session> sesMap = it.next();
+            Map<K, Session<A>> sesMap = it.next();
             expiredSessionQueue.add(sesMap);
             it.remove();
             sesMap.keySet().forEach(keyToSession::remove);
@@ -115,33 +117,12 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
         return true;
     }
 
-    private final class Session {
-        final K key;
+    private static final class Session<A> {
         final A acc;
         long expiresAtPunc = Long.MIN_VALUE;
 
-        Session(K key) {
-            this.key = key;
-            this.acc = newAccumulatorF.get();
-        }
-
-        void accept(T event) {
-            long eventSeq = extractEventSeqF.applyAsLong(event);
-            expiresAtPunc = Math.max(expiresAtPunc, eventSeq + maxSeqGap);
-            accumulateF.accept(acc, event);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            return this == obj
-                    || obj != null
-                        && this.getClass() == obj.getClass()
-                        && this.key.equals(((Session) obj).key);
-        }
-
-        @Override
-        public int hashCode() {
-            return key.hashCode();
+        private Session(A acc) {
+            this.acc = acc;
         }
     }
 }
