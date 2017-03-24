@@ -21,7 +21,6 @@ import com.hazelcast.jet.Distributed.Supplier;
 import com.hazelcast.jet.Distributed.ToLongFunction;
 import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.StreamingProcessorBase;
-import com.hazelcast.jet.Traversers;
 import com.hazelcast.jet.stream.DistributedCollector;
 
 import javax.annotation.Nonnull;
@@ -32,6 +31,7 @@ import java.util.TreeMap;
 import java.util.function.BiConsumer;
 
 import static com.hazelcast.jet.Traversers.traverseIterable;
+import static com.hazelcast.jet.Traversers.traverseIterableWithRemoval;
 
 public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
 
@@ -43,13 +43,14 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
     private final Function<A, R> finishAccumulationF;
     private final Map<K, Long> keyToDeadline = new HashMap<>();
     private final SortedMap<Long, Map<K, A>> deadlineToKeyToSession = new TreeMap<>();
-    private final FlatMapper<Punctuation, Frame<K, R>> expiredSesFlatmapper;
+    private final FlatMapper<Punctuation, Frame<K, R>> expiredSessFlatmapper;
+    private long lastObservedPunc;
 
     public SessionWindowP(
             long maxSeqGap,
             ToLongFunction<? super T> extractEventSeqF,
             Function<? super T, K> extractKeyF,
-            DistributedCollector<T, A, R> collector
+            DistributedCollector<? super T, A, R> collector
     ) {
         this.extractEventSeqF = extractEventSeqF;
         this.extractKeyF = extractKeyF;
@@ -58,22 +59,31 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
         this.finishAccumulationF = collector.finisher();
         this.maxSeqGap = maxSeqGap;
 
-        expiredSesFlatmapper = flatMapper(punc ->
-                traverseIterable(deadlineToKeyToSession.headMap(punc.seq() + 1).entrySet())
-                        .flatMap(entry -> traverseIterable(entry.getValue().entrySet())
-                                .map(entry2 -> new Frame<>(entry.getKey(), entry2.getKey(),
-                                        finishAccumulationF.apply(entry2.getValue())))));
+        expiredSessFlatmapper = flatMapper(punc ->
+                traverseIterableWithRemoval(deadlineToKeyToSession.headMap(punc.seq() + 1).entrySet())
+                    .flatMap(entry -> traverseIterable(entry.getValue().entrySet())
+                        .map(entry2 -> {
+                            keyToDeadline.remove(entry2.getKey());
+                            return new Frame<>(entry.getKey(), entry2.getKey(),
+                                    finishAccumulationF.apply(entry2.getValue()));
+                        })
+                    ));
     }
 
     @Override
     protected boolean tryProcess0(@Nonnull Object item) {
         T event = (T) item;
+        long eventTime = extractEventSeqF.applyAsLong(event);
+        // drop late events
+        if (eventTime <= lastObservedPunc) {
+            return true;
+        }
         K key = extractKeyF.apply(event);
         Long oldDeadline = keyToDeadline.get(key);
         Map<K, A> oldDeadlineMap = oldDeadline != null ? deadlineToKeyToSession.get(oldDeadline) : null;
         A acc = oldDeadline != null ? oldDeadlineMap.get(key) : newAccumulatorF.get();
         accumulateF.accept(acc, event);
-        long newDeadline = extractEventSeqF.applyAsLong(event) + maxSeqGap;
+        long newDeadline = eventTime + maxSeqGap;
         if (oldDeadline != null && oldDeadline > newDeadline)
             newDeadline = oldDeadline;
 
@@ -95,6 +105,7 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
 
     @Override
     protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
-        return expiredSesFlatmapper.tryProcess(punc);
+        lastObservedPunc = punc.seq();
+        return expiredSessFlatmapper.tryProcess(punc);
     }
 }

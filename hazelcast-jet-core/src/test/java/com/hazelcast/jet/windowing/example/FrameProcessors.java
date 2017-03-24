@@ -21,11 +21,11 @@ import com.hazelcast.jet.ProcessorSupplier;
 import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.StreamingProcessorBase;
 import com.hazelcast.jet.Traverser;
+import com.hazelcast.jet.Traversers;
 import com.hazelcast.jet.stream.DistributedCollector;
 
 import javax.annotation.Nonnull;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.SortedMap;
@@ -39,6 +39,7 @@ import java.util.function.ToLongFunction;
 
 import static com.hazelcast.jet.Traverser.concat;
 import static com.hazelcast.jet.Traversers.traverseIterable;
+import static com.hazelcast.jet.Traversers.traverseIterableWithRemoval;
 import static java.util.stream.Collectors.toMap;
 
 /**
@@ -119,7 +120,7 @@ public final class FrameProcessors {
             this.supplier = collector.supplier();
             this.accumulator = collector.accumulator();
             this.puncFlatMapper = flatMapper(punc ->
-                    traverseWithRemoval(seqToKeyToFrame.headMap(lowestOpenFrame).entrySet())
+                    traverseIterableWithRemoval(seqToKeyToFrame.headMap(lowestOpenFrame).entrySet())
                             .flatMap(seqAndFrame -> concat(
                                     traverseIterable(seqAndFrame.getValue().entrySet())
                                             .map(e -> new Frame<>(seqAndFrame.getKey(), e.getKey(), e.getValue())),
@@ -149,19 +150,6 @@ public final class FrameProcessors {
                 return puncFlatMapper.tryProcess(punc);
             }
             return true;
-        }
-
-        private static <T> Traverser<T> traverseWithRemoval(Iterable<T> iterable) {
-            Iterator<T> iterator = iterable.iterator();
-            return () -> {
-                if (!iterator.hasNext()) {
-                    return null;
-                }
-                T t = iterator.next();
-                assert t != null : "Iterator returned null element";
-                iterator.remove();
-                return t;
-            };
         }
     }
 
