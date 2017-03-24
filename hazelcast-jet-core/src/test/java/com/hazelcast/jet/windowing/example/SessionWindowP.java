@@ -36,32 +36,35 @@ import java.util.function.BiConsumer;
 
 import static com.hazelcast.jet.Traversers.traverseIterable;
 
-public class SessionWindowP<T, K, A> extends StreamingProcessorBase {
+public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
 
     private final long maxSeqGap;
     private final ToLongFunction<? super T> extractEventSeqF;
     private final Function<? super T, K> extractKeyF;
     private final Supplier<A> newAccumulatorF;
     private final BiConsumer<? super A, ? super T> accumulateF;
+    private final Function<A, R> finishAccumulationF;
     private final Map<K, Session> keyToSession = new HashMap<>();
     private final SortedMap<Long, Map<K, Session>> deadlineToKeyToSession = new TreeMap<>();
     private final Queue<Map<K, Session>> expiredSessionQueue = new ArrayDeque<>();
-    private final FlatMapper<Object, Frame<K, A>> expiredSesFlatmapper;
+    private final FlatMapper<Object, Frame<K, R>> expiredSesFlatmapper;
 
     public SessionWindowP(
             long maxSeqGap,
             ToLongFunction<? super T> extractEventSeqF,
             Function<? super T, K> extractKeyF,
-            DistributedCollector<T, A, ?> collector
+            DistributedCollector<T, A, R> collector
     ) {
         this.extractEventSeqF = extractEventSeqF;
         this.extractKeyF = extractKeyF;
         this.newAccumulatorF = collector.supplier();
         this.accumulateF = collector.accumulator();
+        this.finishAccumulationF = collector.finisher();
         this.maxSeqGap = maxSeqGap;
         Traverser<Map<K, Session>> trav = expiredSessionQueue::poll;
-        expiredSesFlatmapper = flatMapper(x -> trav.flatMap(sesMap -> traverseIterable(sesMap.values()))
-                                                   .map(ses -> new Frame<>(ses.expiresAtPunc, ses.key, ses.acc))
+        expiredSesFlatmapper = flatMapper(x ->
+                trav.flatMap(sesMap -> traverseIterable(sesMap.values()))
+                    .map(ses -> new Frame<>(ses.expiresAtPunc, ses.key, finishAccumulationF.apply(ses.acc)))
         );
     }
 
