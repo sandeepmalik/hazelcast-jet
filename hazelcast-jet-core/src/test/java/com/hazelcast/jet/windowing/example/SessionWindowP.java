@@ -65,9 +65,14 @@ public class SessionWindowP<T, K, A> extends StreamingProcessorBase {
 
         // move session in deadline map from old deadline to new deadline
         Map<K, Session> oldDeadlineMap = deadlineToKeyToSession.get(s.expiresAtPunc);
-        if (oldDeadlineMap != null) {
+        assert oldDeadlineMap != null;
+
+        if (oldDeadlineMap.size() == 1) {
+            deadlineToKeyToSession.remove(s.expiresAtPunc);
+        } else {
             oldDeadlineMap.remove(s.key);
         }
+
         s.accept(event);
         deadlineToKeyToSession.computeIfAbsent(s.expiresAtPunc, x -> new HashMap<>())
                               .put(key, s);
@@ -82,6 +87,7 @@ public class SessionWindowP<T, K, A> extends StreamingProcessorBase {
         ) {
             for (Session ses : it.next().values()) {
                 expiredSessionQueue.add(ses);
+                keyToSession.remove(ses.key);
             }
             it.remove();
         }
