@@ -42,7 +42,7 @@ public class GroupByFramePTest {
     public void before() {
         gbf = groupByFrame(
                 x -> 77L,
-                (Entry<Long, Long> entry) -> entry.getKey(),
+                Entry<Long, Long>::getKey,
                 x -> x / 4,
                 DistributedCollector.of(
                         MutableLong::new,
