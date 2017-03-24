@@ -1609,6 +1609,9 @@ public final class Distributed {
      */
     @FunctionalInterface
     public interface ToLongFunction<T> extends java.util.function.ToLongFunction<T>, Serializable {
+        // TODO remove the override when IntelliJ fix released
+        @Override
+        long applyAsLong(T value);
     }
 
     /**
