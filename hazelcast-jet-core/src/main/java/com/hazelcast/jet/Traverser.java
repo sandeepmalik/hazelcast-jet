@@ -24,10 +24,14 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 /**
- * Traverses over a sequence of non-{@code null} items, then starts returning
- * {@code null}. Each invocation of {@link #next()} consumes and returns the next
- * item in the sequence, until it is exhausted. All subsequent invocations of
- * {@code next()} return {@code null}.
+ * Traverses a potentially infinite sequence of non-{@code null} items. Each
+ * invocation of {@link #next()} consumes and returns the next item in the
+ * sequence if it is available, or returns {@code null} if not. An item may
+ * still become available later on.
+ * <p>
+ * An important special case is traversing a finite sequence. In this case the
+ * {@code null} return value means "the sequence is exhausted" and all future
+ * {@code next()} calls will return {@code null}.
  *
  * @param <T> traversed item type
  */
