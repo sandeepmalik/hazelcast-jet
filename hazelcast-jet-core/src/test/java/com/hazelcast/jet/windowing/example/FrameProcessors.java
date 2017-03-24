@@ -95,6 +95,7 @@ public final class FrameProcessors {
     }
 
     private static class GroupByFrameP<T, K, F> extends StreamingProcessorBase {
+
         private final SortedMap<Long, Map<K, F>> seqToKeyToFrame = new TreeMap<>();
         private final ToLongFunction<? super T> extractEventSeqF;
         private final Function<? super T, K> extractKeyF;
@@ -102,7 +103,8 @@ public final class FrameProcessors {
         private final Supplier<F> supplier;
         private final BiConsumer<F, ? super T> accumulator;
         private final FlatMapper<Punctuation, Object> puncFlatMapper;
-        private long currentPunc = Long.MIN_VALUE;
+
+        private long lowestOpenFrame = Long.MIN_VALUE;
 
         GroupByFrameP(
                 Function<? super T, K> extractKeyF,
@@ -116,7 +118,7 @@ public final class FrameProcessors {
             this.supplier = collector.supplier();
             this.accumulator = collector.accumulator();
             this.puncFlatMapper = flatMapper(punc ->
-                    traverseWithRemoval(seqToKeyToFrame.headMap(toFrameSeqF.applyAsLong(punc.seq()) + 1).entrySet())
+                    traverseWithRemoval(seqToKeyToFrame.headMap(lowestOpenFrame).entrySet())
                             .flatMap(seqAndFrame -> concat(
                                     traverseIterable(seqAndFrame.getValue().entrySet())
                                             .map(e -> new Frame<>(seqAndFrame.getKey(), e.getKey(), e.getValue())),
@@ -127,11 +129,12 @@ public final class FrameProcessors {
         protected boolean tryProcess0(@Nonnull Object item) {
             T t = (T) item;
             long eventSeq = extractEventSeqF.applyAsLong(t);
-            if (eventSeq <= currentPunc) {
+            long frameSeq = toFrameSeqF.applyAsLong(eventSeq);
+            if (frameSeq < lowestOpenFrame) {
                 return true;
             }
             K key = extractKeyF.apply(t);
-            F frame = seqToKeyToFrame.computeIfAbsent(toFrameSeqF.applyAsLong(eventSeq), x -> new HashMap<>())
+            F frame = seqToKeyToFrame.computeIfAbsent(frameSeq, x -> new HashMap<>())
                                      .computeIfAbsent(key, x -> supplier.get());
             accumulator.accept(frame, t);
             return true;
@@ -139,10 +142,12 @@ public final class FrameProcessors {
 
         @Override
         protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
-            assert punc.seq() >= currentPunc
-                    : "Non-monotonic punctuation in GBF: already saw " + currentPunc + ", now getting " + punc.seq();
-            currentPunc = punc.seq();
-            return puncFlatMapper.tryProcess(punc);
+            long puncFrameSeq = toFrameSeqF.applyAsLong(punc.seq() + 1);
+            if (puncFrameSeq > lowestOpenFrame) {
+                lowestOpenFrame = puncFrameSeq;
+                return puncFlatMapper.tryProcess(punc);
+            }
+            return true;
         }
 
         private static <T> Traverser<T> traverseWithRemoval(Iterable<T> iterable) {
