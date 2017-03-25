@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.hazelcast.jet.windowing;
+package com.hazelcast.jet.windowing.example;
 
 import com.hazelcast.config.SerializerConfig;
 import com.hazelcast.jet.AbstractProcessor;
@@ -25,16 +25,14 @@ import com.hazelcast.jet.Processors;
 import com.hazelcast.jet.Vertex;
 import com.hazelcast.jet.config.InstanceConfig;
 import com.hazelcast.jet.config.JetConfig;
-import com.hazelcast.jet.impl.execution.init.JetSerializerHook;
 import com.hazelcast.jet.stream.IStreamMap;
+import com.hazelcast.jet.windowing.Frame;
+import com.hazelcast.jet.windowing.FrameSerializer;
+import com.hazelcast.jet.windowing.InsertPunctuationP;
 import com.hazelcast.logging.ILogger;
 import com.hazelcast.logging.Logger;
-import com.hazelcast.nio.ObjectDataInput;
-import com.hazelcast.nio.ObjectDataOutput;
-import com.hazelcast.nio.serialization.StreamSerializer;
 
 import javax.annotation.Nonnull;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.HashMap;
@@ -142,28 +140,4 @@ public class TradeMonitor {
         }
     }
 
-    static final class FrameSerializer implements StreamSerializer<Frame> {
-        @Override
-        public void write(ObjectDataOutput out, Frame object) throws IOException {
-            out.writeLong(object.getSeq());
-            out.writeObject(object.getKey());
-            out.writeObject(object.getValue());
-        }
-
-        @Override
-        public Frame read(ObjectDataInput in) throws IOException {
-            long seq = in.readLong();
-            Object key = in.readObject();
-            Object value = in.readObject();
-            return new Frame<>(seq, key, value);
-        }
-
-        @Override
-        public int getTypeId() {
-            return JetSerializerHook.KEYED_FRAME;
-        }
-
-        @Override public void destroy() {
-        }
-    }
 }

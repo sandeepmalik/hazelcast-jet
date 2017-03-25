@@ -55,6 +55,8 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  * drives the emission and removal of aggregated state from processors, this
  * is also the maximum time to retain data about an event in the system before
  * sending it to the data sink.
+ *
+ * @param <T> the type of stream item
  */
 public class InsertPunctuationP<T> extends AbstractProcessor {
 

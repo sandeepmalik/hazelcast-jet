@@ -21,9 +21,14 @@ import java.util.Arrays;
 import java.util.Map;
 
 /**
- * Javadoc pending.
+ * Container of items from a fixed-length {@code eventSeq} interval. Holds
+ * intermediate computation results before the final step of forming the
+ * user-visible window.
+ *
+ * @param <K> type of grouping key
+ * @param <V> type of the stream item
  */
-public final class Frame<K, V> implements Serializable, Map.Entry<K,V> {
+public final class Frame<K, V> implements Serializable, Map.Entry<K, V> {
     private final long seq;
     private final K key;
     private final V value;
@@ -34,6 +39,9 @@ public final class Frame<K, V> implements Serializable, Map.Entry<K,V> {
         this.value = value;
     }
 
+    /**
+     * Returns the {@code seq} number of this frame.
+     */
     public long getSeq() {
         return seq;
     }
@@ -77,8 +85,8 @@ public final class Frame<K, V> implements Serializable, Map.Entry<K,V> {
         // Here's some hacky code that special-cases some types of value
         // which lack a proper toString implementation
         String valueStr =
-                value instanceof long[] ? Arrays.toString((long[])value)
-              : value instanceof Object[] ? Arrays.toString((Object[])value)
+                value instanceof long[] ? Arrays.toString((long[]) value)
+              : value instanceof Object[] ? Arrays.toString((Object[]) value)
               : value.toString();
         return "Frame{seq=" + seq + ", key=" + key + ", value=" + valueStr + '}';
     }

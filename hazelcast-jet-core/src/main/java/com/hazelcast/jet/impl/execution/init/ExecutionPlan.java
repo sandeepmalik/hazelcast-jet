@@ -381,11 +381,13 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
         return inboundStreams;
     }
 
+    @SuppressWarnings("checkstyle:magicnumber")
     private static ConcurrentInboundEdgeStream createInboundEdgeStream(
             int ordinal, int priority, ConcurrentConveyor<Object> conveyor
     ) {
         // TODO set these params through Edge
-        return new ConcurrentInboundEdgeStream(conveyor, ordinal, priority, DEFAULT_MAX_RETAIN, 6000, 1500, SkewExceededAction.NO_ACTION);
+        return new ConcurrentInboundEdgeStream(conveyor, ordinal, priority, DEFAULT_MAX_RETAIN, 6000, 1500,
+                SkewExceededAction.NO_ACTION);
     }
 }
 
