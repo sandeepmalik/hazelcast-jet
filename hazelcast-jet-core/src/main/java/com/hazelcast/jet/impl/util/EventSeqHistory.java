@@ -23,9 +23,9 @@ import static com.hazelcast.util.Preconditions.checkPositive;
 /**
  * Helper class to implement the logic needed to enforce the maximum
  * retention time of events in a windowing stream processor. To use this
- * class, call {@link #sample(long, long) sample(now, sample)}
+ * class, call {@link #sample(long, long) sample(now, currValue)}
  * at regular intervals with the current system time and the top observed
- * {@code sample} so far, and interpret the returned value as the minimum
+ * {@code eventSeq} so far, and interpret the returned value as the minimum
  * value of punctuation that should be/have been emitted. The current time
  * should be obtained from {@code System.nanoTime()} because, unlike
  * {@code System.currentTimeMillis()}, its source is a monotonic clock.
@@ -83,9 +83,9 @@ public class EventSeqHistory {
      * {@code maxRetain} time units ago.
      *
      * @param now current system time; must not be less than the time used in the previous call
-     * @param sample the current value of the tracked quantity
+     * @param value the current value of the tracked quantity
      */
-    public long sample(long now, long sample) {
+    public long sample(long now, long value) {
         int i = 0;
         for (; advanceAt <= now && i < samples.length; advanceAt += sampleInterval, i++) {
             int oldTailIdx = tailIndex;
@@ -100,7 +100,7 @@ public class EventSeqHistory {
             advanceAt = now + sampleInterval;
         }
 
-        samples[tailIndex] = sample;
+        samples[tailIndex] = value;
         // `samples` is a circular buffer which is always full,
         // so `samples[nextTailIndex()]` is the head value (the oldest one)
         return samples[nextTailIndex()];
