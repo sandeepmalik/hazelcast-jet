@@ -16,21 +16,27 @@
 
 package com.hazelcast.jet.windowing;
 
+import com.hazelcast.jet.Distributed.BinaryOperator;
 import com.hazelcast.jet.Distributed.Function;
 import com.hazelcast.jet.Distributed.Supplier;
 import com.hazelcast.jet.Distributed.ToLongFunction;
 import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.StreamingProcessorBase;
+import com.hazelcast.jet.Traverser;
+import com.hazelcast.jet.Traversers;
 import com.hazelcast.jet.stream.DistributedCollector;
 
 import javax.annotation.Nonnull;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.NavigableMap;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
 
-import static com.hazelcast.jet.Traversers.traverseIterable;
 import static com.hazelcast.jet.Traversers.traverseWithRemoval;
 
 /**
@@ -39,10 +45,10 @@ import static com.hazelcast.jet.Traversers.traverseWithRemoval;
  * key. A newly observed event will be placed into the existing session
  * window if:
  * <ol><li>
- *     it is not behind the punctuation (that is, it is not a late event)
+ * it is not behind the punctuation (that is, it is not a late event)
  * </li><li>
- *     its {@code eventSeq} is less than {@code maxSeqGap} ahead of the top
- *     {@code eventSeq} in the currently maintained window.
+ * its {@code eventSeq} is less than {@code maxSeqGap} ahead of the top
+ * {@code eventSeq} in the currently maintained window.
  * </li></ol>
  * If the event satisfies 1. but fails 2., the current window will be closed
  * and emitted as a final result, and a new window will be opened with the
@@ -61,18 +67,19 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
     private final Supplier<A> newAccumulatorF;
     private final BiConsumer<? super A, ? super T> accumulateF;
     private final Function<A, R> finishAccumulationF;
-    private final Map<K, Long> keyToDeadline = new HashMap<>();
-    private final SortedMap<Long, Map<K, A>> deadlineToKeyToAcc = new TreeMap<>();
-    private final FlatMapper<Punctuation, Frame<K, R>> expiredSessFlatmapper;
-    private long lastObservedPunc;
+    private final BinaryOperator<A> combineAccF;
+    private final Map<K, NavigableMap<Interval, A>> keyToIvToAcc = new HashMap<>();
+    private final SortedMap<Long, Set<K>> deadlineToKeys = new TreeMap<>();
+    private final FlatMapper<Punctuation, Session<K, R>> expiredSesFlatmapper;
+    private long puncSeq;
 
     /**
      * Constructs a session window processor.
      *
-     * @param maxSeqGap maximum gap between consecutive events in the same session window
+     * @param maxSeqGap        maximum gap between consecutive events in the same session window
      * @param extractEventSeqF function to extract the event seq from the event item
-     * @param extractKeyF function to extract the grouping key from the event iem
-     * @param collector contains aggregation logic
+     * @param extractKeyF      function to extract the grouping key from the event iem
+     * @param collector        contains aggregation logic
      */
     public SessionWindowP(
             long maxSeqGap,
@@ -84,17 +91,21 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
         this.extractKeyF = extractKeyF;
         this.newAccumulatorF = collector.supplier();
         this.accumulateF = collector.accumulator();
+        this.combineAccF = collector.combiner();
         this.finishAccumulationF = collector.finisher();
         this.maxSeqGap = maxSeqGap;
+        this.expiredSesFlatmapper = flatMapper(this::closedWindowTraverser);
+    }
 
-        expiredSessFlatmapper = flatMapper(punc ->
-                traverseWithRemoval(deadlineToKeyToAcc.headMap(punc.seq() + 1).entrySet())
-                        .flatMap(deadlineAndKeyToAcc -> traverseIterable(deadlineAndKeyToAcc.getValue().entrySet())
-                                .peek(keyAndAcc -> keyToDeadline.remove(keyAndAcc.getKey()))
-                                .map(keyAndAcc -> new Frame<>(
-                                        deadlineAndKeyToAcc.getKey(), keyAndAcc.getKey(),
-                                        finishAccumulationF.apply(keyAndAcc.getValue())))
-                        ));
+    private Traverser<Session<K, R>> closedWindowTraverser(Punctuation punc) {
+        final Interval deadlineIv = new Interval(punc.seq() + 1, punc.seq() + 1);
+        return traverseWithRemoval(deadlineToKeys.headMap(punc.seq() + 1).values())
+                .flatMap(Traversers::traverseIterable)
+                .flatMap(k -> traverseWithRemoval(keyToIvToAcc.get(k).headMap(deadlineIv).entrySet())
+                        .map(ivAndAcc -> new Session<>(
+                                k, finishAccumulationF.apply(ivAndAcc.getValue()),
+                                ivAndAcc.getKey().start, ivAndAcc.getKey().end))
+                );
     }
 
     @Override
@@ -102,40 +113,101 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
         final T event = (T) item;
         final long eventSeq = extractEventSeqF.applyAsLong(event);
         // drop late events
-        if (eventSeq <= lastObservedPunc) {
+        if (eventSeq <= puncSeq) {
             return true;
         }
-        final long pushDeadlineTo = eventSeq + maxSeqGap;
         final K key = extractKeyF.apply(event);
-        final Long oldDeadline = keyToDeadline.get(key);
-        final long newDeadline;
-        final A acc;
-        if (oldDeadline == null) {
-            newDeadline = pushDeadlineTo;
-            acc = newAccumulatorF.get();
+        NavigableMap<Interval, A> ivToAcc = keyToIvToAcc.get(key);
+        Interval eventIv = new Interval(eventSeq, eventSeq + maxSeqGap);
+        if (ivToAcc == null) {
+            A acc = newAccumulatorF.get();
             accumulateF.accept(acc, event);
-        } else {
-            newDeadline = Math.max(oldDeadline, pushDeadlineTo);
-            Map<K, A> oldDeadlineMap = deadlineToKeyToAcc.get(oldDeadline);
-            acc = oldDeadlineMap.get(key);
-            accumulateF.accept(acc, event);
-            if (newDeadline == oldDeadline) {
-                return true;
-            }
-            oldDeadlineMap.remove(key);
-            if (oldDeadlineMap.isEmpty()) {
-                deadlineToKeyToAcc.remove(oldDeadline);
-            }
+            ivToAcc = new TreeMap<>();
+            ivToAcc.put(eventIv, acc);
+            keyToIvToAcc.put(key, ivToAcc);
+            deadlineToKeys.computeIfAbsent(eventIv.end, x -> new HashSet<>())
+                          .add(key);
+            return true;
         }
-        deadlineToKeyToAcc.computeIfAbsent(newDeadline, x -> new HashMap<>())
-                          .put(key, acc);
-        keyToDeadline.put(key, newDeadline);
+        // This logic relies on the non-transitive equality relation defined for
+        // `Interval`. Upper and lower window have definitely non-equal intervals,
+        // but they may both be equal to the event interval. If they are, the new
+        // event belongs to both and therefore causes the two windows to be
+        // combined into one.
+        // floorEntry := greatest item less than on equal to eventIv
+        // ceilingEtry := least item greater than or equal to eventIv
+        A acc;
+        Interval resolvedIv;
+        Entry<Interval, A> upperWindow = ivToAcc.floorEntry(eventIv);
+        Entry<Interval, A> lowerWindow = ivToAcc.ceilingEntry(eventIv);
+        Interval upperIv = upperWindow.getKey();
+        Interval lowerIv = lowerWindow.getKey();
+        if (upperIv.equals(eventIv) && lowerIv.equals(eventIv)) {
+            ivToAcc.remove(upperIv);
+            ivToAcc.remove(lowerIv);
+            acc = combineAccF.apply(upperWindow.getValue(), lowerWindow.getValue());
+            resolvedIv = new Interval(lowerIv.start, upperIv.end);
+            ivToAcc.put(resolvedIv, acc);
+        } else if (upperIv.equals(eventIv)) {
+            resolvedIv = upperIv;
+            acc = upperWindow.getValue();
+        } else if (lowerIv.equals(eventIv)) {
+            resolvedIv = lowerIv;
+            acc = lowerWindow.getValue();
+        } else {
+            assert !ivToAcc.containsKey(eventIv) : "Broken interval map implementation: "
+                    + ivToAcc.keySet() + " contains " + eventIv;
+            resolvedIv = eventIv;
+            acc = newAccumulatorF.get();
+            ivToAcc.put(eventIv, acc);
+        }
+        accumulateF.accept(acc, event);
+        deadlineToKeys.computeIfAbsent(resolvedIv.end, x -> new HashSet<>())
+                      .add(key);
         return true;
     }
 
     @Override
     protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
-        lastObservedPunc = punc.seq();
-        return expiredSessFlatmapper.tryProcess(punc);
+        puncSeq = punc.seq();
+        return expiredSesFlatmapper.tryProcess(punc);
+    }
+
+    /**
+     * An interval on the long integer number line. Has a deliberately broken
+     * {@link #equals(Object)} and {@link #compareTo(Interval)} definitions
+     * that fail at transitivity, but work well for its single use case:
+     * comparing an interval with several other, mutually non-overlapping
+     * intervals to find those that overlap it.
+     */
+    private static class Interval implements Comparable<Interval> {
+        final long start;
+        final long end;
+
+        Interval(long start, long end) {
+            this.start = start;
+            this.end = end;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (!(obj instanceof Interval)) {
+                return false;
+            }
+            final Interval that = (Interval) obj;
+            return that.end >= this.start && this.end >= that.start;
+        }
+
+        @Override
+        public int compareTo(@Nonnull Interval that) {
+            return that.end < this.start ? -1
+                 : this.end < that.start ? 1
+                 : 0;
+        }
+
+        @Override
+        public String toString() {
+            return "[" + start + ".." + end + ')';
+        }
     }
 }
