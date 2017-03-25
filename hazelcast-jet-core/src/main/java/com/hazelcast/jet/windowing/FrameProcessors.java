@@ -154,7 +154,6 @@ public final class FrameProcessors {
 
     private static class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
         private final SortedMap<Long, Map<K, F>> seqToKeyToFrame = new TreeMap<>();
-        private SortedMap<Long, Map<K, F>> headMap;
         private final BinaryOperator<F> combiner;
         private final FlatMapper<Punctuation, Frame<K, R>> puncFlatMapper;
         private final int windowSize;

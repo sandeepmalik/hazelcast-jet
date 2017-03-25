@@ -66,6 +66,14 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
     private final FlatMapper<Punctuation, Frame<K, R>> expiredSessFlatmapper;
     private long lastObservedPunc;
 
+    /**
+     * Constructs a session window processor.
+     *
+     * @param maxSeqGap maximum gap between consecutive events in the same session window
+     * @param extractEventSeqF function to extract the event seq from the event item
+     * @param extractKeyF function to extract the grouping key from the event iem
+     * @param collector contains aggregation logic
+     */
     public SessionWindowP(
             long maxSeqGap,
             ToLongFunction<? super T> extractEventSeqF,
