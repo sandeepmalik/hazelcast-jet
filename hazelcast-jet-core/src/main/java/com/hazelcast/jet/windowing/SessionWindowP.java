@@ -91,26 +91,29 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
 
     @Override
     protected boolean tryProcess0(@Nonnull Object item) {
-        T event = (T) item;
-        long eventTime = extractEventSeqF.applyAsLong(event);
+        final T event = (T) item;
+        final long eventSeq = extractEventSeqF.applyAsLong(event);
         // drop late events
-        if (eventTime <= lastObservedPunc) {
+        if (eventSeq <= lastObservedPunc) {
             return true;
         }
-        K key = extractKeyF.apply(event);
-        Long oldDeadline = keyToDeadline.get(key);
-        Map<K, A> oldDeadlineMap = oldDeadline != null ? deadlineToKeyToAcc.get(oldDeadline) : null;
-        A acc = oldDeadline != null ? oldDeadlineMap.get(key) : newAccumulatorF.get();
-        accumulateF.accept(acc, event);
-        long newDeadline = eventTime + maxSeqGap;
-        if (oldDeadline != null && oldDeadline > newDeadline)
-            newDeadline = oldDeadline;
-
-        if (oldDeadline != null && newDeadline == oldDeadline) {
-            return true;
-        }
-        // move session in deadline map from old deadline to new deadline
-        if (oldDeadlineMap != null) {
+        final long pushDeadlineTo = eventSeq + maxSeqGap;
+        final K key = extractKeyF.apply(event);
+        final Long oldDeadline = keyToDeadline.get(key);
+        final long newDeadline;
+        final A acc;
+        if (oldDeadline == null) {
+            newDeadline = pushDeadlineTo;
+            acc = newAccumulatorF.get();
+            accumulateF.accept(acc, event);
+        } else {
+            newDeadline = Math.max(oldDeadline, pushDeadlineTo);
+            Map<K, A> oldDeadlineMap = deadlineToKeyToAcc.get(oldDeadline);
+            acc = oldDeadlineMap.get(key);
+            accumulateF.accept(acc, event);
+            if (newDeadline == oldDeadline) {
+                return true;
+            }
             oldDeadlineMap.remove(key);
             if (oldDeadlineMap.isEmpty()) {
                 deadlineToKeyToAcc.remove(oldDeadline);
