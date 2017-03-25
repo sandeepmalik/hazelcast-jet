@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.hazelcast.jet.windowing.example;
+package com.hazelcast.jet.windowing;
 
 import com.hazelcast.jet.Distributed.Function;
 import com.hazelcast.jet.Distributed.Supplier;

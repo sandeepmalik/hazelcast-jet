@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.hazelcast.jet.windowing.example;
+package com.hazelcast.jet.windowing;
 
 public class Trade {
 

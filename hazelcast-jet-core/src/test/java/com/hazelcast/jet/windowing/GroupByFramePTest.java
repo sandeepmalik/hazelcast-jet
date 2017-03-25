@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-package com.hazelcast.jet.windowing.example;
+package com.hazelcast.jet.windowing;
 
 import com.hazelcast.jet.Processor;
 import com.hazelcast.jet.Processor.Context;
 import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.impl.util.ArrayDequeOutbox;
 import com.hazelcast.jet.stream.DistributedCollector;
-import com.hazelcast.jet.windowing.example.SlidingWindowPTest.MockInbox;
+import com.hazelcast.jet.windowing.SlidingWindowPTest.MockInbox;
 import com.hazelcast.util.MutableLong;
 import org.junit.Before;
 import org.junit.Test;
@@ -29,7 +29,7 @@ import org.junit.Test;
 import java.util.Map.Entry;
 
 import static com.hazelcast.jet.Util.entry;
-import static com.hazelcast.jet.windowing.example.FrameProcessors.groupByFrame;
+import static com.hazelcast.jet.windowing.FrameProcessors.groupByFrame;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
 

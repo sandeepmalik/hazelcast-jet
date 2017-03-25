@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.hazelcast.jet.windowing.example;
+package com.hazelcast.jet.windowing;
 
 import com.hazelcast.config.SerializerConfig;
 import com.hazelcast.jet.AbstractProcessor;
@@ -46,8 +46,8 @@ import static com.hazelcast.jet.Edge.from;
 import static com.hazelcast.jet.Partitioner.HASH_CODE;
 import static com.hazelcast.jet.Processors.readMap;
 import static com.hazelcast.jet.stream.DistributedCollectors.counting;
-import static com.hazelcast.jet.windowing.example.FrameProcessors.groupByFrame;
-import static com.hazelcast.jet.windowing.example.FrameProcessors.slidingWindow;
+import static com.hazelcast.jet.windowing.FrameProcessors.groupByFrame;
+import static com.hazelcast.jet.windowing.FrameProcessors.slidingWindow;
 import static java.lang.Runtime.getRuntime;
 
 public class TradeMonitor {

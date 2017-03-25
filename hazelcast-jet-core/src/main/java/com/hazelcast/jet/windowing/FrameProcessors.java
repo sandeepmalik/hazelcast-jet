@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-package com.hazelcast.jet.windowing.example;
+package com.hazelcast.jet.windowing;
 
 import com.hazelcast.jet.Distributed;
 import com.hazelcast.jet.ProcessorSupplier;
 import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.StreamingProcessorBase;
 import com.hazelcast.jet.Traverser;
-import com.hazelcast.jet.Traversers;
 import com.hazelcast.jet.stream.DistributedCollector;
 
 import javax.annotation.Nonnull;

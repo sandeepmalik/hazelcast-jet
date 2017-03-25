@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-package com.hazelcast.jet.windowing.example;
+package com.hazelcast.jet.windowing;
 
 import com.hazelcast.jet.Processor.Context;
 import com.hazelcast.jet.impl.util.ArrayDequeOutbox;
+import com.hazelcast.jet.windowing.InsertPunctuationP;
 import org.junit.Before;
 import org.junit.Test;
 

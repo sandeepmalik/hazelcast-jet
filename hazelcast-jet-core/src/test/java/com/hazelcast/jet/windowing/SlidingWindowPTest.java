@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.hazelcast.jet.windowing.example;
+package com.hazelcast.jet.windowing;
 
 import com.hazelcast.jet.Inbox;
 import com.hazelcast.jet.Processor;
@@ -22,6 +22,7 @@ import com.hazelcast.jet.Processor.Context;
 import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.impl.util.ArrayDequeOutbox;
 import com.hazelcast.jet.stream.DistributedCollector;
+import com.hazelcast.jet.windowing.Frame;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -29,7 +30,7 @@ import java.util.ArrayDeque;
 import java.util.List;
 import java.util.stream.LongStream;
 
-import static com.hazelcast.jet.windowing.example.FrameProcessors.slidingWindow;
+import static com.hazelcast.jet.windowing.FrameProcessors.slidingWindow;
 import static java.util.Collections.shuffle;
 import static java.util.stream.Collectors.toList;
 import static org.junit.Assert.assertEquals;
