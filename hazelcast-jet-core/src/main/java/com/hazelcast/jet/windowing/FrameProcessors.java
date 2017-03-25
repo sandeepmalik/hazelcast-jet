@@ -38,7 +38,7 @@ import java.util.function.ToLongFunction;
 
 import static com.hazelcast.jet.Traverser.concat;
 import static com.hazelcast.jet.Traversers.traverseIterable;
-import static com.hazelcast.jet.Traversers.traverseIterableWithRemoval;
+import static com.hazelcast.jet.Traversers.traverseWithRemoval;
 import static java.util.stream.Collectors.toMap;
 
 /**
@@ -119,7 +119,7 @@ public final class FrameProcessors {
             this.supplier = collector.supplier();
             this.accumulator = collector.accumulator();
             this.puncFlatMapper = flatMapper(punc ->
-                    traverseIterableWithRemoval(seqToKeyToFrame.headMap(lowestOpenFrame).entrySet())
+                    traverseWithRemoval(seqToKeyToFrame.headMap(lowestOpenFrame).entrySet())
                             .flatMap(seqAndFrame -> concat(
                                     traverseIterable(seqAndFrame.getValue().entrySet())
                                             .map(e -> new Frame<>(seqAndFrame.getKey(), e.getKey(), e.getValue())),

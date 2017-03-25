@@ -31,7 +31,7 @@ import java.util.TreeMap;
 import java.util.function.BiConsumer;
 
 import static com.hazelcast.jet.Traversers.traverseIterable;
-import static com.hazelcast.jet.Traversers.traverseIterableWithRemoval;
+import static com.hazelcast.jet.Traversers.traverseWithRemoval;
 
 public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
 
@@ -60,7 +60,7 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
         this.maxSeqGap = maxSeqGap;
 
         expiredSessFlatmapper = flatMapper(punc ->
-                traverseIterableWithRemoval(deadlineToKeyToAcc.headMap(punc.seq() + 1).entrySet())
+                traverseWithRemoval(deadlineToKeyToAcc.headMap(punc.seq() + 1).entrySet())
                         .flatMap(deadlineAndKeyToAcc -> traverseIterable(deadlineAndKeyToAcc.getValue().entrySet())
                                 .peek(keyAndAcc -> keyToDeadline.remove(keyAndAcc.getKey()))
                                 .map(keyAndAcc -> new Frame<>(

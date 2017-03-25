@@ -92,7 +92,7 @@ public final class Traversers {
      * immediately. Items are removed from iterator as they are traversed.
      */
     @Nonnull
-    public static <T> Traverser<T> traverseIterableWithRemoval(@Nonnull Iterable<T> iterable) {
+    public static <T> Traverser<T> traverseWithRemoval(@Nonnull Iterable<T> iterable) {
         Iterator<T> iterator = iterable.iterator();
         return () -> {
             if (!iterator.hasNext()) {
