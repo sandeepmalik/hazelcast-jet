@@ -29,6 +29,7 @@ import com.hazelcast.jet.stream.DistributedCollector;
 import javax.annotation.Nonnull;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NavigableMap;
@@ -38,21 +39,21 @@ import java.util.TreeMap;
 import java.util.function.BiConsumer;
 
 import static com.hazelcast.jet.Traversers.traverseWithRemoval;
+import static com.hazelcast.jet.Util.entry;
 
 /**
- * Aggregates events into session windows. Events under different grouping
- * keys are completely independent, so there is a separate window for each
- * key. A newly observed event will be placed into the existing session
- * window if:
- * <ol><li>
- * it is not behind the punctuation (that is, it is not a late event)
- * </li><li>
- * its {@code eventSeq} is less than {@code maxSeqGap} ahead of the top
- * {@code eventSeq} in the currently maintained window.
- * </li></ol>
- * If the event satisfies 1. but fails 2., the current window will be closed
- * and emitted as a final result, and a new window will be opened with the
- * current event.
+ * Aggregates events into session windows. Events and windows under
+ * different grouping keys are completely independent.
+ * <p>
+ * Initially a new event causes a new session window to be created. A
+ * following event under the same key belongs to this window if its seq is
+ * within {@code maxSeqGap} of the window's start seq (in either direction).
+ * If the event's seq is less than the window's, it is extended by moving
+ * its start seq to the event's seq. Similarly the window's end is adjusted
+ * to reach at least up to {@code eventSeq + maxSeqGap}.
+ * <p>
+ * The event may happen to belong to two existing windows (by bridging the gap
+ * between them); in that case they are combined into one.
  *
  * @param <T> type of stream event
  * @param <K> type of event's grouping key
@@ -130,41 +131,53 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
             return true;
         }
         // This logic relies on the non-transitive equality relation defined for
-        // `Interval`. Upper and lower window have definitely non-equal intervals,
+        // `Interval`. Lower and upper window have definitely non-equal intervals,
         // but they may both be equal to the event interval. If they are, the new
         // event belongs to both and therefore causes the two windows to be
         // combined into one.
-        // floorEntry := greatest item less than on equal to eventIv
-        // ceilingEtry := least item greater than or equal to eventIv
         A acc;
         Interval resolvedIv;
-        Entry<Interval, A> upperWindow = ivToAcc.floorEntry(eventIv);
-        Entry<Interval, A> lowerWindow = ivToAcc.ceilingEntry(eventIv);
-        Interval upperIv = upperWindow.getKey();
+        Iterator<Entry<Interval, A>> it = ivToAcc.tailMap(eventIv).entrySet().iterator();
+        Entry<Interval, A> lowerWindow = it.hasNext() ? it.next() : entry(Interval.NULL, null);
+        Entry<Interval, A> upperWindow = it.hasNext() ? it.next() : entry(Interval.NULL, null);
         Interval lowerIv = lowerWindow.getKey();
-        if (upperIv.equals(eventIv) && lowerIv.equals(eventIv)) {
-            ivToAcc.remove(upperIv);
+        Interval upperIv = upperWindow.getKey();
+        if (lowerIv.equals(eventIv) && upperIv.equals(eventIv)) {
             ivToAcc.remove(lowerIv);
-            acc = combineAccF.apply(upperWindow.getValue(), lowerWindow.getValue());
+            ivToAcc.remove(upperIv);
+            acc = combineAccF.apply(lowerWindow.getValue(), upperWindow.getValue());
             resolvedIv = new Interval(lowerIv.start, upperIv.end);
-            ivToAcc.put(resolvedIv, acc);
-        } else if (upperIv.equals(eventIv)) {
-            resolvedIv = upperIv;
-            acc = upperWindow.getValue();
+            putAbsent(ivToAcc, resolvedIv, acc);
         } else if (lowerIv.equals(eventIv)) {
-            resolvedIv = lowerIv;
             acc = lowerWindow.getValue();
+            resolvedIv = unite(lowerIv, eventIv, ivToAcc);
+        } else if (upperIv.equals(eventIv)) {
+            acc = upperWindow.getValue();
+            resolvedIv = unite(upperIv, eventIv, ivToAcc);
         } else {
-            assert !ivToAcc.containsKey(eventIv) : "Broken interval map implementation: "
-                    + ivToAcc.keySet() + " contains " + eventIv;
-            resolvedIv = eventIv;
             acc = newAccumulatorF.get();
-            ivToAcc.put(eventIv, acc);
+            resolvedIv = eventIv;
+            putAbsent(ivToAcc, resolvedIv, acc);
         }
         accumulateF.accept(acc, event);
         deadlineToKeys.computeIfAbsent(resolvedIv.end, x -> new HashSet<>())
                       .add(key);
         return true;
+    }
+
+    private static <K, V> void putAbsent(NavigableMap<K, V> map, K key, V value) {
+        assert !map.containsKey(key) : map.keySet() + " already contains " + key;
+        map.put(key, value);
+    }
+
+    private Interval unite(Interval iv, Interval eventIv, NavigableMap<Interval, A> ivToAcc) {
+        if (iv.start <= eventIv.start && iv.end >= eventIv.end) {
+            return iv;
+        }
+        Interval unitedIv = new Interval(Math.min(iv.start, eventIv.start), Math.max(iv.end, eventIv.end));
+        A acc = ivToAcc.remove(iv);
+        putAbsent(ivToAcc, unitedIv, acc);
+        return unitedIv;
     }
 
     @Override
@@ -174,15 +187,17 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
     }
 
     /**
-     * An interval on the long integer number line. Has a deliberately broken
-     * {@link #equals(Object)} and {@link #compareTo(Interval)} definitions
-     * that fail at transitivity, but work well for its single use case:
-     * comparing an interval with several other, mutually non-overlapping
-     * intervals to find those that overlap it.
+     * An interval on the long integer number line. Two intervals are "equal"
+     * if they overlap. This deliberately broken definition fails at
+     * transitivity, but works well for its single use case: comparing an
+     * interval with several other, mutually non-overlapping intervals to
+     * find those that overlap it.
      */
     private static class Interval implements Comparable<Interval> {
         final long start;
         final long end;
+
+        static final Interval NULL = new Interval(Long.MIN_VALUE, Long.MIN_VALUE);
 
         Interval(long start, long end) {
             this.start = start;
