@@ -33,6 +33,26 @@ import java.util.function.BiConsumer;
 import static com.hazelcast.jet.Traversers.traverseIterable;
 import static com.hazelcast.jet.Traversers.traverseWithRemoval;
 
+/**
+ * Aggregates events into session windows. Events under different grouping
+ * keys are completely independent, so there is a separate window for each
+ * key. A newly observed event will be placed into the existing session
+ * window if:
+ * <ol><li>
+ *     it is not behind the punctuation (that is, it is not a late event)
+ * </li><li>
+ *     its {@code eventSeq} is less than {@code maxSeqGap} ahead of the top
+ *     {@code eventSeq} in the currently maintained window.
+ * </li></ol>
+ * If the event satisfies 1. but fails 2., the current window will be closed
+ * and emitted as a final result, and a new window will be opened with the
+ * current event.
+ *
+ * @param <T> type of stream event
+ * @param <K> type of event's grouping key
+ * @param <A> type of the container of accumulated value
+ * @param <R> type of the result value for a session window
+ */
 public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
 
     private final long maxSeqGap;
