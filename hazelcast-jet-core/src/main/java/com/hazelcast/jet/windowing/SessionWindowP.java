@@ -42,6 +42,7 @@ import static com.hazelcast.jet.Traversers.traverseWithRemoval;
 import static com.hazelcast.jet.Util.entry;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
+import static java.util.Collections.emptyNavigableMap;
 
 /**
  * Aggregates events into session windows. Events and windows under
@@ -104,16 +105,22 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
         final Interval deadlineIv = new Interval(punc.seq(), punc.seq());
         return traverseWithRemoval(deadlineToKeys.headMap(punc.seq(), true).values())
                 .flatMap(Traversers::traverseIterable)
-                .flatMap(k -> traverseWithRemoval(keyToIvToAcc.get(k).headMap(deadlineIv, true).entrySet())
+                .flatMap(k -> traverseWithRemoval(getOrEmptyIvToAcc(k).headMap(deadlineIv, true).entrySet())
                         .map(ivAndAcc -> new Session<>(
                                 k, finishAccumulationF.apply(ivAndAcc.getValue()),
                                 ivAndAcc.getKey().start, ivAndAcc.getKey().end))
                         .onNull(() -> {
-                            if (keyToIvToAcc.get(k).isEmpty()) {
+                            Map<Interval, A> map = keyToIvToAcc.get(k);
+                            if (map != null && map.isEmpty()) {
                                 keyToIvToAcc.remove(k);
                             }
                         })
                 );
+    }
+
+    private NavigableMap<Interval, A> getOrEmptyIvToAcc(K k) {
+        NavigableMap<Interval, A> map = keyToIvToAcc.get(k);
+        return map != null ? map : emptyNavigableMap();
     }
 
     @Override
