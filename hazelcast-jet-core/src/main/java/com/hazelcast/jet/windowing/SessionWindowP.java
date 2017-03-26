@@ -157,8 +157,8 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
         Entry<Interval, A> upperWindow = overlappingOrNull(it, eventIv);
         if (upperWindow != null) {
             Interval upperIv = upperWindow.getKey();
-            remove(key, lowerIv, ivToAcc);
-            remove(key, upperIv, ivToAcc);
+            remove(ivToAcc, key, lowerIv);
+            remove(ivToAcc, key, upperIv);
             return putAbsent(ivToAcc, key, entry(
                     new Interval(lowerIv.start, upperIv.end),
                     combineAccF.apply(lowerWindow.getValue(), upperWindow.getValue()))
@@ -167,7 +167,7 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
         if (encompasses(lowerIv, eventIv)) {
             return lowerWindow;
         }
-        remove(key, lowerIv, ivToAcc);
+        remove(ivToAcc, key, lowerIv);
         return putAbsent(ivToAcc, key, entry(union(lowerIv, eventIv), lowerWindow.getValue()));
     }
 
@@ -187,7 +187,7 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
         return new Interval(min(iv1.start, iv2.start), max(iv1.end, iv2.end));
     }
 
-    private void remove(K key, Interval lowerIv, NavigableMap<Interval, A> ivToAcc) {
+    private void remove(NavigableMap<Interval, A> ivToAcc, K key, Interval lowerIv) {
         ivToAcc.remove(lowerIv);
         Set<K> keys = deadlineToKeys.get(lowerIv.end);
         keys.remove(key);
