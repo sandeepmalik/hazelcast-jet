@@ -35,7 +35,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NavigableMap;
 import java.util.Set;
-import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
 
@@ -154,21 +153,20 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
             return putAbsent(ivToAcc, key, entry(eventIv, newAccumulatorF.get()));
         }
         Interval lowerIv = lowerWindow.getKey();
-        Entry<Interval, A> upperWindow = overlappingOrNull(it, eventIv);
-        if (upperWindow != null) {
-            Interval upperIv = upperWindow.getKey();
-            delete(ivToAcc, key, lowerIv);
-            delete(ivToAcc, key, upperIv);
-            return putAbsent(ivToAcc, key, entry(
-                    new Interval(lowerIv.start, upperIv.end),
-                    combineAccF.apply(lowerWindow.getValue(), upperWindow.getValue()))
-            );
-        }
         if (encompasses(lowerIv, eventIv)) {
             return lowerWindow;
         }
-        delete(ivToAcc, key, lowerIv);
-        return putAbsent(ivToAcc, key, entry(union(lowerIv, eventIv), lowerWindow.getValue()));
+        delete(it, key, lowerIv);
+        Entry<Interval, A> upperWindow = overlappingOrNull(it, eventIv);
+        if (upperWindow == null) {
+            return putAbsent(ivToAcc, key, entry(union(lowerIv, eventIv), lowerWindow.getValue()));
+        }
+        Interval upperIv = upperWindow.getKey();
+        delete(it, key, upperIv);
+        return putAbsent(ivToAcc, key, entry(
+                new Interval(lowerIv.start, upperIv.end),
+                combineAccF.apply(lowerWindow.getValue(), upperWindow.getValue()))
+        );
     }
 
     private Entry<Interval, A> overlappingOrNull(Iterator<Entry<Interval, A>> it, Interval eventIv) {
@@ -187,8 +185,8 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
         return new Interval(min(iv1.start, iv2.start), max(iv1.end, iv2.end));
     }
 
-    private void delete(NavigableMap<Interval, A> ivToAcc, K key, Interval lowerIv) {
-        ivToAcc.remove(lowerIv);
+    private void delete(Iterator<Entry<Interval, A>> it, K key, Interval lowerIv) {
+        it.remove();
         Set<K> keys = deadlineToKeys.get(lowerIv.end);
         keys.remove(key);
         if (keys.isEmpty()) {
