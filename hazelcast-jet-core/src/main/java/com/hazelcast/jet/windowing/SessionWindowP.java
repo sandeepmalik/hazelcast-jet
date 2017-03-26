@@ -155,7 +155,7 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
     // interval because they are at least as large as it.
     private Entry<Interval, A> resolveWindow(NavigableMap<Interval, A> ivToAcc, K key, Interval eventIv) {
         Iterator<Entry<Interval, A>> it = ivToAcc.tailMap(eventIv).entrySet().iterator();
-        Entry<Interval, A> lowerWindow = overlappingOrNull(it, eventIv);
+        Entry<Interval, A> lowerWindow = nextOverlappingOrNull(it, eventIv);
         if (lowerWindow == null) {
             return putAbsent(ivToAcc, key, entry(eventIv, newAccumulatorF.get()));
         }
@@ -164,7 +164,7 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
             return lowerWindow;
         }
         delete(it, key, lowerIv);
-        Entry<Interval, A> upperWindow = overlappingOrNull(it, eventIv);
+        Entry<Interval, A> upperWindow = nextOverlappingOrNull(it, eventIv);
         if (upperWindow == null) {
             return putAbsent(ivToAcc, key, entry(union(lowerIv, eventIv), lowerWindow.getValue()));
         }
@@ -176,7 +176,7 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
         );
     }
 
-    private Entry<Interval, A> overlappingOrNull(Iterator<Entry<Interval, A>> it, Interval eventIv) {
+    private Entry<Interval, A> nextOverlappingOrNull(Iterator<Entry<Interval, A>> it, Interval eventIv) {
         if (!it.hasNext()) {
             return null;
         }
