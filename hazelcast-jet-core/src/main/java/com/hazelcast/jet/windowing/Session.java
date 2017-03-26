@@ -62,4 +62,30 @@ public class Session<K, R> {
     public long getEnd() {
         return end;
     }
+
+    @Override
+    public boolean equals(Object obj) {
+        Session that;
+        return this == obj
+                || obj instanceof Session
+                    && this.start == (that = (Session) obj).start
+                    && this.end == that.end
+                    && this.key.equals(that.key)
+                    && this.result.equals(that.result);
+    }
+
+    @Override
+    public int hashCode() {
+        int hc = 17;
+        hc = 73 * hc + key.hashCode();
+        hc = 73 * hc + result.hashCode();
+        hc = 73 * hc + Long.hashCode(start);
+        hc = 73 * hc + Long.hashCode(end);
+        return hc;
+    }
+
+    @Override
+    public String toString() {
+        return key + "[" + start + ".." + end + "]=" + result;
+    }
 }
