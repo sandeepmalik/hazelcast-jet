@@ -16,17 +16,15 @@
 
 package com.hazelcast.jet.windowing;
 
-import com.hazelcast.jet.Inbox;
 import com.hazelcast.jet.Processor;
 import com.hazelcast.jet.Processor.Context;
 import com.hazelcast.jet.Punctuation;
+import com.hazelcast.jet.impl.util.ArrayDequeInbox;
 import com.hazelcast.jet.impl.util.ArrayDequeOutbox;
 import com.hazelcast.jet.stream.DistributedCollector;
-import com.hazelcast.jet.windowing.Frame;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.ArrayDeque;
 import java.util.List;
 import java.util.stream.LongStream;
 
@@ -39,7 +37,7 @@ import static org.mockito.Mockito.mock;
 public class SlidingWindowPTest {
 
     private Processor swp;
-    private MockInbox inbox;
+    private ArrayDequeInbox inbox;
     private ArrayDequeOutbox outbox;
 
     @Before
@@ -48,7 +46,7 @@ public class SlidingWindowPTest {
                 .get(1).iterator().next();
         outbox = new ArrayDequeOutbox(1, new int[] {101});
         swp.init(outbox, mock(Context.class));
-        inbox = new MockInbox();
+        inbox = new ArrayDequeInbox();
     }
 
     @Test
@@ -129,6 +127,4 @@ public class SlidingWindowPTest {
     private static Frame<Long, Long> frame(long seq, long value) {
         return new Frame<>(seq, 77L, value);
     }
-
-    static class MockInbox extends ArrayDeque implements Inbox {}
 }

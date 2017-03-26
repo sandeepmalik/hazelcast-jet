@@ -17,14 +17,13 @@
 package com.hazelcast.jet;
 
 import com.hazelcast.jet.Processor.Context;
+import com.hazelcast.jet.impl.util.ArrayDequeInbox;
 import com.hazelcast.jet.impl.util.ArrayDequeOutbox;
 import com.hazelcast.test.annotation.QuickTest;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import java.util.AbstractMap.SimpleImmutableEntry;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -44,14 +43,14 @@ import static org.mockito.Mockito.mock;
 
 @Category(QuickTest.class)
 public class ProcessorsTest {
-    private TestInbox inbox;
+    private ArrayDequeInbox inbox;
     private ArrayDequeOutbox outbox;
     private Queue<Object> bucket;
     private Context context;
 
     @Before
     public void before() {
-        inbox = new TestInbox();
+        inbox = new ArrayDequeInbox();
         outbox = new ArrayDequeOutbox(1, new int[]{1});
         context = mock(Context.class);
         bucket = outbox.queueWithOrdinal(0);
@@ -317,10 +316,6 @@ public class ProcessorsTest {
 
     private static Processor processorFrom(ProcessorSupplier supplier) {
         return supplier.get(1).iterator().next();
-    }
-
-
-    private static class TestInbox extends ArrayDeque<Object> implements Inbox {
     }
 
     private interface TwinConsumer<T> extends BiConsumer<T, T> { }

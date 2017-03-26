@@ -16,10 +16,10 @@
 
 package com.hazelcast.jet.impl.execution;
 
-import com.hazelcast.jet.Inbox;
 import com.hazelcast.jet.Processor;
 import com.hazelcast.jet.Processor.Context;
 import com.hazelcast.jet.Punctuation;
+import com.hazelcast.jet.impl.util.ArrayDequeInbox;
 import com.hazelcast.jet.impl.util.ArrayDequeOutbox;
 import com.hazelcast.jet.impl.util.CircularListCursor;
 import com.hazelcast.jet.impl.util.ProgressState;
@@ -198,7 +198,5 @@ public class ProcessorTasklet implements Tasklet {
         return "ProcessorTasklet{vertex=" + vertexName + ", processor=" + processor + '}';
     }
 
-    private static final class ArrayDequeInbox extends ArrayDeque<Object> implements Inbox {
-    }
 }
 

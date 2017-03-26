@@ -19,9 +19,9 @@ package com.hazelcast.jet.windowing;
 import com.hazelcast.jet.Processor;
 import com.hazelcast.jet.Processor.Context;
 import com.hazelcast.jet.Punctuation;
+import com.hazelcast.jet.impl.util.ArrayDequeInbox;
 import com.hazelcast.jet.impl.util.ArrayDequeOutbox;
 import com.hazelcast.jet.stream.DistributedCollector;
-import com.hazelcast.jet.windowing.SlidingWindowPTest.MockInbox;
 import com.hazelcast.util.MutableLong;
 import org.junit.Before;
 import org.junit.Test;
@@ -58,7 +58,7 @@ public class GroupByFramePTest {
     @Test
     public void smokeTest() {
         // Given
-        MockInbox inbox = new MockInbox();
+        ArrayDequeInbox inbox = new ArrayDequeInbox();
         inbox.add(entry(0L, 1L)); // to frame 0
         inbox.add(entry(1L, 1L)); // to frame 0
         inbox.add(new Punctuation(2)); // does not close anything
