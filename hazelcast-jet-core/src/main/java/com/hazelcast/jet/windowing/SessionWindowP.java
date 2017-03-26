@@ -25,6 +25,7 @@ import com.hazelcast.jet.StreamingProcessorBase;
 import com.hazelcast.jet.Traverser;
 import com.hazelcast.jet.Traversers;
 import com.hazelcast.jet.stream.DistributedCollector;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import javax.annotation.Nonnull;
 import java.util.HashMap;
@@ -40,6 +41,8 @@ import java.util.function.BiConsumer;
 
 import static com.hazelcast.jet.Traversers.traverseWithRemoval;
 import static com.hazelcast.jet.Util.entry;
+import static java.lang.Math.max;
+import static java.lang.Math.min;
 
 /**
  * Aggregates events into session windows. Events and windows under
@@ -117,7 +120,7 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
         if (eventSeq <= puncSeq) {
             return true;
         }
-        final K key = extractKeyF.apply(event);
+        K key = extractKeyF.apply(event);
         NavigableMap<Interval, A> ivToAcc = keyToIvToAcc.get(key);
         Interval eventIv = new Interval(eventSeq, eventSeq + maxSeqGap);
         if (ivToAcc == null) {
@@ -130,54 +133,64 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
                           .add(key);
             return true;
         }
-        // This logic relies on the non-transitive equality relation defined for
-        // `Interval`. Lower and upper window have definitely non-equal intervals,
-        // but they may both be equal to the event interval. If they are, the new
-        // event belongs to both and therefore causes the two windows to be
-        // combined into one.
-        A acc;
-        Interval resolvedIv;
-        Iterator<Entry<Interval, A>> it = ivToAcc.tailMap(eventIv).entrySet().iterator();
-        Entry<Interval, A> lowerWindow = it.hasNext() ? it.next() : entry(Interval.NULL, null);
-        Entry<Interval, A> upperWindow = it.hasNext() ? it.next() : entry(Interval.NULL, null);
-        Interval lowerIv = lowerWindow.getKey();
-        Interval upperIv = upperWindow.getKey();
-        if (lowerIv.equals(eventIv) && upperIv.equals(eventIv)) {
-            ivToAcc.remove(lowerIv);
-            ivToAcc.remove(upperIv);
-            acc = combineAccF.apply(lowerWindow.getValue(), upperWindow.getValue());
-            resolvedIv = new Interval(lowerIv.start, upperIv.end);
-            putAbsent(ivToAcc, resolvedIv, acc);
-        } else if (lowerIv.equals(eventIv)) {
-            acc = lowerWindow.getValue();
-            resolvedIv = unite(lowerIv, eventIv, ivToAcc);
-        } else if (upperIv.equals(eventIv)) {
-            acc = upperWindow.getValue();
-            resolvedIv = unite(upperIv, eventIv, ivToAcc);
-        } else {
-            acc = newAccumulatorF.get();
-            resolvedIv = eventIv;
-            putAbsent(ivToAcc, resolvedIv, acc);
-        }
-        accumulateF.accept(acc, event);
-        deadlineToKeys.computeIfAbsent(resolvedIv.end, x -> new HashSet<>())
+        Entry<Interval, A> resolvedWin = resolveWindow(ivToAcc, eventIv);
+        accumulateF.accept(resolvedWin.getValue(), event);
+        deadlineToKeys.computeIfAbsent(resolvedWin.getKey().end, x -> new HashSet<>())
                       .add(key);
         return true;
     }
 
-    private static <K, V> void putAbsent(NavigableMap<K, V> map, K key, V value) {
-        assert !map.containsKey(key) : map.keySet() + " already contains " + key;
-        map.put(key, value);
+    // This logic relies on the non-transitive equality relation defined for
+    // `Interval`. Lower and upper windows have definitely non-equal intervals,
+    // but they may both be equal to the event interval. If they are, the new
+    // event belongs to both and causes the two windows to be combined into one.
+    // Further note that at most two existing intervals can overlap the event
+    // interval because they are at least as large as it.
+    private Entry<Interval, A> resolveWindow(NavigableMap<Interval, A> ivToAcc, Interval eventIv) {
+        Iterator<Entry<Interval, A>> it = ivToAcc.tailMap(eventIv).entrySet().iterator();
+        Entry<Interval, A> lowerWindow = overlappingOrNull(it, eventIv);
+        if (lowerWindow == null) {
+            return putAbsent(ivToAcc, entry(eventIv, newAccumulatorF.get()));
+        }
+        Interval lowerIv = lowerWindow.getKey();
+        Entry<Interval, A> upperWindow = overlappingOrNull(it, eventIv);
+        if (upperWindow != null) {
+            Interval upperIv = upperWindow.getKey();
+            ivToAcc.remove(lowerIv);
+            ivToAcc.remove(upperIv);
+            return putAbsent(ivToAcc, entry(
+                    new Interval(lowerIv.start, upperIv.end),
+                    combineAccF.apply(lowerWindow.getValue(), upperWindow.getValue()))
+            );
+        }
+        if (encompasses(lowerIv, eventIv)) {
+            return lowerWindow;
+        }
+        ivToAcc.remove(lowerIv);
+        return putAbsent(ivToAcc, entry(union(lowerIv, eventIv), lowerWindow.getValue()));
     }
 
-    private Interval unite(Interval iv, Interval eventIv, NavigableMap<Interval, A> ivToAcc) {
-        if (iv.start <= eventIv.start && iv.end >= eventIv.end) {
-            return iv;
+    private Entry<Interval, A> overlappingOrNull(Iterator<Entry<Interval, A>> it, Interval eventIv) {
+        if (!it.hasNext()) {
+            return null;
         }
-        Interval unitedIv = new Interval(Math.min(iv.start, eventIv.start), Math.max(iv.end, eventIv.end));
-        A acc = ivToAcc.remove(iv);
-        putAbsent(ivToAcc, unitedIv, acc);
-        return unitedIv;
+        Entry<Interval, A> win = it.next();
+        return eventIv.equals(win.getKey()) ? win : null;
+    }
+
+    private static boolean encompasses(Interval outer, Interval inner) {
+        return outer.start <= inner.start && outer.end >= inner.end;
+    }
+
+    private static Interval union(Interval iv1, Interval iv2) {
+        return new Interval(min(iv1.start, iv2.start), max(iv1.end, iv2.end));
+    }
+
+    private static <K, V> Entry<K, V> putAbsent(NavigableMap<K, V> map, Entry<K, V> entry) {
+        V prev = map.put(entry.getKey(), entry.getValue());
+        assert prev == null
+                : "Broken interval map implementation: " + entry.getKey() + " already present in " + map.keySet();
+        return entry;
     }
 
     @Override
@@ -188,16 +201,17 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
 
     /**
      * An interval on the long integer number line. Two intervals are "equal"
-     * if they overlap. This deliberately broken definition fails at
-     * transitivity, but works well for its single use case: comparing an
-     * interval with several other, mutually non-overlapping intervals to
-     * find those that overlap it.
+     * iff they overlap. This deliberately broken definition fails at
+     * transitivity, but works well for its single use case: maintaining a
+     * {@code TreeMap} of strictly non-overlapping (non-equal) intervals and
+     * testing whether a given interval overlaps some of those.
      */
+    @SuppressWarnings("equalshashcode")
+    @SuppressFBWarnings(value = "HE_EQUALS_USE_HASHCODE",
+            justification = "This class must not be used in a hashtable")
     private static class Interval implements Comparable<Interval> {
         final long start;
         final long end;
-
-        static final Interval NULL = new Interval(Long.MIN_VALUE, Long.MIN_VALUE);
 
         Interval(long start, long end) {
             this.start = start;

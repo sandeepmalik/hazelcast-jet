@@ -17,18 +17,49 @@
 package com.hazelcast.jet.windowing;
 
 /**
- * Holds the aggregates result of a session window.
+ * Holds the aggregated result of a session window.
+ *
+ * @param <K> type of key
+ * @param <R> type of aggregated result
  */
 public class Session<K, R> {
-    public final long start;
-    public final long end;
-    public final K key;
-    public final R result;
+    private final K key;
+    private final R result;
+    private final long start;
+    private final long end;
 
-    public Session(K key, R result, long start, long end) {
+    Session(K key, R result, long start, long end) {
         this.key = key;
         this.result = result;
         this.start = start;
         this.end = end;
+    }
+
+    /**
+     * Returns the session's key.
+     */
+    public K getKey() {
+        return key;
+    }
+
+    /**
+     * Returns the aggregated result for the session.
+     */
+    public R getResult() {
+        return result;
+    }
+
+    /**
+     * Returns the starting timestamp of the session.
+     */
+    public long getStart() {
+        return start;
+    }
+
+    /**
+     * Returns the ending timestamp of the session.
+     */
+    public long getEnd() {
+        return end;
     }
 }
