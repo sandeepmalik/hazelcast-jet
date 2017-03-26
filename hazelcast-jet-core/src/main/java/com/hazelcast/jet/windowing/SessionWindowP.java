@@ -73,7 +73,7 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
     private final Function<A, R> finishAccumulationF;
     private final BinaryOperator<A> combineAccF;
     private final Map<K, NavigableMap<Interval, A>> keyToIvToAcc = new HashMap<>();
-    private final SortedMap<Long, Set<K>> deadlineToKeys = new TreeMap<>();
+    private final NavigableMap<Long, Set<K>> deadlineToKeys = new TreeMap<>();
     private final FlatMapper<Punctuation, Session<K, R>> expiredSesFlatmapper;
     private long puncSeq;
 
@@ -102,10 +102,10 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
     }
 
     private Traverser<Session<K, R>> closedWindowTraverser(Punctuation punc) {
-        final Interval deadlineIv = new Interval(punc.seq() + 1, punc.seq() + 1);
-        return traverseWithRemoval(deadlineToKeys.headMap(punc.seq() + 1).values())
+        final Interval deadlineIv = new Interval(punc.seq(), punc.seq());
+        return traverseWithRemoval(deadlineToKeys.headMap(punc.seq(), true).values())
                 .flatMap(Traversers::traverseIterable)
-                .flatMap(k -> traverseWithRemoval(keyToIvToAcc.get(k).headMap(deadlineIv).entrySet())
+                .flatMap(k -> traverseWithRemoval(keyToIvToAcc.get(k).headMap(deadlineIv, true).entrySet())
                         .map(ivAndAcc -> new Session<>(
                                 k, finishAccumulationF.apply(ivAndAcc.getValue()),
                                 ivAndAcc.getKey().start, ivAndAcc.getKey().end))

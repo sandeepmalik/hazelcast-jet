@@ -27,6 +27,7 @@ import javax.annotation.Nonnull;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.NavigableMap;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
@@ -71,7 +72,9 @@ public final class FrameProcessors {
     }
 
     /**
-     * Convenience for {@link #groupByFrame(Function, ToLongFunction, LongUnaryOperator, DistributedCollector)}
+     * Convenience for {@link #groupByFrame(
+     * Distributed.Function, Distributed.ToLongFunction, Distributed.LongUnaryOperator, DistributedCollector)
+     * groupByFrame(extractKeyF, extractTimeStampF, toFrameSeqF, collector)}
      * which doesn't group by key.
      */
     public static <T, F> ProcessorSupplier groupByFrame(
@@ -153,7 +156,7 @@ public final class FrameProcessors {
     }
 
     private static class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
-        private final SortedMap<Long, Map<K, F>> seqToKeyToFrame = new TreeMap<>();
+        private final NavigableMap<Long, Map<K, F>> seqToKeyToFrame = new TreeMap<>();
         private final BinaryOperator<F> combiner;
         private final FlatMapper<Punctuation, Frame<K, R>> puncFlatMapper;
         private final int windowSize;
@@ -163,7 +166,7 @@ public final class FrameProcessors {
             this.combiner = collector.combiner();
             Function<F, R> finisher = collector.finisher();
             this.puncFlatMapper = flatMapper(punc -> {
-                Map<K, F> windows = seqToKeyToFrame.headMap(punc.seq() + 1)
+                Map<K, F> windows = seqToKeyToFrame.headMap(punc.seq(), true)
                                                    .values().stream()
                                                    .flatMap(m -> m.entrySet().stream())
                                                    .collect(toMap(Entry::getKey, Entry::getValue, combiner));
