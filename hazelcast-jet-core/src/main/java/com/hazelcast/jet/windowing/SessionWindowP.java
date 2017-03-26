@@ -127,16 +127,12 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
             A acc = newAccumulatorF.get();
             accumulateF.accept(acc, event);
             ivToAcc = new TreeMap<>();
-            ivToAcc.put(eventIv, acc);
+            putAbsent(ivToAcc, key, entry(eventIv, acc));
             keyToIvToAcc.put(key, ivToAcc);
-            deadlineToKeys.computeIfAbsent(eventIv.end, x -> new HashSet<>())
-                          .add(key);
             return true;
         }
-        Entry<Interval, A> resolvedWin = resolveWindow(ivToAcc, eventIv);
+        Entry<Interval, A> resolvedWin = resolveWindow(ivToAcc, key, eventIv);
         accumulateF.accept(resolvedWin.getValue(), event);
-        deadlineToKeys.computeIfAbsent(resolvedWin.getKey().end, x -> new HashSet<>())
-                      .add(key);
         return true;
     }
 
@@ -146,19 +142,19 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
     // event belongs to both and causes the two windows to be combined into one.
     // Further note that at most two existing intervals can overlap the event
     // interval because they are at least as large as it.
-    private Entry<Interval, A> resolveWindow(NavigableMap<Interval, A> ivToAcc, Interval eventIv) {
+    private Entry<Interval, A> resolveWindow(NavigableMap<Interval, A> ivToAcc, K key, Interval eventIv) {
         Iterator<Entry<Interval, A>> it = ivToAcc.tailMap(eventIv).entrySet().iterator();
         Entry<Interval, A> lowerWindow = overlappingOrNull(it, eventIv);
         if (lowerWindow == null) {
-            return putAbsent(ivToAcc, entry(eventIv, newAccumulatorF.get()));
+            return putAbsent(ivToAcc, key, entry(eventIv, newAccumulatorF.get()));
         }
         Interval lowerIv = lowerWindow.getKey();
         Entry<Interval, A> upperWindow = overlappingOrNull(it, eventIv);
         if (upperWindow != null) {
             Interval upperIv = upperWindow.getKey();
-            ivToAcc.remove(lowerIv);
-            ivToAcc.remove(upperIv);
-            return putAbsent(ivToAcc, entry(
+            remove(key, lowerIv, ivToAcc);
+            remove(key, upperIv, ivToAcc);
+            return putAbsent(ivToAcc, key, entry(
                     new Interval(lowerIv.start, upperIv.end),
                     combineAccF.apply(lowerWindow.getValue(), upperWindow.getValue()))
             );
@@ -166,8 +162,8 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
         if (encompasses(lowerIv, eventIv)) {
             return lowerWindow;
         }
-        ivToAcc.remove(lowerIv);
-        return putAbsent(ivToAcc, entry(union(lowerIv, eventIv), lowerWindow.getValue()));
+        remove(key, lowerIv, ivToAcc);
+        return putAbsent(ivToAcc, key, entry(union(lowerIv, eventIv), lowerWindow.getValue()));
     }
 
     private Entry<Interval, A> overlappingOrNull(Iterator<Entry<Interval, A>> it, Interval eventIv) {
@@ -186,11 +182,22 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
         return new Interval(min(iv1.start, iv2.start), max(iv1.end, iv2.end));
     }
 
-    private static <K, V> Entry<K, V> putAbsent(NavigableMap<K, V> map, Entry<K, V> entry) {
-        V prev = map.put(entry.getKey(), entry.getValue());
+    private void remove(K key, Interval lowerIv, NavigableMap<Interval, A> ivToAcc) {
+        ivToAcc.remove(lowerIv);
+        Set<K> keys = deadlineToKeys.get(lowerIv.end);
+        keys.remove(key);
+        if (keys.isEmpty()) {
+            deadlineToKeys.remove(lowerIv.end);
+        }
+    }
+
+    private Entry<Interval, A> putAbsent(NavigableMap<Interval, A> ivToAcc, K key, Entry<Interval, A> win) {
+        A prev = ivToAcc.put(win.getKey(), win.getValue());
         assert prev == null
-                : "Broken interval map implementation: " + entry.getKey() + " already present in " + map.keySet();
-        return entry;
+                : "Broken interval map implementation: " + win.getKey() + " already present in " + ivToAcc.keySet();
+        deadlineToKeys.computeIfAbsent(win.getKey().end, x -> new HashSet<>())
+                      .add(key);
+        return win;
     }
 
     @Override
@@ -220,23 +227,19 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
 
         @Override
         public boolean equals(Object obj) {
-            if (!(obj instanceof Interval)) {
-                return false;
-            }
-            final Interval that = (Interval) obj;
-            return that.end >= this.start && this.end >= that.start;
+            return obj instanceof Interval && compareTo((Interval) obj) == 0;
         }
 
         @Override
         public int compareTo(@Nonnull Interval that) {
-            return that.end < this.start ? -1
-                 : this.end < that.start ? 1
+            return this.end < that.start ? -1
+                 : that.end < this.start ? 1
                  : 0;
         }
 
         @Override
         public String toString() {
-            return "[" + start + ".." + end + ')';
+            return "[" + start + ".." + end + ']';
         }
     }
 }
