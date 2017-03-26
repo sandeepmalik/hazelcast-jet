@@ -109,6 +109,11 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
                         .map(ivAndAcc -> new Session<>(
                                 k, finishAccumulationF.apply(ivAndAcc.getValue()),
                                 ivAndAcc.getKey().start, ivAndAcc.getKey().end))
+                        .onNull(() -> {
+                            if (keyToIvToAcc.get(k).isEmpty()) {
+                                keyToIvToAcc.remove(k);
+                            }
+                        })
                 );
     }
 
@@ -214,8 +219,7 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
      * testing whether a given interval overlaps some of those.
      */
     @SuppressWarnings("equalshashcode")
-    @SuppressFBWarnings(value = "HE_EQUALS_USE_HASHCODE",
-            justification = "This class must not be used in a hashtable")
+    @SuppressFBWarnings(value = "HE_EQUALS_USE_HASHCODE", justification = "Not to be used in a hashtable")
     private static class Interval implements Comparable<Interval> {
         final long start;
         final long end;

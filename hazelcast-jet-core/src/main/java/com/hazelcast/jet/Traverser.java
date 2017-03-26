@@ -83,6 +83,22 @@ public interface Traverser<T> {
     }
 
     /**
+     * Returns a traverser that will emit the same items as this traverser and
+     * will additionally run the supplied action every time this traverser
+     * returns {@code null}.
+     */
+    @Nonnull
+    default Traverser<T> onNull(@Nonnull Runnable action) {
+        return () -> {
+            T t = next();
+            if (t == null) {
+                action.run();
+            }
+            return t;
+        };
+    }
+
+    /**
      * Returns a traverser that will emit the same items as this traverser,
      * additionally passing each item to the supplied consumer.
      */
