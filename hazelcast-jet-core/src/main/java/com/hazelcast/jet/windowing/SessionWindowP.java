@@ -23,7 +23,6 @@ import com.hazelcast.jet.Distributed.ToLongFunction;
 import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.StreamingProcessorBase;
 import com.hazelcast.jet.Traverser;
-import com.hazelcast.jet.Traversers;
 import com.hazelcast.jet.stream.DistributedCollector;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
@@ -37,12 +36,13 @@ import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
+import java.util.stream.Stream;
 
+import static com.hazelcast.jet.Traversers.traverseStream;
 import static com.hazelcast.jet.Traversers.traverseWithRemoval;
 import static com.hazelcast.jet.Util.entry;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
-import static java.util.Collections.emptyNavigableMap;
 
 /**
  * Aggregates events into session windows. Events and windows under
@@ -65,8 +65,9 @@ import static java.util.Collections.emptyNavigableMap;
  */
 public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
 
+    // These two fields are exposed for testing, to check for memory leaks
     final Map<K, NavigableMap<Interval, A>> keyToIvToAcc = new HashMap<>();
-    final NavigableMap<Long, Set<K>> deadlineToKeys = new TreeMap<>();
+    NavigableMap<Long, Set<K>> deadlineToKeys = new TreeMap<>();
 
     private final long maxSeqGap;
     private final ToLongFunction<? super T> extractEventSeqF;
@@ -104,24 +105,23 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
     }
 
     private Traverser<Session<K, R>> closedWindowTraverser(Punctuation punc) {
-        final Interval deadlineIv = new Interval(punc.seq(), punc.seq());
-        return traverseWithRemoval(deadlineToKeys.headMap(punc.seq(), true).values())
-                .flatMap(Traversers::traverseIterable)
-                .flatMap(k -> traverseWithRemoval(getOrEmptyIvToAcc(k).headMap(deadlineIv, true).entrySet())
+        Interval deadlineIv = new Interval(punc.seq(), punc.seq());
+        Stream<K> keys = deadlineToKeys.headMap(punc.seq(), true)
+                                       .values().stream()
+                                       .flatMap(Set::stream)
+                                       .distinct();
+        deadlineToKeys = deadlineToKeys.tailMap(punc.seq(), false);
+        return traverseStream(keys)
+                .flatMap(k -> traverseWithRemoval(keyToIvToAcc.get(k).headMap(deadlineIv, true).entrySet())
                         .map(ivAndAcc -> new Session<>(
                                 k, finishAccumulationF.apply(ivAndAcc.getValue()),
-                                ivAndAcc.getKey().start, ivAndAcc.getKey().end))
+                                ivAndAcc.getKey().start, ivAndAcc.getKey().beyondEnd))
                         .onNull(() -> {
-                            Map<Interval, A> map = keyToIvToAcc.get(k);
-                            if (map != null && map.isEmpty()) {
+                            if (keyToIvToAcc.get(k).isEmpty()) {
                                 keyToIvToAcc.remove(k);
                             }
                         })
                 );
-    }
-
-    private NavigableMap<Interval, A> getOrEmptyIvToAcc(K k) {
-        return keyToIvToAcc.getOrDefault(k, emptyNavigableMap());
     }
 
     @Override
@@ -156,7 +156,7 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
     // interval because they are at least as large as it.
     private Entry<Interval, A> resolveWindow(NavigableMap<Interval, A> ivToAcc, K key, Interval eventIv) {
         Iterator<Entry<Interval, A>> it = ivToAcc.tailMap(eventIv).entrySet().iterator();
-        Entry<Interval, A> lowerWindow = nextOverlappingOrNull(it, eventIv);
+        Entry<Interval, A> lowerWindow = nextEqualOrNull(it, eventIv);
         if (lowerWindow == null) {
             return putAbsent(ivToAcc, key, entry(eventIv, newAccumulatorF.get()));
         }
@@ -165,19 +165,19 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
             return lowerWindow;
         }
         delete(it, key, lowerIv);
-        Entry<Interval, A> upperWindow = nextOverlappingOrNull(it, eventIv);
+        Entry<Interval, A> upperWindow = nextEqualOrNull(it, eventIv);
         if (upperWindow == null) {
             return putAbsent(ivToAcc, key, entry(union(lowerIv, eventIv), lowerWindow.getValue()));
         }
         Interval upperIv = upperWindow.getKey();
         delete(it, key, upperIv);
         return putAbsent(ivToAcc, key, entry(
-                new Interval(lowerIv.start, upperIv.end),
+                new Interval(lowerIv.start, upperIv.beyondEnd),
                 combineAccF.apply(lowerWindow.getValue(), upperWindow.getValue()))
         );
     }
 
-    private Entry<Interval, A> nextOverlappingOrNull(Iterator<Entry<Interval, A>> it, Interval eventIv) {
+    private Entry<Interval, A> nextEqualOrNull(Iterator<Entry<Interval, A>> it, Interval eventIv) {
         if (!it.hasNext()) {
             return null;
         }
@@ -186,19 +186,19 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
     }
 
     private static boolean encompasses(Interval outer, Interval inner) {
-        return outer.start <= inner.start && outer.end >= inner.end;
+        return outer.start <= inner.start && outer.beyondEnd >= inner.beyondEnd;
     }
 
     private static Interval union(Interval iv1, Interval iv2) {
-        return new Interval(min(iv1.start, iv2.start), max(iv1.end, iv2.end));
+        return new Interval(min(iv1.start, iv2.start), max(iv1.beyondEnd, iv2.beyondEnd));
     }
 
     private void delete(Iterator<Entry<Interval, A>> it, K key, Interval lowerIv) {
         it.remove();
-        Set<K> keys = deadlineToKeys.get(lowerIv.end);
+        Set<K> keys = deadlineToKeys.get(lowerIv.beyondEnd);
         keys.remove(key);
         if (keys.isEmpty()) {
-            deadlineToKeys.remove(lowerIv.end);
+            deadlineToKeys.remove(lowerIv.beyondEnd);
         }
     }
 
@@ -206,7 +206,7 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
         A prev = ivToAcc.put(win.getKey(), win.getValue());
         assert prev == null
                 : "Broken interval map implementation: " + win.getKey() + " already present in " + ivToAcc.keySet();
-        deadlineToKeys.computeIfAbsent(win.getKey().end, x -> new HashSet<>())
+        deadlineToKeys.computeIfAbsent(win.getKey().beyondEnd, x -> new HashSet<>())
                       .add(key);
         return win;
     }
@@ -221,19 +221,18 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
      * An interval on the long integer number line. Two intervals are "equal"
      * iff they overlap or are adjacent without gap. This deliberately broken
      * definition fails at transitivity, but works well for its single use case:
-     * maintaining a {@code SortedMap} of strictly non-overlapping
-     * (non-equal) intervals and testing whether a given interval overlaps
-     * some of those.
+     * maintaining a {@code TreeMap} of strictly non-equal intervals and testing
+     * whether a given interval is equal to some of these.
      */
     @SuppressWarnings("equalshashcode")
     @SuppressFBWarnings(value = "HE_EQUALS_USE_HASHCODE", justification = "Not to be used in a hashtable")
     private static class Interval implements Comparable<Interval> {
         final long start;
-        final long end;
+        final long beyondEnd;
 
-        Interval(long start, long end) {
+        Interval(long start, long beyondEnd) {
             this.start = start;
-            this.end = end;
+            this.beyondEnd = beyondEnd;
         }
 
         @Override
@@ -243,14 +242,14 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
 
         @Override
         public int compareTo(@Nonnull Interval that) {
-            return this.end < that.start ? -1
-                 : that.end < this.start ? 1
+            return this.beyondEnd < that.start ? -1
+                 : that.beyondEnd < this.start ? 1
                  : 0;
         }
 
         @Override
         public String toString() {
-            return "[" + start + ".." + end + ']';
+            return "[" + start + ".." + beyondEnd + ']';
         }
     }
 }
