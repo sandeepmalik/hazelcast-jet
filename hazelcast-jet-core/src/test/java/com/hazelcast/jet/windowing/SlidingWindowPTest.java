@@ -120,6 +120,32 @@ public class SlidingWindowPTest {
         assertEquals(null, pollOutbox());
     }
 
+    @Test
+    public void when_receiveWithGaps_then_emitAscending() {
+        // Given
+        inbox.add(frame(0, 1));
+        inbox.add(frame(10, 1));
+        inbox.add(new Punctuation(50));
+
+        // When
+        swp.process(0, inbox);
+
+        System.out.println(outbox);
+
+        // Then
+        assertEquals(frame(0, 1), pollOutbox());
+        assertEquals(frame(1, 1), pollOutbox());
+        assertEquals(frame(2, 1), pollOutbox());
+        assertEquals(frame(3, 1), pollOutbox());
+
+        assertEquals(frame(10, 1), pollOutbox());
+        assertEquals(frame(11, 1), pollOutbox());
+        assertEquals(frame(12, 1), pollOutbox());
+        assertEquals(frame(13, 1), pollOutbox());
+
+        assertEquals(null, pollOutbox());
+    }
+
     private Object pollOutbox() {
         return outbox.queueWithOrdinal(0).poll();
     }
