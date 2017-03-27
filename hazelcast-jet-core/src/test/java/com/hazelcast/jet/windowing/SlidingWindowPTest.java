@@ -52,56 +52,56 @@ public class SlidingWindowPTest {
     @Test
     public void when_receiveAscendingSeqs_then_emitAscending() {
         // Given
-        for (long i = 0; i <= 4; i++) {
-            inbox.add(frame(i, 1));
+        for (long seq = 0; seq <= 4; seq++) {
+            inbox.add(frame(seq, 1));
         }
-        for (long i = 0; i <= 4; i++) {
-            inbox.add(new Punctuation(i));
+        for (long seq = 1; seq <= 5; seq++) {
+            inbox.add(new Punctuation(seq));
         }
 
         // When
         swp.process(0, inbox);
 
         // Then
-        assertEquals(frame(0, 1), pollOutbox());
-        assertEquals(frame(1, 2), pollOutbox());
-        assertEquals(frame(2, 3), pollOutbox());
-        assertEquals(frame(3, 4), pollOutbox());
+        assertEquals(frame(1, 1), pollOutbox());
+        assertEquals(frame(2, 2), pollOutbox());
+        assertEquals(frame(3, 3), pollOutbox());
         assertEquals(frame(4, 4), pollOutbox());
+        assertEquals(frame(5, 4), pollOutbox());
         assertEquals(null, pollOutbox());
     }
 
     @Test
     public void when_receiveDescendingSeqs_then_emitAscending() {
         // Given
-        for (long i = 4; i >= 0; i--) {
-            inbox.add(frame(i, 1));
+        for (long seq = 4; seq >= 0; seq--) {
+            inbox.add(frame(seq, 1));
         }
-        for (long i = 0; i <= 4; i++) {
-            inbox.add(new Punctuation(i));
+        for (long seq = 1; seq <= 5; seq++) {
+            inbox.add(new Punctuation(seq));
         }
 
         // When
         swp.process(0, inbox);
 
         // Then
-        assertEquals(frame(0, 1), pollOutbox());
-        assertEquals(frame(1, 2), pollOutbox());
-        assertEquals(frame(2, 3), pollOutbox());
-        assertEquals(frame(3, 4), pollOutbox());
+        assertEquals(frame(1, 1), pollOutbox());
+        assertEquals(frame(2, 2), pollOutbox());
+        assertEquals(frame(3, 3), pollOutbox());
         assertEquals(frame(4, 4), pollOutbox());
+        assertEquals(frame(5, 4), pollOutbox());
         assertEquals(null, pollOutbox());
     }
 
     @Test
     public void when_receiveRandomSeqs_then_emitAscending() {
         // Given
-        final List<Long> streamSeqsToAdd = LongStream.range(0, 100).boxed().collect(toList());
-        shuffle(streamSeqsToAdd);
-        for (long i : streamSeqsToAdd) {
-            inbox.add(frame(i, 1));
+        final List<Long> frameSeqsToAdd = LongStream.range(0, 100).boxed().collect(toList());
+        shuffle(frameSeqsToAdd);
+        for (long seq : frameSeqsToAdd) {
+            inbox.add(frame(seq, 1));
         }
-        for (long i = 0; i < 100; i++) {
+        for (long i = 1; i <= 100; i++) {
             inbox.add(new Punctuation(i));
         }
 
@@ -109,12 +109,12 @@ public class SlidingWindowPTest {
         swp.process(0, inbox);
 
         // Then
-        assertEquals(frame(0, 1), pollOutbox());
-        assertEquals(frame(1, 2), pollOutbox());
-        assertEquals(frame(2, 3), pollOutbox());
-        assertEquals(frame(3, 4), pollOutbox());
-        for (long i = 4; i < 100; i++) {
-            assertEquals(frame(i, 4), pollOutbox());
+        assertEquals(frame(1, 1), pollOutbox());
+        assertEquals(frame(2, 2), pollOutbox());
+        assertEquals(frame(3, 3), pollOutbox());
+        assertEquals(frame(4, 4), pollOutbox());
+        for (long seq = 5; seq <= 100; seq++) {
+            assertEquals(frame(seq, 4), pollOutbox());
 
         }
         assertEquals(null, pollOutbox());

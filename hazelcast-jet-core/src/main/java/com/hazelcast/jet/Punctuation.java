@@ -19,10 +19,10 @@ package com.hazelcast.jet;
 import java.io.Serializable;
 
 /**
- * A stream item, that carries a sequence value, that denotes the barrier between
+ * A stream item that carries a sequence value denoting the barrier between
  * "on time" and "late" items.
  * <pre>
- *   boolean itemIsLate = itemSeq <= punc.seq();
+ *   boolean itemIsLate = itemSeq < punc.seq();
  * </pre>
  */
 public final class Punctuation implements Serializable {

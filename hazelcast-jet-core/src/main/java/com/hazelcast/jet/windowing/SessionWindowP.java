@@ -32,8 +32,8 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.NavigableMap;
 import java.util.Set;
+import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import java.util.stream.Stream;
@@ -66,8 +66,8 @@ import static java.lang.Math.min;
 public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
 
     // These two fields are exposed for testing, to check for memory leaks
-    final Map<K, NavigableMap<Interval, A>> keyToIvToAcc = new HashMap<>();
-    NavigableMap<Long, Set<K>> deadlineToKeys = new TreeMap<>();
+    final Map<K, SortedMap<Interval, A>> keyToIvToAcc = new HashMap<>();
+    SortedMap<Long, Set<K>> deadlineToKeys = new TreeMap<>();
 
     private final long maxSeqGap;
     private final ToLongFunction<? super T> extractEventSeqF;
@@ -106,13 +106,13 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
 
     private Traverser<Session<K, R>> closedWindowTraverser(Punctuation punc) {
         Interval deadlineIv = new Interval(punc.seq(), punc.seq());
-        Stream<K> keys = deadlineToKeys.headMap(punc.seq(), true)
+        Stream<K> keys = deadlineToKeys.headMap(punc.seq())
                                        .values().stream()
                                        .flatMap(Set::stream)
                                        .distinct();
-        deadlineToKeys = deadlineToKeys.tailMap(punc.seq(), false);
+        deadlineToKeys = deadlineToKeys.tailMap(punc.seq());
         return traverseStream(keys)
-                .flatMap(k -> traverseWithRemoval(keyToIvToAcc.get(k).headMap(deadlineIv, true).entrySet())
+                .flatMap(k -> traverseWithRemoval(keyToIvToAcc.get(k).headMap(deadlineIv).entrySet())
                         .map(ivAndAcc -> new Session<>(
                                 k, finishAccumulationF.apply(ivAndAcc.getValue()),
                                 ivAndAcc.getKey().start, ivAndAcc.getKey().beyondEnd))
@@ -133,7 +133,7 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
             return true;
         }
         K key = extractKeyF.apply(event);
-        NavigableMap<Interval, A> ivToAcc = keyToIvToAcc.get(key);
+        SortedMap<Interval, A> ivToAcc = keyToIvToAcc.get(key);
         Interval eventIv = new Interval(eventSeq, eventSeq + maxSeqGap);
         if (ivToAcc == null) {
             A acc = newAccumulatorF.get();
@@ -154,7 +154,7 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
     // event belongs to both and causes the two windows to be combined into one.
     // Further note that at most two existing intervals can overlap the event
     // interval because they are at least as large as it.
-    private Entry<Interval, A> resolveWindow(NavigableMap<Interval, A> ivToAcc, K key, Interval eventIv) {
+    private Entry<Interval, A> resolveWindow(SortedMap<Interval, A> ivToAcc, K key, Interval eventIv) {
         Iterator<Entry<Interval, A>> it = ivToAcc.tailMap(eventIv).entrySet().iterator();
         Entry<Interval, A> lowerWindow = nextEqualOrNull(it, eventIv);
         if (lowerWindow == null) {
@@ -202,7 +202,7 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
         }
     }
 
-    private Entry<Interval, A> putAbsent(NavigableMap<Interval, A> ivToAcc, K key, Entry<Interval, A> win) {
+    private Entry<Interval, A> putAbsent(Map<Interval, A> ivToAcc, K key, Entry<Interval, A> win) {
         A prev = ivToAcc.put(win.getKey(), win.getValue());
         assert prev == null
                 : "Broken interval map implementation: " + win.getKey() + " already present in " + ivToAcc.keySet();

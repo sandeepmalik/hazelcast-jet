@@ -27,7 +27,6 @@ import javax.annotation.Nonnull;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.NavigableMap;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
@@ -126,13 +125,13 @@ public final class FrameProcessors {
                 SortedMap<Long, Map<K, F>> seqsToEmit = seqToKeyToFrame.headMap(lowestOpenFrame);
                 // emit the punct, even if we don't have anything to emit
                 if (seqsToEmit.isEmpty()) {
-                    emitPunctuation(lowestOpenFrame - 1);
+                    emitPunctuation(lowestOpenFrame);
                 }
                 return traverseWithRemoval(seqsToEmit.entrySet())
                         .flatMap(seqAndFrame -> concat(
                                 traverseIterable(seqAndFrame.getValue().entrySet())
                                         .map(e -> new Frame<>(seqAndFrame.getKey(), e.getKey(), e.getValue())),
-                                Traverser.over(new Punctuation(emittedPunctuation = seqAndFrame.getKey()))));
+                                Traverser.over(new Punctuation(emittedPunctuation = seqAndFrame.getKey() + 1))));
             });
         }
 
@@ -160,7 +159,7 @@ public final class FrameProcessors {
 
         @Override
         protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
-            long puncFrameSeq = toFrameSeqF.applyAsLong(punc.seq() + 1);
+            long puncFrameSeq = toFrameSeqF.applyAsLong(punc.seq());
             if (puncFrameSeq > lowestOpenFrame) {
                 lowestOpenFrame = puncFrameSeq;
                 return puncFlatMapper.tryProcess(punc);
@@ -170,7 +169,7 @@ public final class FrameProcessors {
     }
 
     private static class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
-        private final NavigableMap<Long, Map<K, F>> seqToKeyToFrame = new TreeMap<>();
+        private final SortedMap<Long, Map<K, F>> seqToKeyToFrame = new TreeMap<>();
         private final BinaryOperator<F> combiner;
         private final FlatMapper<Punctuation, Frame<K, R>> puncFlatMapper;
         private final int windowSize;
@@ -180,7 +179,7 @@ public final class FrameProcessors {
             this.combiner = collector.combiner();
             Function<F, R> finisher = collector.finisher();
             this.puncFlatMapper = flatMapper(punc -> {
-                Map<K, F> windows = seqToKeyToFrame.headMap(punc.seq(), true)
+                Map<K, F> windows = seqToKeyToFrame.headMap(punc.seq())
                                                    .values().stream()
                                                    .flatMap(m -> m.entrySet().stream())
                                                    .collect(toMap(Entry::getKey, Entry::getValue, combiner));
@@ -203,7 +202,7 @@ public final class FrameProcessors {
         protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
             boolean done = puncFlatMapper.tryProcess(punc);
             if (done) {
-                seqToKeyToFrame.remove(punc.seq() + 1 - windowSize);
+                seqToKeyToFrame.remove(punc.seq() - windowSize);
             }
             return done;
         }

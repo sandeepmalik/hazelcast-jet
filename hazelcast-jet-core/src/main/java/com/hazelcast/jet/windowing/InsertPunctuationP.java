@@ -28,7 +28,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
  * A processor that inserts punctuation into a data stream. Punctuation is
- * defined as the top observed {@code eventSeq} minus the configured
+ * determined as the top observed {@code eventSeq} minus the configured
  * {@code punctuationLag}. We shall say that a punctuation is <em>behind</em>
  * an item if the item's {@code eventSeq} is higher than it; we shall use
  * the term <em>ahead</em> for the opposite case.

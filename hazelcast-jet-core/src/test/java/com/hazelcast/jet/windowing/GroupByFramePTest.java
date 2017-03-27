@@ -61,33 +61,34 @@ public class GroupByFramePTest {
         ArrayDequeInbox inbox = new ArrayDequeInbox();
         inbox.add(entry(0L, 1L)); // to frame 0
         inbox.add(entry(1L, 1L)); // to frame 0
-        inbox.add(new Punctuation(2)); // does not close anything
+        inbox.add(new Punctuation(3)); // does not close anything
         inbox.add(entry(2L, 1L)); // to frame 0
-        inbox.add(new Punctuation(3)); // closes frame 0
+        inbox.add(new Punctuation(4)); // closes frame 0
         inbox.add(entry(2L, 1L)); // dropped
         inbox.add(entry(4L, 1L)); // to frame 1
         inbox.add(entry(5L, 1L)); // to frame 1
         inbox.add(entry(8L, 1L)); // to frame 2
-        inbox.add(new Punctuation(4)); // will not close anything
         inbox.add(new Punctuation(5)); // will not close anything
         inbox.add(new Punctuation(6)); // will not close anything
+        inbox.add(new Punctuation(7)); // will not close anything
         inbox.add(entry(4L, 1L)); // to frame 1, accepted, despite of punctuation(4), as the frame is not closed yet
         inbox.add(entry(8L, 1L)); // to frame 2
-        inbox.add(new Punctuation(7)); // will close frame 1
+        inbox.add(new Punctuation(8)); // will close frame 1
         inbox.add(entry(8L, 1L)); // to frame 2
         inbox.add(entry(7L, 1L)); // dropped
-        inbox.add(new Punctuation(20)); // will close everything
+        inbox.add(new Punctuation(21)); // will close everything
 
         // When
         gbf.process(0, inbox);
 
         // Then
-        assertEquals(frame(0, 3L), pollOutbox());
         assertEquals(new Punctuation(0), pollOutbox());
-        assertEquals(frame(1, 3L), pollOutbox());
+        assertEquals(frame(0, 3L), pollOutbox());
         assertEquals(new Punctuation(1), pollOutbox());
-        assertEquals(frame(2, 3L), pollOutbox());
+        assertEquals(frame(1, 3L), pollOutbox());
         assertEquals(new Punctuation(2), pollOutbox());
+        assertEquals(frame(2, 3L), pollOutbox());
+        assertEquals(new Punctuation(3), pollOutbox());
         assertEquals(null, pollOutbox());
     }
 
