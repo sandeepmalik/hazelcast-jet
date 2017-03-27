@@ -109,6 +109,7 @@ public final class FrameProcessors {
         private final FlatMapper<Punctuation, Object> puncFlatMapper;
 
         private long lowestOpenFrame = Long.MIN_VALUE;
+        private long emittedPunctuation = Long.MIN_VALUE;
 
         GroupByFrameP(
                 Function<? super T, K> extractKeyF,
@@ -121,12 +122,25 @@ public final class FrameProcessors {
             this.toFrameSeqF = toFrameSeqF;
             this.supplier = collector.supplier();
             this.accumulator = collector.accumulator();
-            this.puncFlatMapper = flatMapper(punc ->
-                    traverseWithRemoval(seqToKeyToFrame.headMap(lowestOpenFrame).entrySet())
-                            .flatMap(seqAndFrame -> concat(
-                                    traverseIterable(seqAndFrame.getValue().entrySet())
-                                            .map(e -> new Frame<>(seqAndFrame.getKey(), e.getKey(), e.getValue())),
-                                    Traverser.over(new Punctuation(seqAndFrame.getKey())))));
+            this.puncFlatMapper = flatMapper(punc -> {
+                SortedMap<Long, Map<K, F>> seqsToEmit = seqToKeyToFrame.headMap(lowestOpenFrame);
+                // emit the punct, even if we don't have anything to emit
+                if (seqsToEmit.isEmpty()) {
+                    emitPunctuation(lowestOpenFrame - 1);
+                }
+                return traverseWithRemoval(seqsToEmit.entrySet())
+                        .flatMap(seqAndFrame -> concat(
+                                traverseIterable(seqAndFrame.getValue().entrySet())
+                                        .map(e -> new Frame<>(seqAndFrame.getKey(), e.getKey(), e.getValue())),
+                                Traverser.over(new Punctuation(emittedPunctuation = seqAndFrame.getKey()))));
+            });
+        }
+
+        private void emitPunctuation(long punctSeq) {
+            if (punctSeq > emittedPunctuation) {
+                emit(new Punctuation(punctSeq));
+                emittedPunctuation = punctSeq;
+            }
         }
 
         @Override
