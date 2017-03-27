@@ -100,13 +100,16 @@ public interface Traverser<T> {
 
     /**
      * Returns a traverser that will emit the same items as this traverser,
-     * additionally passing each item to the supplied consumer.
+     * additionally passing each item to the supplied consumer. A {@code null}
+     * return value is not passed to the action.
      */
     @Nonnull
     default Traverser<T> peek(@Nonnull Consumer<? super T> action) {
         return () -> {
             T t = next();
-            action.accept(t);
+            if (t != null) {
+                action.accept(t);
+            }
             return t;
         };
     }
