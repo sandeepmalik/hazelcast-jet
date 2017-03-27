@@ -30,6 +30,7 @@ import java.util.Map.Entry;
 import static com.hazelcast.jet.Projections.entryKey;
 import static com.hazelcast.jet.Util.entry;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
 public class SessionWindowPTest {
@@ -66,6 +67,9 @@ public class SessionWindowPTest {
         swp.process(0, inbox);
         assertEquals(new Session<>("a", 3L, 1, 22), pollOutbox());
         assertEquals(new Session<>("a", 3L, 30, 50), pollOutbox());
+
+        assertTrue("keyToIvToAcc not empty", swp.keyToIvToAcc.isEmpty());
+        assertTrue("deadlineToKeys not empty", swp.deadlineToKeys.isEmpty());
     }
 
     private Object pollOutbox() {

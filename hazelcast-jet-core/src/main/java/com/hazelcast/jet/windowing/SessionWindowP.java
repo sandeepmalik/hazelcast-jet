@@ -65,6 +65,9 @@ import static java.util.Collections.emptyNavigableMap;
  */
 public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
 
+    final Map<K, NavigableMap<Interval, A>> keyToIvToAcc = new HashMap<>();
+    final NavigableMap<Long, Set<K>> deadlineToKeys = new TreeMap<>();
+
     private final long maxSeqGap;
     private final ToLongFunction<? super T> extractEventSeqF;
     private final Function<? super T, K> extractKeyF;
@@ -72,9 +75,8 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
     private final BiConsumer<? super A, ? super T> accumulateF;
     private final Function<A, R> finishAccumulationF;
     private final BinaryOperator<A> combineAccF;
-    private final Map<K, NavigableMap<Interval, A>> keyToIvToAcc = new HashMap<>();
-    private final NavigableMap<Long, Set<K>> deadlineToKeys = new TreeMap<>();
     private final FlatMapper<Punctuation, Session<K, R>> expiredSesFlatmapper;
+
     private long puncSeq;
 
     /**
@@ -119,8 +121,7 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
     }
 
     private NavigableMap<Interval, A> getOrEmptyIvToAcc(K k) {
-        NavigableMap<Interval, A> map = keyToIvToAcc.get(k);
-        return map != null ? map : emptyNavigableMap();
+        return keyToIvToAcc.getOrDefault(k, emptyNavigableMap());
     }
 
     @Override
@@ -218,10 +219,11 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
 
     /**
      * An interval on the long integer number line. Two intervals are "equal"
-     * iff they overlap. This deliberately broken definition fails at
-     * transitivity, but works well for its single use case: maintaining a
-     * {@code TreeMap} of strictly non-overlapping (non-equal) intervals and
-     * testing whether a given interval overlaps some of those.
+     * iff they overlap or are adjacent without gap. This deliberately broken
+     * definition fails at transitivity, but works well for its single use case:
+     * maintaining a {@code SortedMap} of strictly non-overlapping
+     * (non-equal) intervals and testing whether a given interval overlaps
+     * some of those.
      */
     @SuppressWarnings("equalshashcode")
     @SuppressFBWarnings(value = "HE_EQUALS_USE_HASHCODE", justification = "Not to be used in a hashtable")
