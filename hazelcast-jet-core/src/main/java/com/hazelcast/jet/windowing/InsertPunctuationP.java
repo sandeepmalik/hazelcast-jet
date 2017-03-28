@@ -19,12 +19,11 @@ package com.hazelcast.jet.windowing;
 import com.hazelcast.jet.AbstractProcessor;
 import com.hazelcast.jet.Distributed.ToLongFunction;
 import com.hazelcast.jet.Punctuation;
-import com.hazelcast.jet.impl.util.EventSeqHistory;
 
 import javax.annotation.Nonnull;
 import java.util.function.LongSupplier;
 
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static com.hazelcast.util.Preconditions.checkNotNegative;
 
 /**
  * A processor that inserts punctuation into a data stream. Punctuation is
@@ -40,11 +39,11 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  * There are two triggers that will cause a new punctuation to be emitted:
  * <ol><li>
  *     The difference between the ideal and the last emitted punctuation: when it
- *     exceeds the configured {@code eventSeqTrigger}, a new punctuation is
+ *     exceeds the configured {@code eventSeqThrottle}, a new punctuation is
  *     emitted.
  * </li><li>
  *     The difference between the current time and the time the last punctuation
- *     was emitted: when it exceeds the configured {@code timeTrigger}, and if the
+ *     was emitted: when it exceeds the configured {@code timeThrottle}, and if the
  *     current ideal punctuation is greater than the emitted punctuation, a new
  *     punctuation will be emitted.
  * </li></ol>
@@ -60,46 +59,44 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  */
 public class InsertPunctuationP<T> extends AbstractProcessor {
 
-    private static final int HISTORIC_SEQS_COUNT = 16;
-
     private final ToLongFunction<T> extractEventSeqF;
-    private final long punctuationLag;
-    private final long eventSeqTrigger;
-    private final long timeTrigger;
+    private final PunctuationStrategy punctuationStrategy;
+    private final long eventSeqThrottle;
+    private final long timeThrottle;
     private final LongSupplier clock;
-    private final EventSeqHistory eventSeqHistory;
 
-    private long highestSeq = Long.MIN_VALUE;
-    private long lastEmittedPunc;
-
-    private long nextPuncEventSeq;
-    private long nextPuncTime;
+    private long highestInputSeq = Long.MIN_VALUE;
+    private long highestRequestedPunc = Long.MIN_VALUE;
+    private long nextEmissionAtSystemTime = Long.MIN_VALUE;
+    private long nextEmissionAtSeq = Long.MIN_VALUE;
+    private long lastEmittedPunc = Long.MIN_VALUE;
 
     /**
      * @param extractEventSeqF function that extracts the {@code eventSeq} from an input item
-     * @param punctuationLag   the difference between the top observed {@code eventSeq} and
-     *                         the ideal punctuation
-     * @param maxRetainTime    maximum time the emitted punctuation can stay behind any observed
-     *                         event
-     * @param eventSeqTrigger the difference between the ideal and the last emitted punctuation
+     * @param punctuationStrategy Strategy to use
+     * @param eventSeqThrottle the difference between the ideal and the last emitted punctuation
      *                        that triggers the emission of a new punctuation
-     * @param timeTrigger maximum time that can pass between emitting successive punctuations
+     * @param timeThrottle maximum system time that can pass between emitting successive punctuations
      */
-    public InsertPunctuationP(ToLongFunction<T> extractEventSeqF, long punctuationLag,
-                              long maxRetainTime, long eventSeqTrigger, long timeTrigger) {
-        this(extractEventSeqF, punctuationLag, MILLISECONDS.toNanos(maxRetainTime),
-                eventSeqTrigger, MILLISECONDS.toNanos(timeTrigger), System::nanoTime);
+    public InsertPunctuationP(@Nonnull ToLongFunction<T> extractEventSeqF,
+            @Nonnull PunctuationStrategy punctuationStrategy,
+            long eventSeqThrottle,
+            long timeThrottle) {
+        this(extractEventSeqF, punctuationStrategy, eventSeqThrottle, timeThrottle, System::nanoTime);
     }
 
-    InsertPunctuationP(ToLongFunction<T> extractEventSeqF, long punctuationLag,
-                       long maxRetain, long eventSeqTrigger, long timeTrigger, LongSupplier clock) {
+    InsertPunctuationP(@Nonnull ToLongFunction<T> extractEventSeqF,
+            @Nonnull PunctuationStrategy punctuationStrategy,
+            long eventSeqThrottle,
+            long timeThrottle,
+            LongSupplier clock) {
+        checkNotNegative(eventSeqThrottle, "eventSeqThrottle must be >= 0");
+        checkNotNegative(timeThrottle, "timeThrottle must be >= 0");
         this.extractEventSeqF = extractEventSeqF;
-        this.punctuationLag = punctuationLag;
+        this.punctuationStrategy = punctuationStrategy;
+        this.eventSeqThrottle = eventSeqThrottle;
+        this.timeThrottle = timeThrottle;
         this.clock = clock;
-        this.eventSeqTrigger = eventSeqTrigger;
-        this.timeTrigger = timeTrigger;
-
-        this.eventSeqHistory = new EventSeqHistory(maxRetain, HISTORIC_SEQS_COUNT);
     }
 
     @Override
@@ -108,9 +105,9 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
         long itemSeq = extractEventSeqF.applyAsLong(tItem);
 
         // if we have newest item so far, maybe emit punctuation
-        if (itemSeq > highestSeq) {
-            highestSeq = itemSeq;
-            maybeEmitPunctuation(highestSeq - punctuationLag);
+        if (itemSeq > highestInputSeq) {
+            highestInputSeq = itemSeq;
+            maybeEmitPunctuation(punctuationStrategy.getPunct(highestInputSeq));
         }
         emit(item);
 
@@ -119,17 +116,20 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
 
     @Override
     public void process() {
-        maybeEmitPunctuation(eventSeqHistory.sample(clock.getAsLong(), highestSeq));
+        maybeEmitPunctuation(punctuationStrategy.getPunct(Long.MIN_VALUE));
     }
 
     private void maybeEmitPunctuation(long punctuationTime) {
+        highestRequestedPunc = Math.max(punctuationTime, highestRequestedPunc);
+
         long now = clock.getAsLong();
-        if (lastEmittedPunc < punctuationTime &&
-                (punctuationTime >= nextPuncEventSeq || now >= nextPuncTime)) {
-            emit(new Punctuation(punctuationTime));
-            lastEmittedPunc = punctuationTime;
-            nextPuncEventSeq = punctuationTime + eventSeqTrigger;
-            nextPuncTime = now + timeTrigger;
+        if (highestRequestedPunc >= nextEmissionAtSeq || now >= nextEmissionAtSystemTime) {
+            nextEmissionAtSeq = highestRequestedPunc + eventSeqThrottle;
+            nextEmissionAtSystemTime = now + timeThrottle;
+            if (highestRequestedPunc > lastEmittedPunc) {
+                emit(new Punctuation(highestRequestedPunc));
+                lastEmittedPunc = highestRequestedPunc;
+            }
         }
     }
 }
