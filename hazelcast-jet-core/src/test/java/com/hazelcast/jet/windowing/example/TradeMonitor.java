@@ -40,7 +40,6 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 import static com.hazelcast.jet.Edge.between;
-import static com.hazelcast.jet.Edge.from;
 import static com.hazelcast.jet.Partitioner.HASH_CODE;
 import static com.hazelcast.jet.Processors.readMap;
 import static com.hazelcast.jet.stream.DistributedCollectors.counting;
@@ -99,9 +98,9 @@ public class TradeMonitor {
                     () -> new InsertPunctuationP<>(Trade::getTime, 3000L, 3000L, 500L, 500L)));
 //            Vertex peek = dag.newVertex("peek", PeekP::new).localParallelism(1);
             Vertex groupByFrame = slow(dag.newVertex("group-by-frame",
-                    groupByFrame(Trade::getTicker, Trade::getTime, ts -> ts / 1_000, counting())
+                    groupByFrame(Trade::getTicker, Trade::getTime, 1_000, 0, counting())
             ));
-            Vertex slidingWindow = slow(dag.newVertex("sliding-window", slidingWindow(1, counting())));
+            Vertex slidingWindow = slow(dag.newVertex("sliding-window", slidingWindow(1000, 3000, counting())));
             Vertex sink = dag.newVertex("sink", Processors.writeMap("sink")).localParallelism(1);
 
             dag.edge(between(tickerSource, generateEvents).broadcast().distributed())
