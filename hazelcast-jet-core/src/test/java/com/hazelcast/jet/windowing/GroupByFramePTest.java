@@ -16,12 +16,12 @@
 
 package com.hazelcast.jet.windowing;
 
-import com.hazelcast.jet.Processor;
 import com.hazelcast.jet.Processor.Context;
 import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.impl.util.ArrayDequeInbox;
 import com.hazelcast.jet.impl.util.ArrayDequeOutbox;
 import com.hazelcast.jet.stream.DistributedCollector;
+import com.hazelcast.jet.windowing.FrameProcessors.GroupByFrameP;
 import com.hazelcast.util.MutableLong;
 import org.junit.Before;
 import org.junit.Test;
@@ -31,19 +31,20 @@ import java.util.Map.Entry;
 import static com.hazelcast.jet.Util.entry;
 import static com.hazelcast.jet.windowing.FrameProcessors.groupByFrame;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
 public class GroupByFramePTest {
 
-    private Processor gbf;
+    private GroupByFrameP<Entry, Long, MutableLong> gbf;
     private ArrayDequeOutbox outbox;
 
     @Before
     public void before() {
-        gbf = groupByFrame(
+        gbf = (GroupByFrameP<Entry, Long, MutableLong>) groupByFrame(
                 x -> 77L,
                 Entry<Long, Long>::getKey,
-                x -> x / 4,
+                4, 0,
                 DistributedCollector.of(
                         MutableLong::new,
                         (acc, e) -> acc.value += e.getValue(),
@@ -59,22 +60,21 @@ public class GroupByFramePTest {
     public void smokeTest() {
         // Given
         ArrayDequeInbox inbox = new ArrayDequeInbox();
-        inbox.add(entry(0L, 1L)); // to frame 0
-        inbox.add(entry(1L, 1L)); // to frame 0
+        inbox.add(entry(0L, 1L)); // to frame 4
+        inbox.add(entry(1L, 1L)); // to frame 4
         inbox.add(new Punctuation(3)); // does not close anything
-        inbox.add(entry(2L, 1L)); // to frame 0
-        inbox.add(new Punctuation(4)); // closes frame 0
+        inbox.add(entry(2L, 1L)); // to frame 4
+        inbox.add(new Punctuation(4)); // closes frame 4
         inbox.add(entry(2L, 1L)); // dropped
-        inbox.add(entry(4L, 1L)); // to frame 1
-        inbox.add(entry(5L, 1L)); // to frame 1
-        inbox.add(entry(8L, 1L)); // to frame 2
-        inbox.add(new Punctuation(5)); // will not close anything
+        inbox.add(entry(4L, 1L)); // to frame 8
+        inbox.add(entry(5L, 1L)); // to frame 8
+        inbox.add(entry(8L, 1L)); // to frame 12
         inbox.add(new Punctuation(6)); // will not close anything
         inbox.add(new Punctuation(7)); // will not close anything
-        inbox.add(entry(4L, 1L)); // to frame 1, accepted, despite of punctuation(4), as the frame is not closed yet
-        inbox.add(entry(8L, 1L)); // to frame 2
-        inbox.add(new Punctuation(8)); // will close frame 1
-        inbox.add(entry(8L, 1L)); // to frame 2
+        inbox.add(entry(4L, 1L)); // to frame 8, accepted, despite of punctuation(4), as the frame is not closed yet
+        inbox.add(entry(8L, 1L)); // to frame 12
+        inbox.add(new Punctuation(8)); // will close frame 8
+        inbox.add(entry(8L, 1L)); // to frame 12
         inbox.add(entry(7L, 1L)); // dropped
         inbox.add(new Punctuation(21)); // will close everything
 
@@ -83,13 +83,45 @@ public class GroupByFramePTest {
 
         // Then
         assertEquals(new Punctuation(0), pollOutbox());
-        assertEquals(frame(0, 3L), pollOutbox());
-        assertEquals(new Punctuation(1), pollOutbox());
-        assertEquals(frame(1, 3L), pollOutbox());
-        assertEquals(new Punctuation(2), pollOutbox());
-        assertEquals(frame(2, 3L), pollOutbox());
-        assertEquals(new Punctuation(3), pollOutbox());
+        assertEquals(frame(4, 3L), pollOutbox());
+        assertEquals(new Punctuation(4), pollOutbox());
+        assertEquals(frame(8, 3L), pollOutbox());
+        assertEquals(new Punctuation(8), pollOutbox());
+        assertEquals(frame(12, 3L), pollOutbox());
+        assertEquals(new Punctuation(12), pollOutbox());
+        assertEquals(new Punctuation(20), pollOutbox());
         assertEquals(null, pollOutbox());
+
+        assertTrue("map not empty after emitting everyting", gbf.seqToKeyToFrame.isEmpty());
+    }
+
+    @Test
+    public void when_noEvents_then_punctsOnOutput() {
+        // Given
+        ArrayDequeInbox inbox = new ArrayDequeInbox();
+        inbox.add(new Punctuation(2)); // closes frame 0
+        inbox.add(new Punctuation(3)); // will not close anything
+        inbox.add(new Punctuation(4)); // closes frame 4
+        inbox.add(new Punctuation(5)); // will not close anything
+        inbox.add(new Punctuation(6)); // will not close anything
+        inbox.add(new Punctuation(8)); // closes frame 8
+        inbox.add(new Punctuation(20)); // closes frames up to 20
+
+        // When
+        gbf.process(0, inbox);
+
+        for (Object o : outbox.queueWithOrdinal(0)) {
+            System.out.println(o);
+        }
+
+        // Then
+        assertEquals(new Punctuation(0), pollOutbox());
+        assertEquals(new Punctuation(4), pollOutbox());
+        assertEquals(new Punctuation(8), pollOutbox());
+        assertEquals(new Punctuation(20), pollOutbox());
+        assertEquals(null, pollOutbox());
+
+        assertTrue("map not empty after emitting everyting", gbf.seqToKeyToFrame.isEmpty());
     }
 
     private Object pollOutbox() {

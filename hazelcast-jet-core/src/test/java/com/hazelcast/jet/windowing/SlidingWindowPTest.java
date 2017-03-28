@@ -42,7 +42,7 @@ public class SlidingWindowPTest {
 
     @Before
     public void before() {
-        swp = slidingWindow(4, DistributedCollector.of(() -> null, (a, b) -> {}, (Long a, Long b) -> a + b, x -> x))
+        swp = slidingWindow(1, 4, DistributedCollector.of(() -> null, (a, b) -> {}, (Long a, Long b) -> a + b, x -> x))
                 .get(1).iterator().next();
         outbox = new ArrayDequeOutbox(1, new int[] {101});
         swp.init(outbox, mock(Context.class));
@@ -60,7 +60,10 @@ public class SlidingWindowPTest {
         }
 
         // When
-        swp.process(0, inbox);
+        while (!inbox.isEmpty())
+            swp.process(0, inbox);
+
+        System.out.println(outbox);
 
         // Then
         assertEquals(frame(1, 1), pollOutbox());
@@ -82,7 +85,9 @@ public class SlidingWindowPTest {
         }
 
         // When
-        swp.process(0, inbox);
+        while (!inbox.isEmpty())
+            swp.process(0, inbox);
+
 
         // Then
         assertEquals(frame(1, 1), pollOutbox());
@@ -106,7 +111,12 @@ public class SlidingWindowPTest {
         }
 
         // When
-        swp.process(0, inbox);
+        while (!inbox.isEmpty())
+            swp.process(0, inbox);
+
+        for (Object o : outbox.queueWithOrdinal(0)) {
+            System.out.println(o);
+        }
 
         // Then
         assertEquals(frame(1, 1), pollOutbox());
@@ -125,23 +135,29 @@ public class SlidingWindowPTest {
         // Given
         inbox.add(frame(0, 1));
         inbox.add(frame(10, 1));
+        inbox.add(frame(11, 1));
         inbox.add(new Punctuation(50));
+        inbox.add(frame(49, 2)); // will be dropped
+        inbox.add(frame(50, 3));
+        inbox.add(new Punctuation(51));
 
         // When
-        swp.process(0, inbox);
-
-        System.out.println(outbox);
+        while (!inbox.isEmpty())
+            swp.process(0, inbox);
 
         // Then
-        assertEquals(frame(0, 1), pollOutbox());
         assertEquals(frame(1, 1), pollOutbox());
         assertEquals(frame(2, 1), pollOutbox());
         assertEquals(frame(3, 1), pollOutbox());
+        assertEquals(frame(4, 1), pollOutbox());
 
-        assertEquals(frame(10, 1), pollOutbox());
         assertEquals(frame(11, 1), pollOutbox());
-        assertEquals(frame(12, 1), pollOutbox());
-        assertEquals(frame(13, 1), pollOutbox());
+        assertEquals(frame(12, 2), pollOutbox());
+        assertEquals(frame(13, 2), pollOutbox());
+        assertEquals(frame(14, 2), pollOutbox());
+        assertEquals(frame(15, 1), pollOutbox());
+
+        assertEquals(frame(51, 3), pollOutbox());
 
         assertEquals(null, pollOutbox());
     }

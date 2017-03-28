@@ -21,9 +21,10 @@ import java.io.Serializable;
 /**
  * A stream item that carries a sequence value denoting the barrier between
  * "on time" and "late" items.
- * <pre>
+ * <pre>{@code
  *   boolean itemIsLate = itemSeq < punc.seq();
- * </pre>
+ *   boolean itemIsOnTime = itemSeq >= punc.seq();
+ * }</pre>
  */
 public final class Punctuation implements Serializable {
 

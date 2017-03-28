@@ -63,10 +63,12 @@ public class SessionWindowPTest {
         inbox.add(entry("a", 30L));
         inbox.add(entry("a", 35L));
         inbox.add(entry("a", 40L));
+        inbox.add(entry("b", 40L));
         inbox.add(new Punctuation(100));
         swp.process(0, inbox);
         assertEquals(new Session<>("a", 3L, 1, 22), pollOutbox());
         assertEquals(new Session<>("a", 3L, 30, 50), pollOutbox());
+        assertEquals(new Session<>("b", 1L, 40, 50), pollOutbox());
 
         assertTrue("keyToIvToAcc not empty", swp.keyToIvToAcc.isEmpty());
         assertTrue("deadlineToKeys not empty", swp.deadlineToKeys.isEmpty());
