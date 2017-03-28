@@ -149,6 +149,7 @@ public final class FrameProcessors {
             long eventSeq = extractEventSeqF.applyAsLong(t);
             long frameSeq = toFrameSeqF.applyAsLong(eventSeq);
             if (frameSeq < lowestOpenFrame) {
+                // drop late event
                 return true;
             }
             K key = extractKeyF.apply(t);
