@@ -31,7 +31,7 @@ public final class PunctuationKeepers {
     }
 
     private static abstract class PunctuationKeeperBase implements PunctuationKeeper {
-        long punc = Long.MIN_VALUE;
+        private long punc = Long.MIN_VALUE;
 
         long makePuncAtLeast(long proposedPunc) {
             punc = max(punc, proposedPunc);
@@ -96,12 +96,11 @@ public final class PunctuationKeepers {
 
             @Override
             public long getCurrentPunctuation() {
-                updateFromWallClock();
-                return punc;
+                return updateFromWallClock();
             }
 
-            private void updateFromWallClock() {
-                makePuncAtLeast(System.currentTimeMillis() - wallClockLag);
+            private long updateFromWallClock() {
+                return makePuncAtLeast(System.currentTimeMillis() - wallClockLag);
             }
         };
     }
