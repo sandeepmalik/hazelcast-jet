@@ -147,10 +147,9 @@ public class ProcessorTasklet implements Tasklet {
             progTracker.notDone();
             return;
         }
-        processor.process();
-        final int inboundOrdinal = currInstream.ordinal();
         int origInboxSize = inbox.size();
-        processor.process(inboundOrdinal, inbox);
+        processor.process();
+        processor.process(currInstream.ordinal(), inbox);
         progTracker.madeProgress(origInboxSize > inbox.size());
         if (!inbox.isEmpty()) {
             progTracker.notDone();
