@@ -30,6 +30,20 @@ public final class PunctuationKeepers {
     private PunctuationKeepers() {
     }
 
+    private static abstract class PunctuationKeeperBase implements PunctuationKeeper {
+        long punc = Long.MIN_VALUE;
+
+        long makePuncAtLeast(long proposedPunc) {
+            punc = max(punc, proposedPunc);
+            return punc;
+        }
+
+        @Override
+        public long getCurrentPunctuation() {
+            return punc;
+        }
+    }
+
     /**
      * Maintains punctuation that lags behind the top observed event seq by the
      * given amount. In the case of a stream lull the punctuation does not
@@ -41,18 +55,11 @@ public final class PunctuationKeepers {
     public static PunctuationKeeper cappingEventSeqLag(long eventSeqLag) {
         checkNotNegative(eventSeqLag, "eventSeqLag must not be negative");
 
-        return new PunctuationKeeper() {
-            private long punc = Long.MIN_VALUE;
+        return new PunctuationKeeperBase() {
 
             @Override
             public long reportEvent(long eventSeq) {
-                punc = max(punc, eventSeq - eventSeqLag);
-                return punc;
-            }
-
-            @Override
-            public long getCurrentPunctuation() {
-                return punc;
+                return makePuncAtLeast(eventSeq - eventSeqLag);
             }
         };
     }
@@ -80,14 +87,11 @@ public final class PunctuationKeepers {
         checkNotNegative(eventSeqLag, "eventSeqLag must not be negative");
         checkNotNegative(wallClockLag, "wallClockLag must not be negative");
 
-        return new PunctuationKeeper() {
-            private long punc;
-
+        return new PunctuationKeeperBase() {
             @Override
             public long reportEvent(long eventSeq) {
-                punc = max(punc, eventSeq - eventSeqLag);
                 updateFromWallClock();
-                return punc;
+                return makePuncAtLeast(eventSeq - eventSeqLag);
             }
 
             @Override
@@ -97,7 +101,7 @@ public final class PunctuationKeepers {
             }
 
             private void updateFromWallClock() {
-                punc = max(punc, System.currentTimeMillis() - wallClockLag);
+                makePuncAtLeast(System.currentTimeMillis() - wallClockLag);
             }
         };
     }
@@ -134,28 +138,23 @@ public final class PunctuationKeepers {
         checkNotNegative(eventSeqLag, "eventSeqLag must not be negative");
         checkNotNegative(maxLullMs, "maxLullMs must not be negative");
 
-        return new PunctuationKeeper() {
+        return new PunctuationKeeperBase() {
             private long lastEventAt = Long.MIN_VALUE;
-            private long punc = Long.MIN_VALUE;
 
             @Override
             public long reportEvent(long eventSeq) {
                 lastEventAt = monotonicTimeMillis();
-                punc = max(punc, eventSeq - eventSeqLag);
-                return punc;
+                return makePuncAtLeast(eventSeq - eventSeqLag);
             }
 
             @Override
             public long getCurrentPunctuation() {
                 long now = monotonicTimeMillis();
                 if (lastEventAt == Long.MIN_VALUE) {
-                    // if we haven't seen any events yet, we behave as if
-                    // the first event had seq = MIN_VALUE and arrived now
                     lastEventAt = now;
                 }
                 long millisPastMaxLull = max(0, now - lastEventAt - maxLullMs);
-                punc = max(punc, lastEventAt + millisPastMaxLull);
-                return punc;
+                return makePuncAtLeast(lastEventAt + millisPastMaxLull);
             }
 
             private long monotonicTimeMillis() {
