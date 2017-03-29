@@ -24,6 +24,7 @@ import javax.annotation.Nonnull;
 import java.util.function.LongSupplier;
 
 import static com.hazelcast.util.Preconditions.checkNotNegative;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
  * A processor that inserts punctuation into a data stream. Punctuation is
@@ -76,13 +77,14 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
      * @param punctuationStrategy Strategy to use
      * @param eventSeqThrottle the difference between the ideal and the last emitted punctuation
      *                        that triggers the emission of a new punctuation
-     * @param timeThrottle maximum system time that can pass between emitting successive punctuations
+     * @param timeThrottleMs maximum system time that can pass between emitting successive punctuations
      */
     public InsertPunctuationP(@Nonnull ToLongFunction<T> extractEventSeqF,
             @Nonnull PunctuationStrategy punctuationStrategy,
             long eventSeqThrottle,
-            long timeThrottle) {
-        this(extractEventSeqF, punctuationStrategy, eventSeqThrottle, timeThrottle, System::nanoTime);
+            long timeThrottleMs) {
+        this(extractEventSeqF, punctuationStrategy, eventSeqThrottle, MILLISECONDS.toNanos(timeThrottleMs),
+                System::nanoTime);
     }
 
     InsertPunctuationP(@Nonnull ToLongFunction<T> extractEventSeqF,
@@ -128,13 +130,12 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
         highestRequestedPunc = Math.max(punctuationTime, highestRequestedPunc);
 
         long now = clock.getAsLong();
-        if (highestRequestedPunc >= nextEmissionAtSeq || now >= nextEmissionAtSystemTime) {
+        if (highestRequestedPunc > lastEmittedPunc && (
+                highestRequestedPunc >= nextEmissionAtSeq || now >= nextEmissionAtSystemTime)) {
             nextEmissionAtSeq = highestRequestedPunc + eventSeqThrottle;
             nextEmissionAtSystemTime = now + timeThrottle;
-            if (highestRequestedPunc > lastEmittedPunc) {
-                emit(new Punctuation(highestRequestedPunc));
-                lastEmittedPunc = highestRequestedPunc;
-            }
+            emit(new Punctuation(highestRequestedPunc));
+            lastEmittedPunc = highestRequestedPunc;
         }
     }
 }
