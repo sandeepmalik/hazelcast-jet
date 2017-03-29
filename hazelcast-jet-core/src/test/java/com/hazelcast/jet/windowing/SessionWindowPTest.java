@@ -37,6 +37,7 @@ import java.util.stream.Stream;
 import static com.hazelcast.jet.Projections.entryKey;
 import static com.hazelcast.jet.Util.entry;
 import static java.util.Arrays.asList;
+import static java.util.Collections.shuffle;
 import static java.util.stream.Collectors.toSet;
 import static java.util.stream.IntStream.range;
 import static org.junit.Assert.assertEquals;
@@ -76,7 +77,7 @@ public class SessionWindowPTest {
     @Test
     public void when_disorderedEventsWithOneKey() {
         List<Entry<String, Long>> evs = eventsWithKey("a");
-        Collections.shuffle(evs);
+        shuffle(evs);
         assertCorrectness(evs);
     }
 
@@ -95,6 +96,7 @@ public class SessionWindowPTest {
         evs.addAll(eventsWithKey("a"));
         evs.addAll(eventsWithKey("b"));
         evs.addAll(eventsWithKey("c"));
+        shuffle(evs);
         assertCorrectness(evs);
     }
 
