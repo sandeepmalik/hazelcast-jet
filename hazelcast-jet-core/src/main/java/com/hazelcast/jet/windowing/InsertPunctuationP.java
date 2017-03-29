@@ -104,6 +104,11 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
         T tItem = (T) item;
         long itemSeq = extractEventSeqF.applyAsLong(tItem);
 
+        // drop late items
+        if (itemSeq < highestRequestedPunc) {
+            return true;
+        }
+
         // if we have newest item so far, maybe emit punctuation
         if (itemSeq > highestInputSeq) {
             highestInputSeq = itemSeq;
