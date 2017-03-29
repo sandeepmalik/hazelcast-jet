@@ -28,7 +28,7 @@ import java.io.UnsupportedEncodingException;
 import static com.hazelcast.nio.IOUtil.closeResource;
 
 /**
- * Starts a Hazelcast server.
+ * Main class that starts a Hazelcast Jet instance.
  */
 public final class StartServer {
 
@@ -36,14 +36,11 @@ public final class StartServer {
     }
 
     /**
-     * Creates a server instance of Hazelcast.
-     * <p>
-     * If user sets the system property "print.port", the server writes the port number of the Hazelcast instance to a file.
-     * The file name is the same as the "print.port" property.
-     *
-     * @throws Exception
+     * Creates a server instance of Hazelcast. If the system property
+     * {@code print.port} is set, the server writes the port number of the
+     * Hazelcast instance to the file named by the property.
      */
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) throws FileNotFoundException, UnsupportedEncodingException {
         JetInstance jet = Jet.newJetInstance();
         printMemberPort(jet.getHazelcastInstance());
     }

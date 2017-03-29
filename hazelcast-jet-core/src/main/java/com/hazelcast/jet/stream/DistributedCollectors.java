@@ -701,7 +701,8 @@ public abstract class DistributedCollectors {
             A container = m.computeIfAbsent(key, k -> downstreamSupplier.get());
             downstreamAccumulator.accept(container, t);
         };
-        Distributed.BinaryOperator<Map<K, A>> merger = DistributedCollectors.<K, A, Map<K, A>>mapMerger(downstream.combiner());
+        Distributed.BinaryOperator<Map<K, A>> merger =
+                DistributedCollectors.<K, A, Map<K, A>>mapMerger(downstream.combiner());
         @SuppressWarnings("unchecked")
         Distributed.Supplier<Map<K, A>> mangledFactory = (Distributed.Supplier<Map<K, A>>) mapFactory;
 

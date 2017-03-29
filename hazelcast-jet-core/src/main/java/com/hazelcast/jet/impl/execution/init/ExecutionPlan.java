@@ -111,7 +111,8 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
                 final List<InboundEdgeStream> inboundStreams = createInboundEdgeStreams(srcVertex, processorIdx);
                 ILogger logger = nodeEngine.getLogger(
                         srcVertex.name() + '(' + p.getClass().getSimpleName() + ")#" + processorIdx);
-                ProcCtx context = new ProcCtx(instance, logger, srcVertex.name(), processorIdx + srcVertex.getProcIdxOffset());
+                ProcCtx context =
+                        new ProcCtx(instance, logger, srcVertex.name(), processorIdx + srcVertex.getProcIdxOffset());
                 tasklets.add(new ProcessorTasklet(srcVertex.name(), context, p, inboundStreams, outboundStreams));
                 processorIdx++;
             }
@@ -278,7 +279,8 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
         final int numRemoteMembers = ptionArrgmt.remotePartitionAssignment.get().size();
         final int queueSize = edge.getConfig().getQueueSize();
 
-        final int[][] ptionsPerProcessor = ptionArrgmt.assignPartitionsToProcessors(downstreamParallelism, edge.isDistributed());
+        final int[][] ptionsPerProcessor =
+                ptionArrgmt.assignPartitionsToProcessors(downstreamParallelism, edge.isDistributed());
 
         // in a one to many edge, each downstream processor is assigned only one processor.
         if (edge.forwardingPattern() == ForwardingPattern.ONE_TO_MANY) {
