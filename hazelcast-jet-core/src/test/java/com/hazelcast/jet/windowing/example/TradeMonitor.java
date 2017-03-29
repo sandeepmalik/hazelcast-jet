@@ -96,7 +96,7 @@ public class TradeMonitor {
             Vertex tickerSource = dag.newVertex("ticker-source", readMap(initial.getName()));
             Vertex generateEvents = slow(dag.newVertex("generate-events", () -> new GenerateTradesP(IS_SLOW ? 500 : 0)));
             Vertex insertPunctuation = slow(dag.newVertex("insert-punctuation",
-                    () -> new InsertPunctuationP<>(Trade::getTime, PunctuationStrategies.withLagGrowingWithSystemTime(3000, 2000),
+                    () -> new InsertPunctuationP<>(Trade::getTime, PunctuationStrategies.cappingEventSeqLagAndLull(3000, 2000),
                             500L, 500L)));
 //            Vertex peek = dag.newVertex("peek", PeekP::new).localParallelism(1);
             Vertex groupByFrame = slow(dag.newVertex("group-by-frame",

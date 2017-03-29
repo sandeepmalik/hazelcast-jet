@@ -70,7 +70,8 @@ public final class FrameProcessors {
             long frameOffset,
             DistributedCollector<T, F, ?> collector
     ) {
-        return ProcessorSupplier.of(() -> new GroupByFrameP<>(extractKeyF, extractTimestampF, frameLength, frameOffset, collector));
+        return ProcessorSupplier.of(() -> new GroupByFrameP<>(
+                extractKeyF, extractTimestampF, frameLength, frameOffset, collector));
     }
 
     /**
@@ -97,7 +98,9 @@ public final class FrameProcessors {
      * @param <F> type of the frame
      * @param <R> type of the result derived from a frame
      */
-    public static <K, F, R> ProcessorSupplier slidingWindow(long frameLength, long windowSize, DistributedCollector<K, F, R> collector) {
+    public static <K, F, R> ProcessorSupplier slidingWindow(
+            long frameLength, long windowSize, DistributedCollector<K, F, R> collector
+    ) {
         return ProcessorSupplier.of(() -> new SlidingWindowP<>(frameLength, windowSize, collector));
     }
 
@@ -128,12 +131,13 @@ public final class FrameProcessors {
             this.toFrameSeqF = time -> time - Math.floorMod(time - frameOffset, frameLength) + frameLength;
             this.supplier = collector.supplier();
             this.accumulator = collector.accumulator();
-            this.puncFlatMapper = flatMapper(punc -> traverseWithRemoval(seqToKeyToFrame.headMap(lowestOpenFrame).entrySet())
-                    .flatMap(seqAndFrame -> concat(
-                            traverseIterable(seqAndFrame.getValue().entrySet())
-                                    .map(e -> new Frame<>(seqAndFrame.getKey(), e.getKey(), e.getValue())),
-                            Traverser.over(new Punctuation(emittedPunctuation = seqAndFrame.getKey()))))
-                    .onNull(() -> emitPunctuation(lowestOpenFrame - frameLength)));
+            this.puncFlatMapper = flatMapper(punc ->
+                    traverseWithRemoval(seqToKeyToFrame.headMap(lowestOpenFrame).entrySet())
+                            .flatMap(seqAndFrame -> concat(
+                                    traverseIterable(seqAndFrame.getValue().entrySet())
+                                            .map(e -> new Frame<>(seqAndFrame.getKey(), e.getKey(), e.getValue())),
+                                    Traverser.over(new Punctuation(emittedPunctuation = seqAndFrame.getKey()))))
+                            .onNull(() -> emitPunctuation(lowestOpenFrame - frameLength)));
         }
 
         private void emitPunctuation(long punctSeq) {

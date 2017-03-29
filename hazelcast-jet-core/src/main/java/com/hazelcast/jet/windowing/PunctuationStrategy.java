@@ -17,18 +17,21 @@
 package com.hazelcast.jet.windowing;
 
 /**
- * A class, that will generate punctuations based on event sequence.
+ * Receives the observed event seqs and returns the punctuation to emit.
  */
 public interface PunctuationStrategy {
 
     /**
-     * Based on provided {@code eventSeq}, returns the punctuation, that should be emitted
-     * before this event.
+     * Based on the provided {@code eventSeq} returns the punctuation that
+     * should be emitted before the event. Can also be called in the absence
+     * of received events in order to drive the punctuation forward during a
+     * stream lull. In this case the argument value should be
+     * {@code Long.MIN_VALUE}.
      *
-     * @param eventSeq Event sequence value or {@code Long.MIN_VALUE}, if we want next
-     *                 punctuation without items.
-     * @return Punctuation sequence. Can be {@code Long.MIN_VALUE}, if we don't care now.
+     * @param eventSeq event sequence value or {@code Long.MIN_VALUE} to get the
+     *                 punctuation without a received event
+     * @return the punctuation sequence. Can be {@code Long.MIN_VALUE}, if we don't care now.
      */
-    long getPunct(long eventSeq);
+    long getPunctuation(long eventSeq);
 
 }

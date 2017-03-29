@@ -83,7 +83,7 @@ public class InsertPunctuationPTest {
     @Before
     public void setUp() {
         clock = new MyClock(100);
-        p = new InsertPunctuationP<>(Item::getTime, PunctuationStrategies.withHighestEventSeqLag(LAG),
+        p = new InsertPunctuationP<>(Item::getTime, PunctuationStrategies.cappingEventSeqLag(LAG),
                 3, 5, clock::time);
 
         outbox = new ArrayDequeOutbox(128, new int[]{128});
