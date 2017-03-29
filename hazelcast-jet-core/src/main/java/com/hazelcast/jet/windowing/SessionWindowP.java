@@ -115,8 +115,8 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
         return traverseStream(keys)
                 .flatMap(k -> traverseWithRemoval(keyToIvToAcc.get(k).headMap(deadlineIv).entrySet())
                         .map(ivAndAcc -> new Session<>(
-                                k, finishAccumulationF.apply(ivAndAcc.getValue()),
-                                ivAndAcc.getKey().start, ivAndAcc.getKey().end))
+                                k, ivAndAcc.getKey().start, ivAndAcc.getKey().end, finishAccumulationF.apply(ivAndAcc.getValue())
+                        ))
                         .onNull(() -> {
                             if (keyToIvToAcc.get(k).isEmpty()) {
                                 keyToIvToAcc.remove(k);

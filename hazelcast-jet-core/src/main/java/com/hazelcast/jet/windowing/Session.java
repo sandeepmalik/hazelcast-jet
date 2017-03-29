@@ -24,15 +24,15 @@ package com.hazelcast.jet.windowing;
  */
 public class Session<K, R> {
     private final K key;
-    private final R result;
     private final long start;
     private final long end;
+    private final R result;
 
-    Session(K key, R result, long start, long end) {
+    Session(K key, long start, long end, R result) {
         this.key = key;
-        this.result = result;
         this.start = start;
         this.end = end;
+        this.result = result;
     }
 
     /**
