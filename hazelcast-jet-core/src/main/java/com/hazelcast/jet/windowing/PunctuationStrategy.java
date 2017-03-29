@@ -22,16 +22,18 @@ package com.hazelcast.jet.windowing;
 public interface PunctuationStrategy {
 
     /**
-     * Based on the provided {@code eventSeq} returns the punctuation that
-     * should be emitted before the event. Can also be called in the absence
-     * of received events in order to drive the punctuation forward during a
-     * stream lull. In this case the argument value should be
-     * {@code Long.MIN_VALUE}.
+     * Called to report observing an event with the given {@code eventSeq}.
+     * Returns the punctuation that should be (or have been) emitted before the
+     * event. Can also be called in the absence of received events in order to
+     * drive the punctuation forward during a stream lull. In this case the
+     * argument's value should be {@code Long.MIN_VALUE}.
      *
-     * @param eventSeq event sequence value or {@code Long.MIN_VALUE} to get the
-     *                 punctuation without a received event
-     * @return the punctuation sequence. Can be {@code Long.MIN_VALUE}, if we don't care now.
+     * @param eventSeq event's sequence value
+     * @return the punctuation sequence. May be {@code Long.MIN_VALUE} if there is
+     *         not enough information to determine any punctuation (e.g., no events
+     *         observed)
      */
-    long getPunctuation(long eventSeq);
+    long reportEvent(long eventSeq);
 
+    long getCurrentPunctuation();
 }

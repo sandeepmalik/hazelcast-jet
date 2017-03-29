@@ -18,54 +18,54 @@ package com.hazelcast.jet.windowing;
 
 import org.junit.Test;
 
+import static com.hazelcast.jet.windowing.PunctuationStrategies.cappingEventSeqLagAndLull;
 import static org.junit.Assert.assertEquals;
 
-public class PunctuationStrategies_WithLagGrowingWithSystemTime_Test {
+public class PunctuationStrategies_CappingEventSeqLagAndLull_Test {
 
     private long[] clock = new long[1];
-    private PunctuationStrategy p = PunctuationStrategies.cappingEventSeqLagAndLull(2, 3_000_000, () -> clock[0]);
+    private PunctuationStrategy p = cappingEventSeqLagAndLull(2, 3_000_000, () -> clock[0]);
 
     @Test
     public void when_outOfOrderEvents_then_monotonicPunct() {
-        assertEquals(8, p.getPunctuation(10));
-        assertEquals(8, p.getPunctuation(9));
-        assertEquals(8, p.getPunctuation(8));
-        assertEquals(8, p.getPunctuation(7)); // late event, but nevermind
-        assertEquals(9, p.getPunctuation(11));
+        assertEquals(8, p.reportEvent(10));
+        assertEquals(8, p.reportEvent(9));
+        assertEquals(8, p.reportEvent(8));
+        assertEquals(8, p.reportEvent(7)); // late event
+        assertEquals(9, p.reportEvent(11));
     }
 
     @Test
     public void when_eventsStop_then_punctIncreases() {
         // Given - starting event
-        assertEquals(10, p.getPunctuation(12));
+        assertEquals(10, p.reportEvent(12));
 
         // When
-        for (int i = 0; i < 3 /*catchUpDelay*/; i++) {
+        for (int i = 0; i < 3; i++) {
             clock[0] += 1_000_000;
-            assertEquals(10, p.getPunctuation(Long.MIN_VALUE));
+            assertEquals(10, p.getCurrentPunctuation());
         }
 
         // Then - punct increases
         for (int i = 1; i <= 10; i++) {
             clock[0] += 1_000_000;
-            assertEquals("at i=" + i, 10 + i, p.getPunctuation(Long.MIN_VALUE));
+            assertEquals("at i=" + i, 10 + i, p.getCurrentPunctuation());
         }
     }
 
     @Test
     public void when_noEventEver_then_increaseFromLongMinValue() {
         // When
-        assertEquals(Long.MIN_VALUE, p.getPunctuation(Long.MIN_VALUE)); // this is the artificial "first item"
-        for (int i = 0; i < 3 /*catchUpDelay*/; i++) {
+        assertEquals(Long.MIN_VALUE, p.getCurrentPunctuation()); // this is the artificial "first item"
+        for (int i = 0; i < 3; i++) {
             clock[0] += 1_000_000;
-            assertEquals(Long.MIN_VALUE, p.getPunctuation(Long.MIN_VALUE));
+            assertEquals(Long.MIN_VALUE, p.getCurrentPunctuation());
         }
 
         // Then - punct increases
         for (int i = 1; i <= 10; i++) {
             clock[0] += 1_000_000;
-            assertEquals("at i=" + i, Long.MIN_VALUE + i, p.getPunctuation(Long.MIN_VALUE));
+            assertEquals("at i=" + i, Long.MIN_VALUE + i, p.getCurrentPunctuation());
         }
     }
-
 }

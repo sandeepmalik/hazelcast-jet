@@ -114,7 +114,7 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
         // if we have newest item so far, maybe emit punctuation
         if (eventSeq > topObservedSeq) {
             topObservedSeq = eventSeq;
-            maybeEmitPunctuation(punctuationStrategy.getPunctuation(topObservedSeq));
+            maybeEmitPunctuation(punctuationStrategy.reportEvent(topObservedSeq));
         }
         emit(item);
 
@@ -123,7 +123,7 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
 
     @Override
     public void process() {
-        maybeEmitPunctuation(punctuationStrategy.getPunctuation(Long.MIN_VALUE));
+        maybeEmitPunctuation(punctuationStrategy.reportEvent(Long.MIN_VALUE));
     }
 
     private void maybeEmitPunctuation(long newIdealPunct) {

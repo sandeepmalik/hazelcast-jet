@@ -46,11 +46,13 @@ public final class PunctuationStrategies {
             private long punc = Long.MIN_VALUE;
 
             @Override
-            public long getPunctuation(long eventSeq) {
-                if (eventSeq == Long.MIN_VALUE) {
-                    return punc;
-                }
+            public long reportEvent(long eventSeq) {
                 punc = max(punc, eventSeq - eventSeqLag);
+                return punc;
+            }
+
+            @Override
+            public long getCurrentPunctuation() {
                 return punc;
             }
         };
@@ -76,30 +78,39 @@ public final class PunctuationStrategies {
      *                     {@code System.currentTimeMillis} and the punctuation
      */
     public static PunctuationStrategy cappingEventSeqAndWallClockLag(long eventSeqLag, long wallClockLag) {
-        checkNotNegative(eventSeqLag, "eventSeqLag must be >=0");
-        checkNotNegative(wallClockLag, "wallClockLag must be >=0");
+        checkNotNegative(eventSeqLag, "eventSeqLag must not be negative");
+        checkNotNegative(wallClockLag, "wallClockLag must not be negative");
 
         return new PunctuationStrategy() {
-            private long highestPunc;
+            private long punc;
 
             @Override
-            public long getPunctuation(long eventSeq) {
-                // special case for disabled eventSeqLag
-                if (eventSeqLag == Long.MAX_VALUE) {
-                    return System.currentTimeMillis() - wallClockLag;
-                }
-                highestPunc = max(highestPunc, eventSeq - eventSeqLag);
-                return max(eventSeq - eventSeqLag, System.currentTimeMillis() - wallClockLag);
+            public long reportEvent(long eventSeq) {
+                punc = max(punc, eventSeq - eventSeqLag);
+                updateFromWallClock();
+                return punc;
+            }
+
+            @Override
+            public long getCurrentPunctuation() {
+                updateFromWallClock();
+                return punc;
+            }
+
+            private void updateFromWallClock() {
+                punc = max(punc, System.currentTimeMillis() - wallClockLag);
             }
         };
     }
 
     /**
      * This strategy returns punctuation that lags behind the top event seq by
-     * the amount specified with {@code puncLag}. The strategy assumes that
+     * the amount specified with {@code eventSeqLag}. The strategy assumes that
      * event seq corresponds to the timestamp of the event given in milliseconds
      * and will use that fact to correlate the event seq with the passage of
-     * system time.
+     * system time. There is no requirement on any specific point of origin for
+     * the event time, i.e., the zero value can denote any point in time as long
+     * as it is fixed.
      * <p>
      * When the defined {@code maxLullMs} period elapses without observing more
      * events, punctuation will start advancing in lockstep with system time
@@ -112,29 +123,33 @@ public final class PunctuationStrategies {
      * empty substream will hold back the processing of all other substreams by
      * keeping the punctuation below any realistic value.
      *
-     * @param puncLag the desired difference between the top observed event seq
-     *                and the punctuation
+     * @param eventSeqLag the desired difference between the top observed event seq
+     *                    and the punctuation
      * @param maxLullMs maximum duration of a lull period before starting to
      *                  advance punctuation with system time
      */
-    public static PunctuationStrategy cappingEventSeqLagAndLull(long puncLag, long maxLullMs) {
-        return cappingEventSeqLagAndLull(puncLag, MILLISECONDS.toNanos(maxLullMs), System::nanoTime);
+    public static PunctuationStrategy cappingEventSeqLagAndLull(long eventSeqLag, long maxLullMs) {
+        return cappingEventSeqLagAndLull(eventSeqLag, MILLISECONDS.toNanos(maxLullMs), System::nanoTime);
     }
 
-    static PunctuationStrategy cappingEventSeqLagAndLull(long seqLag, long maxLullNs, LongSupplier nanoClock) {
-        return new PunctuationStrategy() {
+    static PunctuationStrategy cappingEventSeqLagAndLull(long eventSeqLag, long maxLullNs, LongSupplier nanoClock) {
+        checkNotNegative(eventSeqLag, "eventSeqLag must not be negative");
+        checkNotNegative(maxLullNs, "maxLullNs must not be negative");
 
+        return new PunctuationStrategy() {
             private long lastEventAt = Long.MIN_VALUE;
-            private long topPuncSeq = Long.MIN_VALUE;
+            private long punc = Long.MIN_VALUE;
 
             @Override
-            public long getPunctuation(long eventSeq) {
+            public long reportEvent(long eventSeq) {
+                lastEventAt = nanoClock.getAsLong();
+                punc = max(punc, eventSeq - eventSeqLag);
+                return punc;
+            }
+
+            @Override
+            public long getCurrentPunctuation() {
                 long now = nanoClock.getAsLong();
-                if (eventSeq != Long.MIN_VALUE) {
-                    lastEventAt = now;
-                    topPuncSeq = max(topPuncSeq, eventSeq - seqLag);
-                    return topPuncSeq;
-                }
                 if (lastEventAt == Long.MIN_VALUE) {
                     // if we haven't seen any events yet, we behave as if
                     // the first event had seq = MIN_VALUE and arrived now
@@ -142,7 +157,8 @@ public final class PunctuationStrategies {
                 }
                 long nanosSinceLastEvent = now - lastEventAt;
                 long addedSeq = max(0, nanosSinceLastEvent - maxLullNs);
-                return topPuncSeq + NANOSECONDS.toMillis(addedSeq);
+                punc += NANOSECONDS.toMillis(addedSeq);
+                return punc;
             }
         };
     }
