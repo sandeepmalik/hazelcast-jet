@@ -19,7 +19,6 @@ package com.hazelcast.jet.impl.execution;
 import com.hazelcast.internal.util.concurrent.update.ConcurrentConveyor;
 import com.hazelcast.internal.util.concurrent.update.Pipe;
 import com.hazelcast.jet.Punctuation;
-import com.hazelcast.jet.impl.util.EventSeqHistory;
 import com.hazelcast.jet.impl.util.ProgressState;
 import com.hazelcast.jet.impl.util.ProgressTracker;
 import com.hazelcast.jet.impl.util.SkewReductionPolicy;
@@ -29,7 +28,6 @@ import com.hazelcast.util.function.Predicate;
 import java.util.Collection;
 
 import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
  * {@link InboundEdgeStream} implemented in terms of a {@link ConcurrentConveyor}.
@@ -38,23 +36,19 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  */
 public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
 
-    private static final int HISTORIC_SEQS_COUNT = 16;
-
     private final int ordinal;
     private final int priority;
     private final ConcurrentConveyor<Object> conveyor;
     private final ProgressTracker tracker = new ProgressTracker();
     private final PunctuationDetector puncDetector = new PunctuationDetector();
     private long lastEmittedPunc = Long.MIN_VALUE;
-    private final EventSeqHistory eventSeqHistory;
     private final SkewReductionPolicy skewReductionPolicy;
 
     public ConcurrentInboundEdgeStream(ConcurrentConveyor<Object> conveyor, int ordinal, int priority,
-            long maxRetainMs, long maxSkew, long applyPriorityThreshold, SkewExceededAction skewExceededAction) {
+            long maxSkew, long applyPriorityThreshold, SkewExceededAction skewExceededAction) {
         this.conveyor = conveyor;
         this.ordinal = ordinal;
         this.priority = priority;
-        this.eventSeqHistory = new EventSeqHistory(MILLISECONDS.toNanos(maxRetainMs), HISTORIC_SEQS_COUNT);
 
         skewReductionPolicy = new SkewReductionPolicy(conveyor.queueCount(), maxSkew, applyPriorityThreshold, skewExceededAction);
     }
@@ -94,12 +88,10 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
             }
         }
 
-        long topPunctSomeTimeAgo = eventSeqHistory.sample(System.nanoTime(), skewReductionPolicy.topObservedPunc());
-        long bottomPunctNow = skewReductionPolicy.bottomObservedPunc();
-        long puncToEmit = Math.max(topPunctSomeTimeAgo, bottomPunctNow);
-        if (puncToEmit > lastEmittedPunc) {
-            dest.add(new Punctuation(puncToEmit));
-            lastEmittedPunc = puncToEmit;
+        long bottomPunct = skewReductionPolicy.bottomObservedPunc();
+        if (bottomPunct > lastEmittedPunc) {
+            dest.add(new Punctuation(bottomPunct));
+            lastEmittedPunc = bottomPunct;
         }
 
         return tracker.toProgressState();
