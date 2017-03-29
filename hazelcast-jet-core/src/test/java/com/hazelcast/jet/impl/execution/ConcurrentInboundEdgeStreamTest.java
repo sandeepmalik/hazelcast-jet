@@ -18,8 +18,6 @@ package com.hazelcast.jet.impl.execution;
 
 import com.hazelcast.internal.util.concurrent.update.ConcurrentConveyor;
 import com.hazelcast.internal.util.concurrent.update.OneToOneConcurrentArrayQueue;
-import com.hazelcast.internal.util.concurrent.update.QueuedPipe;
-import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.impl.util.ProgressState;
 import com.hazelcast.jet.impl.util.SkewReductionPolicy.SkewExceededAction;
 import org.junit.Before;
@@ -139,26 +137,5 @@ public class ConcurrentInboundEdgeStreamTest {
         progressState = stream.drainTo(list);
         assertEquals(0, list.size());
         assertEquals(ProgressState.WAS_ALREADY_DONE, progressState);
-    }
-
-    @Test
-    public void when_punctuationFromAllEmittersInSingleDrain_then_emitAtPunc() {
-        ArrayList<Object> list = new ArrayList<>();
-        for (QueuedPipe<Object> q : Arrays.asList(q1, q2)) {
-            q.add(0);
-            q.add(1);
-            q.add(new Punctuation(1));
-            q.add(2);
-            q.add(DONE_ITEM);
-        }
-
-        ProgressState progressState = stream.drainTo(list);
-        assertEquals(Arrays.asList(0, 1, 0, 1, new Punctuation(1)), list);
-        assertEquals(MADE_PROGRESS, progressState);
-
-        list.clear();
-        progressState = stream.drainTo(list);
-        assertEquals(Arrays.asList(2, 2), list);
-        assertEquals(DONE, progressState);
     }
 }
