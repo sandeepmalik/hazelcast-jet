@@ -36,11 +36,11 @@ public final class PunctuationStrategies {
      * event seq by the given amount. In the case of a stream lull the
      * punctuation does not advance.
      *
-     * @param puncLag the desired difference between the top observed event seq
-     *                and the punctuation
+     * @param eventSeqLag the desired difference between the top observed event seq
+     *                    and the punctuation
      */
-    public static PunctuationStrategy cappingEventSeqLag(long puncLag) {
-        checkNotNegative(puncLag, "puncLag must not be negative");
+    public static PunctuationStrategy cappingEventSeqLag(long eventSeqLag) {
+        checkNotNegative(eventSeqLag, "eventSeqLag must not be negative");
 
         return new PunctuationStrategy() {
             private long punc = Long.MIN_VALUE;
@@ -50,7 +50,7 @@ public final class PunctuationStrategies {
                 if (eventSeq == Long.MIN_VALUE) {
                     return punc;
                 }
-                punc = max(punc, eventSeq - puncLag);
+                punc = max(punc, eventSeq - eventSeqLag);
                 return punc;
             }
         };
@@ -59,20 +59,25 @@ public final class PunctuationStrategies {
     /**
      * This strategy returns punctuation that lags behind the top event seq by
      * at most {@code eventSeqLag} and behind wall-clock time by at most
-     * {@code systemTimeLag}. It assumes that {@code eventSeq} is the timestamp
-     * of the event in milliseconds and will use that fact to correlate
-     * {@code eventSeq} with wall-clock time acquired from the underlying OS.
-     * Note that wall-clock time is non-monotonic and when sudden jumps occur
-     * in it, this will cause temporary disruptions in the functioning of this
-     * strategy.
+     * {@code wallClockLag}. It assumes that {@code eventSeq} is the timestamp
+     * of the event in milliseconds since Unix epoch and will use that fact to
+     * correlate {@code eventSeq} with wall-clock time acquired from the
+     * underlying OS. Note that wall-clock time is non-monotonic and sudden
+     * jumps that may occur in it will cause temporary disruptions in the
+     * functioning of this strategy.
      * <p>
      * In most cases the {@link #cappingEventSeqLagAndLull(long, long)
      * cappingEventSeqLagAndLull} strategy should be preferred; this is a
      * backup option for cases where some substreams may never see an event.
+     *
+     * @param eventSeqLag maximum difference between the top observed event seq
+     *                    and the punctuation
+     * @param wallClockLag maximum difference between the current value of
+     *                     {@code System.currentTimeMillis} and the punctuation
      */
-    public static PunctuationStrategy cappingEventSeqAndWallClockLag(long eventSeqLag, long systemTimeLag) {
+    public static PunctuationStrategy cappingEventSeqAndWallClockLag(long eventSeqLag, long wallClockLag) {
         checkNotNegative(eventSeqLag, "eventSeqLag must be >=0");
-        checkNotNegative(systemTimeLag, "systemTimeLag must be >=0");
+        checkNotNegative(wallClockLag, "wallClockLag must be >=0");
 
         return new PunctuationStrategy() {
             private long highestPunc;
@@ -81,10 +86,10 @@ public final class PunctuationStrategies {
             public long getPunctuation(long eventSeq) {
                 // special case for disabled eventSeqLag
                 if (eventSeqLag == Long.MAX_VALUE) {
-                    return System.currentTimeMillis() - systemTimeLag;
+                    return System.currentTimeMillis() - wallClockLag;
                 }
                 highestPunc = max(highestPunc, eventSeq - eventSeqLag);
-                return max(eventSeq - eventSeqLag, System.currentTimeMillis() - systemTimeLag);
+                return max(eventSeq - eventSeqLag, System.currentTimeMillis() - wallClockLag);
             }
         };
     }
@@ -97,17 +102,18 @@ public final class PunctuationStrategies {
      * system time.
      * <p>
      * When the defined {@code maxLullMs} period elapses without observing more
-     * events, the punctuation will start advancing in lockstep with system
-     * time acquired from the underlying OS's monotonic clock.
+     * events, punctuation will start advancing in lockstep with system time
+     * acquired from the underlying OS's monotonic clock.
      * <p>
-     * If no event is ever observed, the punctuation will advance from the initial
-     * value of {@code Long.MIN_VALUE}. Therefore this strategy can be used only
-     * when there is a guarantee that each substream will emit at least some events
-     * to initialize the {@code eventSeq}. Otherwise the empty substream will hold
-     * back the processing of all other substreams by keeping the punctuation below
-     * any realistic value.
+     * If no event is ever observed, punctuation will advance from the initial
+     * value of {@code Long.MIN_VALUE}. Therefore this strategy can be used
+     * only when there is a guarantee that each substream will emit at least
+     * one event that will initialize the {@code eventSeq}. Otherwise the
+     * empty substream will hold back the processing of all other substreams by
+     * keeping the punctuation below any realistic value.
      *
-     * @param puncLag lag of punctuation behind the highest event seq
+     * @param puncLag the desired difference between the top observed event seq
+     *                and the punctuation
      * @param maxLullMs maximum duration of a lull period before starting to
      *                  advance punctuation with system time
      */
