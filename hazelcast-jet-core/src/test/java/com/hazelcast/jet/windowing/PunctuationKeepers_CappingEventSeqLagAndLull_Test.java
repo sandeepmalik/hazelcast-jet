@@ -18,13 +18,13 @@ package com.hazelcast.jet.windowing;
 
 import org.junit.Test;
 
-import static com.hazelcast.jet.windowing.PunctuationStrategies.cappingEventSeqLagAndLull;
+import static com.hazelcast.jet.windowing.PunctuationKeepers.cappingEventSeqLagAndLull;
 import static org.junit.Assert.assertEquals;
 
-public class PunctuationStrategies_CappingEventSeqLagAndLull_Test {
+public class PunctuationKeepers_CappingEventSeqLagAndLull_Test {
 
     private long[] clock = new long[1];
-    private PunctuationStrategy p = cappingEventSeqLagAndLull(2, 3_000_000, () -> clock[0]);
+    private PunctuationKeeper p = cappingEventSeqLagAndLull(2, 3_000_000, () -> clock[0]);
 
     @Test
     public void when_outOfOrderEvents_then_monotonicPunct() {

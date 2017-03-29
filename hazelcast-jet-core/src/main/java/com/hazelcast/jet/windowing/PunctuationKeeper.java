@@ -19,7 +19,7 @@ package com.hazelcast.jet.windowing;
 /**
  * Receives the observed event seqs and returns the punctuation to emit.
  */
-public interface PunctuationStrategy {
+public interface PunctuationKeeper {
 
     /**
      * Called to report observing an event with the given {@code eventSeq}.

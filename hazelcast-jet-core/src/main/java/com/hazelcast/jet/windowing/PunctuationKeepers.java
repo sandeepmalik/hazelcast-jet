@@ -20,29 +20,28 @@ import com.hazelcast.jet.Distributed.LongSupplier;
 
 import static com.hazelcast.util.Preconditions.checkNotNegative;
 import static java.lang.Math.max;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 /**
- * Utility class with several punctuation strategies.
+ * Utility class with several punctuation keepers.
  */
-public final class PunctuationStrategies {
+public final class PunctuationKeepers {
 
-    private PunctuationStrategies() {
+    private PunctuationKeepers() {
     }
 
     /**
-     * This strategy returns punctuation that lags behind the top observed
-     * event seq by the given amount. In the case of a stream lull the
-     * punctuation does not advance.
+     * Maintains punctuation that lags behind the top observed event seq by the
+     * given amount. In the case of a stream lull the punctuation does not
+     * advance.
      *
      * @param eventSeqLag the desired difference between the top observed event seq
      *                    and the punctuation
      */
-    public static PunctuationStrategy cappingEventSeqLag(long eventSeqLag) {
+    public static PunctuationKeeper cappingEventSeqLag(long eventSeqLag) {
         checkNotNegative(eventSeqLag, "eventSeqLag must not be negative");
 
-        return new PunctuationStrategy() {
+        return new PunctuationKeeper() {
             private long punc = Long.MIN_VALUE;
 
             @Override
@@ -59,17 +58,17 @@ public final class PunctuationStrategies {
     }
 
     /**
-     * This strategy returns punctuation that lags behind the top event seq by
-     * at most {@code eventSeqLag} and behind wall-clock time by at most
+     * Maintains punctuation that lags behind the top event seq by at most
+     * {@code eventSeqLag} and behind wall-clock time by at most
      * {@code wallClockLag}. It assumes that {@code eventSeq} is the timestamp
      * of the event in milliseconds since Unix epoch and will use that fact to
      * correlate {@code eventSeq} with wall-clock time acquired from the
      * underlying OS. Note that wall-clock time is non-monotonic and sudden
      * jumps that may occur in it will cause temporary disruptions in the
-     * functioning of this strategy.
+     * functioning of this punctuation keeper.
      * <p>
      * In most cases the {@link #cappingEventSeqLagAndLull(long, long)
-     * cappingEventSeqLagAndLull} strategy should be preferred; this is a
+     * cappingEventSeqLagAndLull} keeper should be preferred; this is a
      * backup option for cases where some substreams may never see an event.
      *
      * @param eventSeqLag maximum difference between the top observed event seq
@@ -77,11 +76,11 @@ public final class PunctuationStrategies {
      * @param wallClockLag maximum difference between the current value of
      *                     {@code System.currentTimeMillis} and the punctuation
      */
-    public static PunctuationStrategy cappingEventSeqAndWallClockLag(long eventSeqLag, long wallClockLag) {
+    public static PunctuationKeeper cappingEventSeqAndWallClockLag(long eventSeqLag, long wallClockLag) {
         checkNotNegative(eventSeqLag, "eventSeqLag must not be negative");
         checkNotNegative(wallClockLag, "wallClockLag must not be negative");
 
-        return new PunctuationStrategy() {
+        return new PunctuationKeeper() {
             private long punc;
 
             @Override
@@ -104,23 +103,22 @@ public final class PunctuationStrategies {
     }
 
     /**
-     * This strategy returns punctuation that lags behind the top event seq by
-     * the amount specified with {@code eventSeqLag}. The strategy assumes that
-     * event seq corresponds to the timestamp of the event given in milliseconds
-     * and will use that fact to correlate the event seq with the passage of
-     * system time. There is no requirement on any specific point of origin for
-     * the event time, i.e., the zero value can denote any point in time as long
-     * as it is fixed.
+     * Maintains punctuation that lags behind the top event seq by the amount
+     * specified with {@code eventSeqLag}. Assumes that event seq corresponds
+     * to the timestamp of the event given in milliseconds and will use that
+     * fact to correlate the event seq with the passage of system time. There
+     * is no requirement on any specific point of origin for the event time,
+     * i.e., the zero value can denote any point in time as long as it is fixed.
      * <p>
      * When the defined {@code maxLullMs} period elapses without observing more
      * events, punctuation will start advancing in lockstep with system time
      * acquired from the underlying OS's monotonic clock.
      * <p>
      * If no event is ever observed, punctuation will advance from the initial
-     * value of {@code Long.MIN_VALUE}. Therefore this strategy can be used
-     * only when there is a guarantee that each substream will emit at least
-     * one event that will initialize the {@code eventSeq}. Otherwise the
-     * empty substream will hold back the processing of all other substreams by
+     * value of {@code Long.MIN_VALUE}. Therefore this keeper can be used only
+     * when there is a guarantee that each substream will emit at least one
+     * event that will initialize the {@code eventSeq}. Otherwise the empty
+     * substream will hold back the processing of all other substreams by
      * keeping the punctuation below any realistic value.
      *
      * @param eventSeqLag the desired difference between the top observed event seq
@@ -128,37 +126,40 @@ public final class PunctuationStrategies {
      * @param maxLullMs maximum duration of a lull period before starting to
      *                  advance punctuation with system time
      */
-    public static PunctuationStrategy cappingEventSeqLagAndLull(long eventSeqLag, long maxLullMs) {
-        return cappingEventSeqLagAndLull(eventSeqLag, MILLISECONDS.toNanos(maxLullMs), System::nanoTime);
+    public static PunctuationKeeper cappingEventSeqLagAndLull(long eventSeqLag, long maxLullMs) {
+        return cappingEventSeqLagAndLull(eventSeqLag, maxLullMs, System::nanoTime);
     }
 
-    static PunctuationStrategy cappingEventSeqLagAndLull(long eventSeqLag, long maxLullNs, LongSupplier nanoClock) {
+    static PunctuationKeeper cappingEventSeqLagAndLull(long eventSeqLag, long maxLullMs, LongSupplier nanoClock) {
         checkNotNegative(eventSeqLag, "eventSeqLag must not be negative");
-        checkNotNegative(maxLullNs, "maxLullNs must not be negative");
+        checkNotNegative(maxLullMs, "maxLullMs must not be negative");
 
-        return new PunctuationStrategy() {
+        return new PunctuationKeeper() {
             private long lastEventAt = Long.MIN_VALUE;
             private long punc = Long.MIN_VALUE;
 
             @Override
             public long reportEvent(long eventSeq) {
-                lastEventAt = nanoClock.getAsLong();
+                lastEventAt = monotonicTimeMillis();
                 punc = max(punc, eventSeq - eventSeqLag);
                 return punc;
             }
 
             @Override
             public long getCurrentPunctuation() {
-                long now = nanoClock.getAsLong();
+                long now = monotonicTimeMillis();
                 if (lastEventAt == Long.MIN_VALUE) {
                     // if we haven't seen any events yet, we behave as if
                     // the first event had seq = MIN_VALUE and arrived now
                     lastEventAt = now;
                 }
-                long nanosSinceLastEvent = now - lastEventAt;
-                long addedSeq = max(0, nanosSinceLastEvent - maxLullNs);
-                punc += NANOSECONDS.toMillis(addedSeq);
+                long millisPastMaxLull = max(0, now - lastEventAt - maxLullMs);
+                punc = max(punc, lastEventAt + millisPastMaxLull);
                 return punc;
+            }
+
+            private long monotonicTimeMillis() {
+                return NANOSECONDS.toMillis(nanoClock.getAsLong());
             }
         };
     }

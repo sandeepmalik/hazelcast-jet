@@ -61,7 +61,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 public class InsertPunctuationP<T> extends AbstractProcessor {
 
     private final ToLongFunction<T> extractEventSeqF;
-    private final PunctuationStrategy punctuationStrategy;
+    private final PunctuationKeeper punctuationKeeper;
     private final long eventSeqThrottle;
     private final long timeThrottle;
     private final LongSupplier clock;
@@ -74,28 +74,28 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
 
     /**
      * @param extractEventSeqF function that extracts the {@code eventSeq} from an input item
-     * @param punctuationStrategy Strategy to use
+     * @param punctuationKeeper the punctuation keeper
      * @param eventSeqThrottle the difference between the ideal and the last emitted punctuation
      *                        that triggers the emission of a new punctuation
      * @param timeThrottleMs maximum system time that can pass between emitting successive punctuations
      */
     public InsertPunctuationP(@Nonnull ToLongFunction<T> extractEventSeqF,
-            @Nonnull PunctuationStrategy punctuationStrategy,
+            @Nonnull PunctuationKeeper punctuationKeeper,
             long eventSeqThrottle,
             long timeThrottleMs) {
-        this(extractEventSeqF, punctuationStrategy, eventSeqThrottle, MILLISECONDS.toNanos(timeThrottleMs),
+        this(extractEventSeqF, punctuationKeeper, eventSeqThrottle, MILLISECONDS.toNanos(timeThrottleMs),
                 System::nanoTime);
     }
 
     InsertPunctuationP(@Nonnull ToLongFunction<T> extractEventSeqF,
-            @Nonnull PunctuationStrategy punctuationStrategy,
+            @Nonnull PunctuationKeeper punctuationKeeper,
             long eventSeqThrottle,
             long timeThrottle,
             LongSupplier clock) {
         checkNotNegative(eventSeqThrottle, "eventSeqThrottle must be >= 0");
         checkNotNegative(timeThrottle, "timeThrottle must be >= 0");
         this.extractEventSeqF = extractEventSeqF;
-        this.punctuationStrategy = punctuationStrategy;
+        this.punctuationKeeper = punctuationKeeper;
         this.eventSeqThrottle = eventSeqThrottle;
         this.timeThrottle = timeThrottle;
         this.clock = clock;
@@ -114,7 +114,7 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
         // if we have newest item so far, maybe emit punctuation
         if (eventSeq > topObservedSeq) {
             topObservedSeq = eventSeq;
-            maybeEmitPunctuation(punctuationStrategy.reportEvent(topObservedSeq));
+            maybeEmitPunctuation(punctuationKeeper.reportEvent(topObservedSeq));
         }
         emit(item);
 
@@ -123,7 +123,7 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
 
     @Override
     public void process() {
-        maybeEmitPunctuation(punctuationStrategy.reportEvent(Long.MIN_VALUE));
+        maybeEmitPunctuation(punctuationKeeper.reportEvent(Long.MIN_VALUE));
     }
 
     private void maybeEmitPunctuation(long newIdealPunct) {
