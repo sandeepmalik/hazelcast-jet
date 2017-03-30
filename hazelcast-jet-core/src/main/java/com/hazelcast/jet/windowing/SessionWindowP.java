@@ -115,6 +115,12 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
     }
 
     @Override
+    protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
+        puncSeq = punc.seq();
+        return expiredSesFlatmapper.tryProcess(punc);
+    }
+
+    @Override
     protected boolean tryProcess0(@Nonnull Object item) {
         final T event = (T) item;
         final long eventSeq = extractEventSeqF.applyAsLong(event);
@@ -126,12 +132,6 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
         keyToWindows.computeIfAbsent(key, Windows::new)
                     .addEvent(eventSeq, event);
         return true;
-    }
-
-    @Override
-    protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
-        puncSeq = punc.seq();
-        return expiredSesFlatmapper.tryProcess(punc);
     }
 
     private class Windows {
@@ -198,6 +198,14 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
             return insertWindow(i, eventSeq, eventEnd);
         }
 
+        private boolean overlaps(int i, long eventStart, long eventEnd) {
+            return eventEnd >= starts[i] && ends[i] >= eventStart;
+        }
+
+        private boolean covers(int i, long eventStart, long eventEnd) {
+            return starts[i] <= eventStart && ends[i] >= eventEnd;
+        }
+
         private void deleteWindow(int idx) {
             size--;
             for (int i = idx; i < size; i++) {
@@ -218,20 +226,6 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
             return accs[idx];
         }
 
-        private void copy(int from, int to) {
-            starts[to] = starts[from];
-            ends[to] = ends[from];
-            accs[to] = accs[from];
-        }
-
-        private boolean overlaps(int i, long eventStart, long eventEnd) {
-            return eventEnd >= starts[i] && ends[i] >= eventStart;
-        }
-
-        private boolean covers(int i, long eventStart, long eventEnd) {
-            return starts[i] <= eventStart && ends[i] >= eventEnd;
-        }
-
         private void addToDeadlines(long deadline) {
             deadlineToKeys.computeIfAbsent(deadline, x -> new HashSet<>()).add(key);
         }
@@ -242,6 +236,12 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
             if (ks.isEmpty()) {
                 deadlineToKeys.remove(deadline);
             }
+        }
+
+        private void copy(int from, int to) {
+            starts[to] = starts[from];
+            ends[to] = ends[from];
+            accs[to] = accs[from];
         }
 
         private void expandIfNeeded() {
