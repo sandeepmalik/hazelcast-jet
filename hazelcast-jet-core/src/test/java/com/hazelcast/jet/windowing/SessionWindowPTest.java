@@ -25,9 +25,7 @@ import com.hazelcast.util.MutableLong;
 import org.junit.Before;
 import org.junit.Test;
 
-import javax.annotation.Nonnull;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map.Entry;
@@ -104,18 +102,22 @@ public class SessionWindowPTest {
     }
 
     private void assertCorrectness(List<Entry<String, Long>> evs) {
-        // When
+        // Given
         Set<String> keys = new HashSet<>();
         for (Entry<String, Long> ev : evs) {
             inbox.add(ev);
             keys.add(ev.getKey());
         }
+        Set<Session> expectedSessions = keys.stream().flatMap(SessionWindowPTest::expectedSessions).collect(toSet());
         inbox.add(new Punctuation(100));
+
+        // When
         swp.process(0, inbox);
+        Set<Object> actualSessions = range(0, expectedSessions.size())
+                .mapToObj(x -> pollOutbox())
+                .collect(toSet());
 
         // Then
-        Set<Session> expectedSessions = keys.stream().flatMap(SessionWindowPTest::expectedSessions).collect(toSet());
-        Set<Object> actualSessions = range(0, expectedSessions.size()).mapToObj(x -> pollOutbox()).collect(toSet());
         assertEquals(expectedSessions, actualSessions);
         assertNull(pollOutbox());
         // Check against memory leaks
