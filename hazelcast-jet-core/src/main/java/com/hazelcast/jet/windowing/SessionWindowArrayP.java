@@ -30,16 +30,13 @@ import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
+import java.util.Map.Entry;
 import java.util.function.BiConsumer;
-import java.util.stream.Stream;
 
-import static com.hazelcast.jet.Traversers.traverseStream;
+import static com.hazelcast.jet.Traversers.traverseIterable;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 
@@ -64,9 +61,8 @@ import static java.lang.Math.min;
  */
 public class SessionWindowArrayP<T, K, A, R> extends StreamingProcessorBase {
 
-    // These two fields are exposed for testing, to check for memory leaks
+    // exposed for testing, to check for memory leaks
     final Map<K, Windows> keyToWindows = new HashMap<>();
-    SortedMap<Long, Set<K>> deadlineToKeys = new TreeMap<>();
 
     private final long maxSeqGap;
     private final ToLongFunction<? super T> extractEventSeqF;
@@ -104,14 +100,12 @@ public class SessionWindowArrayP<T, K, A, R> extends StreamingProcessorBase {
     }
 
     private Traverser<Session<K, R>> closedWindowTraverser(Punctuation punc) {
-        Stream<Session<K, R>> sessions = deadlineToKeys.headMap(punc.seq())
-                                                       .values().stream()
-                                                       .flatMap(Set::stream)
-                                                       .distinct()
-                                                       .map(keyToWindows::get)
-                                                       .flatMap(wins -> wins.closeWindows(punc.seq()).stream());
-        deadlineToKeys = deadlineToKeys.tailMap(punc.seq());
-        return traverseStream(sessions);
+        List<Session<K, R>> sessions = new ArrayList<>();
+        for (Iterator<Entry<K, Windows>> it = keyToWindows.entrySet().iterator(); it.hasNext();) {
+            Entry<K, Windows> e = it.next();
+            sessions.addAll(e.getValue().closeWindows(punc.seq(), e, it));
+        }
+        return traverseIterable(sessions);
     }
 
     @Override
@@ -151,10 +145,6 @@ public class SessionWindowArrayP<T, K, A, R> extends StreamingProcessorBase {
                     starts[i] = min(starts[i], eventSeq);
                     long oldEnd = ends[i];
                     ends[i] = max(ends[i], eventEnd);
-                    if (ends[i] != oldEnd) {
-                        deregisterDeadline(oldEnd);
-                        registerDeadline(ends[i]);
-                    }
                     accumulateF.accept(accs[i], event);
                     return;
                 }
@@ -165,7 +155,6 @@ public class SessionWindowArrayP<T, K, A, R> extends StreamingProcessorBase {
         }
 
         void addWindow(long start, long end, A acc) {
-            registerDeadline(end);
             if (size == starts.length) {
                 starts = Arrays.copyOf(starts, 2 * starts.length);
                 ends = Arrays.copyOf(ends, 2 * ends.length);
@@ -177,7 +166,7 @@ public class SessionWindowArrayP<T, K, A, R> extends StreamingProcessorBase {
             size++;
         }
 
-        List<Session<K, R>> closeWindows(long puncSeq) {
+        List<Session<K, R>> closeWindows(long puncSeq, Entry<?, Windows> winEntry, Iterator<?> winIter) {
             new WinSorter().sort(0, size);
             Windows survivors = new Windows(key);
             List<Session<K, R>> sessions = new ArrayList<>();
@@ -187,9 +176,6 @@ public class SessionWindowArrayP<T, K, A, R> extends StreamingProcessorBase {
                 A acc = accs[i];
                 for (i++; i < size && starts[i] <= end; i++) {
                     long newEnd = max(end, ends[i]);
-                    if (newEnd > end && end >= puncSeq) {
-                        deregisterDeadline(end);
-                    }
                     end = newEnd;
                     acc = combineAccF.apply(acc, accs[i]);
                 }
@@ -200,23 +186,11 @@ public class SessionWindowArrayP<T, K, A, R> extends StreamingProcessorBase {
                 }
             }
             if (survivors.size > 0) {
-                keyToWindows.put(key, survivors);
+                winEntry.setValue(survivors);
             } else {
-                keyToWindows.remove(key);
+                winIter.remove();
             }
             return sessions;
-        }
-
-        private boolean registerDeadline(long deadline) {
-            return deadlineToKeys.computeIfAbsent(deadline, x -> new HashSet<>()).add(key);
-        }
-
-        private void deregisterDeadline(long deadline) {
-            Set<K> ks = deadlineToKeys.get(deadline);
-            ks.remove(key);
-            if (ks.isEmpty()) {
-                deadlineToKeys.remove(deadline);
-            }
         }
 
         private class WinSorter extends QuickSorter {
