@@ -60,7 +60,7 @@ import static java.lang.Math.min;
  * @param <A> type of the container of accumulated value
  * @param <R> type of the result value for a session window
  */
-public class SessionWindowArrayP<T, K, A, R> extends StreamingProcessorBase {
+public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
 
     // exposed for testing, to check for memory leaks
     final Map<K, Windows> keyToWindows = new HashMap<>();
@@ -85,7 +85,7 @@ public class SessionWindowArrayP<T, K, A, R> extends StreamingProcessorBase {
      * @param extractKeyF      function to extract the grouping key from the event iem
      * @param collector        contains aggregation logic
      */
-    public SessionWindowArrayP(
+    public SessionWindowP(
             long maxSeqGap,
             ToLongFunction<? super T> extractEventSeqF,
             Function<? super T, K> extractKeyF,
