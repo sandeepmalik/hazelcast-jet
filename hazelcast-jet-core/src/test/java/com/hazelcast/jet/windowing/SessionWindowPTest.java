@@ -122,7 +122,7 @@ public class SessionWindowPTest {
             assertEquals(expectedSessions, actualSessions);
             assertNull(pollOutbox());
             // Check against memory leaks
-            assertTrue("keyToIvToAcc not empty", swp.keyToIvToAcc.isEmpty());
+            assertTrue("keyToWindows not empty", swp.keyToWindows.isEmpty());
             assertTrue("deadlineToKeys not empty", swp.deadlineToKeys.isEmpty());
         } catch (AssertionError e) {
             System.err.println("Tested with events: " + evs);
@@ -145,7 +145,7 @@ public class SessionWindowPTest {
         long keyCount = 2000;
         long eventsPerKey = eventCount / keyCount;
         long puncInterval = eventsPerKey / 10;
-        int spread = 100;
+        int spread = 200;
         System.out.format("keyCount %,d eventsPerKey %,d puncInterval %,d%n", keyCount, eventsPerKey, puncInterval);
         for (long eventId = 0; eventId < eventsPerKey; eventId++) {
             for (long key = (eventId / puncInterval) % 2; key < keyCount; key += 2) {
