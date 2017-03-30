@@ -64,7 +64,7 @@ import static java.lang.Math.min;
  * @param <A> type of the container of accumulated value
  * @param <R> type of the result value for a session window
  */
-public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
+public class SessionWindowTreeP<T, K, A, R> extends StreamingProcessorBase {
 
     // These two fields are exposed for testing, to check for memory leaks
     final Map<K, NavigableMap<Interval, A>> keyToIvToAcc = new HashMap<>();
@@ -89,7 +89,7 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
      * @param extractKeyF      function to extract the grouping key from the event iem
      * @param collector        contains aggregation logic
      */
-    public SessionWindowP(
+    public SessionWindowTreeP(
             long maxSeqGap,
             ToLongFunction<? super T> extractEventSeqF,
             Function<? super T, K> extractKeyF,
@@ -165,7 +165,7 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
             return putAbsent(ivToAcc, key, entry(eventIv, newAccumulatorF.get()));
         }
         Interval lowerIv = lowerWindow.getKey();
-        if (encompasses(lowerIv, eventIv)) {
+        if (covers(lowerIv, eventIv)) {
             return lowerWindow;
         }
         delete(it, key, lowerIv);
@@ -199,7 +199,7 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
         return eventIv.equals(win.getKey()) ? win : null;
     }
 
-    private static boolean encompasses(Interval outer, Interval inner) {
+    private static boolean covers(Interval outer, Interval inner) {
         return outer.start <= inner.start && outer.end >= inner.end;
     }
 
