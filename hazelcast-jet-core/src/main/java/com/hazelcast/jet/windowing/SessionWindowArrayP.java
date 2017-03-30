@@ -185,8 +185,7 @@ public class SessionWindowArrayP<T, K, A, R> extends StreamingProcessorBase {
                 long start = starts[i];
                 long end = ends[i];
                 A acc = accs[i];
-                i++;
-                for (; i < size && starts[i] <= end; i++) {
+                for (i++; i < size && starts[i] <= end; i++) {
                     long newEnd = max(end, ends[i]);
                     if (newEnd > end && end >= puncSeq) {
                         deregisterDeadline(end);
@@ -239,17 +238,20 @@ public class SessionWindowArrayP<T, K, A, R> extends StreamingProcessorBase {
             }
 
             @Override
-            protected void swap(long longIdx1, long longIdx2) {
-                int i = (int) longIdx1;
-                int j = (int) longIdx2;
+            protected void swap(long idx1, long idx2) {
+                int i = (int) idx1;
+                int j = (int) idx2;
+
                 long tStart = starts[i];
-                long tEnd = ends[i];
-                A tAcc = accs[i];
                 starts[i] = starts[j];
-                ends[i] = ends[j];
-                accs[i] = accs[j];
                 starts[j] = tStart;
+
+                long tEnd = ends[i];
+                ends[i] = ends[j];
                 ends[j] = tEnd;
+
+                A tAcc = accs[i];
+                accs[i] = accs[j];
                 accs[j] = tAcc;
             }
         }

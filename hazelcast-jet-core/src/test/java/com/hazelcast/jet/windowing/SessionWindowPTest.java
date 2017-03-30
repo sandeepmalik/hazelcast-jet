@@ -50,7 +50,7 @@ import static org.mockito.Mockito.mock;
 
 public class SessionWindowPTest {
     private static final int MAX_SEQ_GAP = 10;
-    private SessionWindowArrayP swp;
+    private SessionWindowP swp;
     private ArrayDequeInbox inbox;
     private ArrayDequeOutbox outbox;
 
@@ -58,7 +58,7 @@ public class SessionWindowPTest {
     public void before() {
         inbox = new ArrayDequeInbox();
         outbox = new ArrayDequeOutbox(1, new int[] {100});
-        swp = new SessionWindowArrayP<Entry<String, Long>, String, MutableLong, Long>(
+        swp = new SessionWindowP<Entry<String, Long>, String, MutableLong, Long>(
                 MAX_SEQ_GAP,
                 Entry::getValue,
                 entryKey(),
@@ -119,7 +119,7 @@ public class SessionWindowPTest {
         assertEquals(expectedSessions, actualSessions);
         assertNull(pollOutbox());
         // Check against memory leaks
-        assertTrue("keyToIvToAcc not empty", swp.keyToWindows.isEmpty());
+        assertTrue("keyToIvToAcc not empty", swp.keyToIvToAcc.isEmpty());
         assertTrue("deadlineToKeys not empty", swp.deadlineToKeys.isEmpty());
     }
 
