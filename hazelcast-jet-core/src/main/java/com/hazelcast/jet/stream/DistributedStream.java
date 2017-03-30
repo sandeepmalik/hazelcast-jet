@@ -17,6 +17,7 @@
 package com.hazelcast.jet.stream;
 
 import com.hazelcast.jet.Distributed;
+import com.hazelcast.jet.config.JobConfig;
 import com.hazelcast.jet.stream.DistributedCollector.Reducer;
 import com.hazelcast.jet.stream.impl.reducers.CollectorReducer;
 
@@ -239,32 +240,6 @@ public interface DistributedStream<T> extends Stream<T> {
 
     @Override
     DistributedStream<T> skip(long n);
-
-    /**
-     * Performs an action for each element of this stream.
-     *
-     * <p>This is a terminal operation.
-     *
-     * @param action a
-     *               non-interfering action to perform on the elements
-     */
-    default void forEach(Distributed.Consumer<? super T> action) {
-        forEach((Consumer<? super T>) action);
-    }
-
-    /**
-     * Performs an action for each element of this stream, in the encounter
-     * order of the stream if the stream has a defined encounter order.
-     *
-     * <p>This is a terminal operation.
-     *
-     * @param action a
-     *               non-interfering action to perform on the elements
-     * @see #forEach(Consumer)
-     */
-    default void forEachOrdered(Distributed.Consumer<? super T> action) {
-        forEachOrdered((Consumer<? super T>) action);
-    }
 
     /**
      * Performs a reduction on the
@@ -598,12 +573,6 @@ public interface DistributedStream<T> extends Stream<T> {
     DistributedStream<T> peek(Consumer<? super T> action);
 
     @Override
-    void forEach(Consumer<? super T> action);
-
-    @Override
-    void forEachOrdered(Consumer<? super T> action);
-
-    @Override
     T reduce(T identity, BinaryOperator<T> accumulator);
 
     @Override
@@ -628,4 +597,9 @@ public interface DistributedStream<T> extends Stream<T> {
     @Override
     boolean noneMatch(Predicate<? super T> predicate);
 
+    /**
+     * @param jobConfig Job configuration which will be used while executing underlying DAG
+     * @return the new stream
+     */
+    DistributedStream<T> configure(JobConfig jobConfig);
 }

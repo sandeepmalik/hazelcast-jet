@@ -32,6 +32,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.NavigableMap;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -66,7 +67,7 @@ import static java.lang.Math.min;
 public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
 
     // These two fields are exposed for testing, to check for memory leaks
-    final Map<K, SortedMap<Interval, A>> keyToIvToAcc = new HashMap<>();
+    final Map<K, NavigableMap<Interval, A>> keyToIvToAcc = new HashMap<>();
     SortedMap<Long, Set<K>> deadlineToKeys = new TreeMap<>();
 
     private final long maxSeqGap;
@@ -105,17 +106,18 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
     }
 
     private Traverser<Session<K, R>> closedWindowTraverser(Punctuation punc) {
-        Interval deadlineIv = new Interval(punc.seq(), punc.seq());
         Stream<K> keys = deadlineToKeys.headMap(punc.seq())
                                        .values().stream()
                                        .flatMap(Set::stream)
                                        .distinct();
         deadlineToKeys = deadlineToKeys.tailMap(punc.seq());
+        Interval deadlineIv = new Interval(punc.seq(), punc.seq());
         return traverseStream(keys)
                 .flatMap(k -> traverseWithRemoval(keyToIvToAcc.get(k).headMap(deadlineIv).entrySet())
                         .map(ivAndAcc -> new Session<>(
-                                k, finishAccumulationF.apply(ivAndAcc.getValue()),
-                                ivAndAcc.getKey().start, ivAndAcc.getKey().beyondEnd))
+                                k, ivAndAcc.getKey().start, ivAndAcc.getKey().end,
+                                finishAccumulationF.apply(ivAndAcc.getValue())
+                        ))
                         .onNull(() -> {
                             if (keyToIvToAcc.get(k).isEmpty()) {
                                 keyToIvToAcc.remove(k);
@@ -128,12 +130,12 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
     protected boolean tryProcess0(@Nonnull Object item) {
         final T event = (T) item;
         final long eventSeq = extractEventSeqF.applyAsLong(event);
-        // drop late events
-        if (eventSeq <= puncSeq) {
+        if (eventSeq < puncSeq) {
+            // drop late event
             return true;
         }
         K key = extractKeyF.apply(event);
-        SortedMap<Interval, A> ivToAcc = keyToIvToAcc.get(key);
+        NavigableMap<Interval, A> ivToAcc = keyToIvToAcc.get(key);
         Interval eventIv = new Interval(eventSeq, eventSeq + maxSeqGap);
         if (ivToAcc == null) {
             A acc = newAccumulatorF.get();
@@ -149,14 +151,14 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
     }
 
     // This logic relies on the non-transitive equality relation defined for
-    // `Interval`. Lower and upper windows have definitely non-equal intervals,
-    // but they may both be equal to the event interval. If they are, the new
-    // event belongs to both and causes the two windows to be combined into one.
-    // Further note that at most two existing intervals can overlap the event
-    // interval because they are at least as large as it.
-    private Entry<Interval, A> resolveWindow(SortedMap<Interval, A> ivToAcc, K key, Interval eventIv) {
-        Iterator<Entry<Interval, A>> it = ivToAcc.tailMap(eventIv).entrySet().iterator();
-        Entry<Interval, A> lowerWindow = nextEqualOrNull(it, eventIv);
+    // `Interval`. Lower and upper windows have definitely non-overlapping
+    // intervals, but they may both overlap the event interval. If they do,
+    // the new event belongs to both and causes the two windows to be combined
+    // into one. Further note that at most two existing intervals can overlap
+    // the event interval because they are at least as large as it.
+    private Entry<Interval, A> resolveWindow(NavigableMap<Interval, A> ivToAcc, K key, Interval eventIv) {
+        Iterator<Entry<Interval, A>> it = tailIterator(ivToAcc, eventIv);
+        Entry<Interval, A> lowerWindow = nextOverlappingOrNull(it, eventIv);
         if (lowerWindow == null) {
             return putAbsent(ivToAcc, key, entry(eventIv, newAccumulatorF.get()));
         }
@@ -165,19 +167,29 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
             return lowerWindow;
         }
         delete(it, key, lowerIv);
-        Entry<Interval, A> upperWindow = nextEqualOrNull(it, eventIv);
+        Entry<Interval, A> upperWindow = nextOverlappingOrNull(it, eventIv);
         if (upperWindow == null) {
             return putAbsent(ivToAcc, key, entry(union(lowerIv, eventIv), lowerWindow.getValue()));
         }
         Interval upperIv = upperWindow.getKey();
         delete(it, key, upperIv);
         return putAbsent(ivToAcc, key, entry(
-                new Interval(lowerIv.start, upperIv.beyondEnd),
+                new Interval(lowerIv.start, upperIv.end),
                 combineAccF.apply(lowerWindow.getValue(), upperWindow.getValue()))
         );
     }
 
-    private Entry<Interval, A> nextEqualOrNull(Iterator<Entry<Interval, A>> it, Interval eventIv) {
+    // Simply calling tailMap(eventIv) fails because the map has the right
+    // to assume that, if it finds a key equal to eventIv, it is the
+    // starting point of the tail map; yet a lower key could still be equal
+    // to eventIv due to the non-transitivity of its comparison method.
+    private Iterator<Entry<Interval, A>> tailIterator(NavigableMap<Interval, A> ivToAcc, Interval eventIv) {
+        Interval lowerKey = ivToAcc.lowerKey(eventIv);
+        Map<Interval, A> tailMap = lowerKey != null ? ivToAcc.tailMap(lowerKey, false) : ivToAcc;
+        return tailMap.entrySet().iterator();
+    }
+
+    private Entry<Interval, A> nextOverlappingOrNull(Iterator<Entry<Interval, A>> it, Interval eventIv) {
         if (!it.hasNext()) {
             return null;
         }
@@ -186,19 +198,19 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
     }
 
     private static boolean encompasses(Interval outer, Interval inner) {
-        return outer.start <= inner.start && outer.beyondEnd >= inner.beyondEnd;
+        return outer.start <= inner.start && outer.end >= inner.end;
     }
 
     private static Interval union(Interval iv1, Interval iv2) {
-        return new Interval(min(iv1.start, iv2.start), max(iv1.beyondEnd, iv2.beyondEnd));
+        return new Interval(min(iv1.start, iv2.start), max(iv1.end, iv2.end));
     }
 
-    private void delete(Iterator<Entry<Interval, A>> it, K key, Interval lowerIv) {
+    private void delete(Iterator<Entry<Interval, A>> it, K key, Interval iv) {
         it.remove();
-        Set<K> keys = deadlineToKeys.get(lowerIv.beyondEnd);
+        Set<K> keys = deadlineToKeys.get(iv.end);
         keys.remove(key);
         if (keys.isEmpty()) {
-            deadlineToKeys.remove(lowerIv.beyondEnd);
+            deadlineToKeys.remove(iv.end);
         }
     }
 
@@ -206,7 +218,7 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
         A prev = ivToAcc.put(win.getKey(), win.getValue());
         assert prev == null
                 : "Broken interval map implementation: " + win.getKey() + " already present in " + ivToAcc.keySet();
-        deadlineToKeys.computeIfAbsent(win.getKey().beyondEnd, x -> new HashSet<>())
+        deadlineToKeys.computeIfAbsent(win.getKey().end, x -> new HashSet<>())
                       .add(key);
         return win;
     }
@@ -219,20 +231,21 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
 
     /**
      * An interval on the long integer number line. Two intervals are "equal"
-     * iff they overlap or are adjacent without gap. This deliberately broken
-     * definition fails at transitivity, but works well for its single use case:
-     * maintaining a {@code TreeMap} of strictly non-equal intervals and testing
-     * whether a given interval is equal to some of these.
+     * iff they overlap. This deliberately broken definition fails at
+     * transitivity, but works well for its single use case: maintaining a
+     * {@code TreeMap} of strictly non-equal intervals and testing whether a
+     * given interval overlaps some of these.
      */
     @SuppressWarnings("equalshashcode")
     @SuppressFBWarnings(value = "HE_EQUALS_USE_HASHCODE", justification = "Not to be used in a hashtable")
     private static class Interval implements Comparable<Interval> {
         final long start;
-        final long beyondEnd;
+        final long end;
 
-        Interval(long start, long beyondEnd) {
+        Interval(long start, long end) {
+            assert end >= start : "Invalid interval [" + start + ".." + end + ')';
             this.start = start;
-            this.beyondEnd = beyondEnd;
+            this.end = end;
         }
 
         @Override
@@ -242,14 +255,14 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
 
         @Override
         public int compareTo(@Nonnull Interval that) {
-            return this.beyondEnd < that.start ? -1
-                 : that.beyondEnd < this.start ? 1
+            return this.end < that.start ? -1
+                 : that.end < this.start ? 1
                  : 0;
         }
 
         @Override
         public String toString() {
-            return "[" + start + ".." + beyondEnd + ']';
+            return "[" + start + ".." + end + ']';
         }
     }
 }

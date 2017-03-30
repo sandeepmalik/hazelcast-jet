@@ -150,7 +150,9 @@ public final class ReadHdfsP<K, V, R> extends AbstractProcessor {
      * @return {@link ProcessorMetaSupplier} supplier
      */
     @Nonnull
-    public static <K, V, R> MetaSupplier<K, V, R> readHdfs(@Nonnull JobConf jobConf, @Nonnull BiFunction<K, V, R> mapper) {
+    public static <K, V, R> MetaSupplier<K, V, R> readHdfs(
+            @Nonnull JobConf jobConf, @Nonnull BiFunction<K, V, R> mapper
+    ) {
         return new MetaSupplier<>(asSerializable(jobConf), mapper);
     }
 
@@ -252,7 +254,8 @@ public final class ReadHdfsP<K, V, R> extends AbstractProcessor {
                                 .collect(toSet())
                 );
             }
-            // for each split not local to any member, assign it to the member with the least splits assigned so far
+            // for each split not local to any member, assign it to the member
+            // with the least splits assigned so far
             splitToCandidates.entrySet().stream()
                     .filter(e -> e.getValue().isEmpty())
                     .peek(e -> logger.info(
@@ -330,7 +333,10 @@ public final class ReadHdfsP<K, V, R> extends AbstractProcessor {
         private List<IndexedInputSplit> assignedSplits;
         private BiFunction<K, V, R> mapper;
 
-        Supplier(SerializableJobConf jobConf, Collection<IndexedInputSplit> assignedSplits, @Nonnull BiFunction<K, V, R> mapper) {
+        Supplier(SerializableJobConf jobConf,
+                 Collection<IndexedInputSplit> assignedSplits,
+                 @Nonnull BiFunction<K, V, R> mapper
+        ) {
             this.jobConf = jobConf;
             this.assignedSplits = assignedSplits.stream().collect(toList());
             this.mapper = mapper;

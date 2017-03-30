@@ -61,41 +61,41 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 public class InsertPunctuationP<T> extends AbstractProcessor {
 
     private final ToLongFunction<T> extractEventSeqF;
-    private final PunctuationStrategy punctuationStrategy;
+    private final PunctuationKeeper punctuationKeeper;
     private final long eventSeqThrottle;
     private final long timeThrottle;
     private final LongSupplier clock;
 
-    private long highestInputSeq = Long.MIN_VALUE;
-    private long highestRequestedPunc = Long.MIN_VALUE;
+    private long topObservedSeq = Long.MIN_VALUE;
+    private long idealPunct = Long.MIN_VALUE;
     private long nextEmissionAtSystemTime = Long.MIN_VALUE;
     private long nextEmissionAtSeq = Long.MIN_VALUE;
     private long lastEmittedPunc = Long.MIN_VALUE;
 
     /**
      * @param extractEventSeqF function that extracts the {@code eventSeq} from an input item
-     * @param punctuationStrategy Strategy to use
+     * @param punctuationKeeper the punctuation keeper
      * @param eventSeqThrottle the difference between the ideal and the last emitted punctuation
      *                        that triggers the emission of a new punctuation
      * @param timeThrottleMs maximum system time that can pass between emitting successive punctuations
      */
     public InsertPunctuationP(@Nonnull ToLongFunction<T> extractEventSeqF,
-            @Nonnull PunctuationStrategy punctuationStrategy,
+            @Nonnull PunctuationKeeper punctuationKeeper,
             long eventSeqThrottle,
             long timeThrottleMs) {
-        this(extractEventSeqF, punctuationStrategy, eventSeqThrottle, MILLISECONDS.toNanos(timeThrottleMs),
+        this(extractEventSeqF, punctuationKeeper, eventSeqThrottle, MILLISECONDS.toNanos(timeThrottleMs),
                 System::nanoTime);
     }
 
     InsertPunctuationP(@Nonnull ToLongFunction<T> extractEventSeqF,
-            @Nonnull PunctuationStrategy punctuationStrategy,
+            @Nonnull PunctuationKeeper punctuationKeeper,
             long eventSeqThrottle,
             long timeThrottle,
             LongSupplier clock) {
         checkNotNegative(eventSeqThrottle, "eventSeqThrottle must be >= 0");
         checkNotNegative(timeThrottle, "timeThrottle must be >= 0");
         this.extractEventSeqF = extractEventSeqF;
-        this.punctuationStrategy = punctuationStrategy;
+        this.punctuationKeeper = punctuationKeeper;
         this.eventSeqThrottle = eventSeqThrottle;
         this.timeThrottle = timeThrottle;
         this.clock = clock;
@@ -103,18 +103,18 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
 
     @Override
     protected boolean tryProcess(int ordinal, @Nonnull Object item) throws Exception {
-        T tItem = (T) item;
-        long itemSeq = extractEventSeqF.applyAsLong(tItem);
+        T event = (T) item;
+        long eventSeq = extractEventSeqF.applyAsLong(event);
 
-        // drop late items
-        if (itemSeq < highestRequestedPunc) {
+        if (eventSeq < idealPunct) {
+            // drop late event
             return true;
         }
 
         // if we have newest item so far, maybe emit punctuation
-        if (itemSeq > highestInputSeq) {
-            highestInputSeq = itemSeq;
-            maybeEmitPunctuation(punctuationStrategy.getPunct(highestInputSeq));
+        if (eventSeq > topObservedSeq) {
+            topObservedSeq = eventSeq;
+            maybeEmitPunctuation(punctuationKeeper.reportEvent(topObservedSeq));
         }
         emit(item);
 
@@ -123,19 +123,19 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
 
     @Override
     public void process() {
-        maybeEmitPunctuation(punctuationStrategy.getPunct(Long.MIN_VALUE));
+        maybeEmitPunctuation(punctuationKeeper.reportEvent(Long.MIN_VALUE));
     }
 
-    private void maybeEmitPunctuation(long punctuationTime) {
-        highestRequestedPunc = Math.max(punctuationTime, highestRequestedPunc);
+    private void maybeEmitPunctuation(long newIdealPunct) {
+        idealPunct = Math.max(newIdealPunct, idealPunct);
 
         long now = clock.getAsLong();
-        if (highestRequestedPunc > lastEmittedPunc && (
-                highestRequestedPunc >= nextEmissionAtSeq || now >= nextEmissionAtSystemTime)) {
-            nextEmissionAtSeq = highestRequestedPunc + eventSeqThrottle;
+        if (idealPunct > lastEmittedPunc && (
+                idealPunct >= nextEmissionAtSeq || now >= nextEmissionAtSystemTime)) {
+            nextEmissionAtSeq = idealPunct + eventSeqThrottle;
             nextEmissionAtSystemTime = now + timeThrottle;
-            emit(new Punctuation(highestRequestedPunc));
-            lastEmittedPunc = highestRequestedPunc;
+            emit(new Punctuation(idealPunct));
+            lastEmittedPunc = idealPunct;
         }
     }
 }

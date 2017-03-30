@@ -18,12 +18,16 @@ package com.hazelcast.jet;
 
 import com.hazelcast.client.config.ClientConfig;
 import com.hazelcast.jet.Traversers.ResettableSingletonTraverser;
+import com.hazelcast.jet.impl.connector.HazelcastWriters;
 import com.hazelcast.jet.impl.connector.ReadIListP;
-import com.hazelcast.jet.impl.connector.WriteIListP;
-import com.hazelcast.jet.impl.connector.ReadIMapP;
-import com.hazelcast.jet.impl.connector.WriteIMapP;
+import com.hazelcast.jet.impl.connector.ReadWithPartitionIteratorP;
+import com.hazelcast.jet.impl.connector.WriteBufferedP;
+import com.hazelcast.jet.impl.connector.ReadSocketTextStreamP;
 
 import javax.annotation.Nonnull;
+import java.io.BufferedWriter;
+import java.io.OutputStreamWriter;
+import java.net.Socket;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -36,6 +40,9 @@ import java.util.function.Supplier;
 
 import static com.hazelcast.jet.Traversers.lazy;
 import static com.hazelcast.jet.Traversers.traverseStream;
+import static com.hazelcast.jet.impl.util.Util.noopConsumer;
+import static com.hazelcast.jet.impl.util.Util.uncheckCall;
+import static com.hazelcast.jet.impl.util.Util.uncheckRun;
 
 /**
  * Static utility class with factory methods for predefined processors.
@@ -47,10 +54,11 @@ public final class Processors {
 
     /**
      * Returns a meta-supplier of processors that will fetch entries from the
-     * Hazelcast {@code IMap} with the specified name. The processors will only
-     * access data local to the member and, if {@code localParallelism} for the
-     * vertex is above one, processors will divide the labor within the member
-     * so that each one gets a subset of all local partitions to read.
+     * Hazelcast {@code IMap} with the specified name and will emit them as {@code Map.Entry}.
+     * The processors will only access data local to the member and,
+     * if {@code localParallelism} for the vertex is above one,
+     * processors will divide the labor within the member so that
+     * each one gets a subset of all local partitions to read.
      * <p>
      * The number of Hazelcast partitions should be configured to at least
      * {@code localParallelism * clusterSize}, otherwise some processors will have
@@ -61,36 +69,91 @@ public final class Processors {
      */
     @Nonnull
     public static ProcessorMetaSupplier readMap(@Nonnull String mapName) {
-        return ReadIMapP.supplier(mapName);
+        return ReadWithPartitionIteratorP.readMap(mapName);
     }
 
     /**
      * Returns a meta-supplier of processors that will fetch entries from a
      * Hazelcast {@code IMap} in a remote cluster.
+     * Processors will emit the entries as {@code Map.Entry}.
      * <p>
      * If the underlying map is concurrently being modified, there are no guarantees
      * given with respect to missing or duplicate items.
      */
     @Nonnull
     public static ProcessorMetaSupplier readMap(@Nonnull String mapName, @Nonnull ClientConfig clientConfig) {
-        return ReadIMapP.supplier(mapName, clientConfig);
+        return ReadWithPartitionIteratorP.readMap(mapName, clientConfig);
     }
 
     /**
-     * Returns a meta-supplier of processors that will put data into a Hazelcast {@code IMap}.
+     * Returns a processor supplier that will put data into a Hazelcast {@code IMap}.
+     * Processors expect items of type {@code Map.Entry}.
      */
     @Nonnull
-    public static ProcessorMetaSupplier writeMap(@Nonnull String mapName) {
-        return WriteIMapP.supplier(mapName);
+    public static ProcessorSupplier writeMap(@Nonnull String mapName) {
+        return HazelcastWriters.writeMap(mapName);
     }
 
     /**
-     * Returns a meta-supplier of processors that will put data into a Hazelcast {@code IMap} in
+     * Returns a processor supplier that will put data into a Hazelcast {@code IMap} in
      * a remote cluster.
+     * Processors expect items of type {@code Map.Entry}.
      */
     @Nonnull
-    public static ProcessorMetaSupplier writeMap(@Nonnull String mapName, @Nonnull ClientConfig clientConfig) {
-        return WriteIMapP.supplier(mapName, clientConfig);
+    public static ProcessorSupplier writeMap(@Nonnull String mapName, @Nonnull ClientConfig clientConfig) {
+        return HazelcastWriters.writeMap(mapName, clientConfig);
+    }
+
+    /**
+     * Returns a meta-supplier of processors that will fetch entries from the
+     * Hazelcast {@code ICache} with the specified name and will emit them as {@code Cache.Entry}.
+     * The processors will only access data local to the member and,
+     * if {@code localParallelism} for the vertex is above one,
+     * processors will divide the labor within the member so that
+     * each one gets a subset of all local partitions to read.
+     * <p>
+     * The number of Hazelcast partitions should be configured to at least
+     * {@code localParallelism * clusterSize}, otherwise some processors will have
+     * no partitions assigned to them.
+     * <p>
+     * If the underlying cache is concurrently being modified, there are no guarantees
+     * given with respect to missing or duplicate items.
+     */
+    @Nonnull
+    public static ProcessorMetaSupplier readCache(@Nonnull String cacheName) {
+        return ReadWithPartitionIteratorP.readCache(cacheName);
+    }
+
+    /**
+     * Returns a meta-supplier of processors that will fetch entries from a
+     * Hazelcast {@code ICache} in a remote cluster.
+     * Processors will emit the entries as {@code Cache.Entry}.
+     * <p>
+     * If the underlying cache is concurrently being modified, there are no guarantees
+     * given with respect to missing or duplicate items.
+     */
+    @Nonnull
+    public static ProcessorMetaSupplier readCache(@Nonnull String cacheName, @Nonnull ClientConfig clientConfig) {
+        return ReadWithPartitionIteratorP.readCache(cacheName, clientConfig);
+    }
+
+    /**
+     * Returns a meta-supplier of processors that will put data into a Hazelcast {@code ICache}.
+     * Processors expect items of type {@code Map.Entry}
+     */
+    @Nonnull
+    public static ProcessorSupplier writeCache(@Nonnull String cacheName) {
+        return HazelcastWriters.writeCache(cacheName);
+    }
+
+    /**
+     * Returns a processor supplier that will put data into a Hazelcast {@code ICache} in
+     * a remote cluster.
+     * Processors expect items of type {@code Map.Entry}.
+     */
+    @Nonnull
+    public static ProcessorSupplier writeCache(@Nonnull String cacheName, @Nonnull ClientConfig clientConfig) {
+        return HazelcastWriters.writeCache(cacheName, clientConfig);
     }
 
     /**
@@ -115,7 +178,7 @@ public final class Processors {
      */
     @Nonnull
     public static ProcessorSupplier writeList(@Nonnull String listName) {
-        return WriteIListP.supplier(listName);
+        return HazelcastWriters.writeList(listName);
     }
 
     /**
@@ -124,7 +187,76 @@ public final class Processors {
      */
     @Nonnull
     public static ProcessorSupplier writeList(@Nonnull String listName, @Nonnull ClientConfig clientConfig) {
-        return WriteIListP.supplier(listName, clientConfig);
+        return HazelcastWriters.writeList(listName, clientConfig);
+    }
+
+
+    /**
+     * Returns a supplier of processor which drains all items from
+     * an inbox to a intermediate buffer and then flushes that buffer.
+     *
+     * Useful for implementing sinks where the data should only be flushed
+     * after the inbox has been drained.
+     *
+     * @param newBuffer supplies the buffer
+     * @param addToBuffer adds item to buffer
+     * @param flushBuffer flushes the buffer
+     * @param <B> type of buffer
+     * @param <T> type of received item
+     */
+    @Nonnull
+    public static <B, T> ProcessorSupplier writeBuffered(@Nonnull Distributed.Supplier<B> newBuffer,
+                                                         @Nonnull Distributed.BiConsumer<B, T> addToBuffer,
+                                                         @Nonnull Distributed.Consumer<B> flushBuffer) {
+        return WriteBufferedP.writeBuffered(newBuffer, addToBuffer, flushBuffer, noopConsumer());
+    }
+
+    /**
+     * Returns a supplier of processor which drains all items from
+     * an inbox to a intermediate buffer and then flushes that buffer.
+     *
+     * The buffer will be disposed via {@code disposeBuffer} once the processor
+     * is completed
+     * Useful for implementing sinks where the data should only be flushed
+     * after the inbox has been drained.
+     *
+     * @param newBuffer supplies the buffer
+     * @param addToBuffer adds item to buffer
+     * @param flushBuffer flushes the buffer
+     * @param disposeBuffer disposes of the buffer
+     * @param <B> type of buffer
+     * @param <T> type of received item
+     */
+    @Nonnull
+    public static <B, T> ProcessorSupplier writeBuffered(@Nonnull Distributed.Supplier<B> newBuffer,
+                                                         @Nonnull Distributed.BiConsumer<B, T> addToBuffer,
+                                                         @Nonnull Distributed.Consumer<B> flushBuffer,
+                                                         @Nonnull Distributed.Consumer<B> disposeBuffer) {
+        return WriteBufferedP.writeBuffered(newBuffer, addToBuffer, flushBuffer, disposeBuffer);
+    }
+
+    /**
+     * Returns a supplier of processors that connect to specified socket and write the items as text
+     */
+    public static ProcessorSupplier writeSocket(@Nonnull String host, int port) {
+        return writeBuffered(
+                () -> createBufferedWriter(host, port),
+                (bufferedWriter, item) -> uncheckRun(() -> bufferedWriter.write(item.toString())),
+                bufferedWriter -> uncheckRun(bufferedWriter::flush),
+                bufferedWriter -> uncheckRun(bufferedWriter::close)
+        );
+    }
+
+    private static BufferedWriter createBufferedWriter(@Nonnull String host, int port) {
+        return uncheckCall(() -> new BufferedWriter(new OutputStreamWriter(new Socket(host, port).getOutputStream(), "UTF-8")));
+    }
+
+    /**
+     * Returns a supplier of processors that connect to the specified socket and read and emit text line by line.
+     */
+    @Nonnull
+    public static ProcessorSupplier readSocket(@Nonnull String host, int port) {
+        return ReadSocketTextStreamP.supplier(host, port);
     }
 
     /**

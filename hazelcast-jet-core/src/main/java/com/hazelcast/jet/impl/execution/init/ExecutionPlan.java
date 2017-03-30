@@ -107,11 +107,12 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
             for (Processor p : createProcessors(srcVertex, srcVertex.parallelism())) {
                 // createOutboundEdgeStreams() populates localConveyorMap and edgeSenderConveyorMap.
                 // Also populates instance fields: senderMap, receiverMap, tasklets.
-                final List<OutboundEdgeStream> outboundStreams = createOutboundEdgeStreams(srcVertex, processorIdx);
-                final List<InboundEdgeStream> inboundStreams = createInboundEdgeStreams(srcVertex, processorIdx);
-                ILogger logger = nodeEngine.getLogger(
-                        srcVertex.name() + '(' + p.getClass().getSimpleName() + ")#" + processorIdx);
-                ProcCtx context = new ProcCtx(instance, logger, srcVertex.name(), processorIdx + srcVertex.getProcIdxOffset());
+                List<OutboundEdgeStream> outboundStreams = createOutboundEdgeStreams(srcVertex, processorIdx);
+                List<InboundEdgeStream> inboundStreams = createInboundEdgeStreams(srcVertex, processorIdx);
+                ILogger logger =
+                        nodeEngine.getLogger(p.getClass().getName() + '.' + srcVertex.name() + '#' + processorIdx);
+                ProcCtx context =
+                        new ProcCtx(instance, logger, srcVertex.name(), processorIdx + srcVertex.getProcIdxOffset());
                 tasklets.add(new ProcessorTasklet(srcVertex.name(), context, p, inboundStreams, outboundStreams));
                 processorIdx++;
             }
@@ -278,7 +279,8 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
         final int numRemoteMembers = ptionArrgmt.remotePartitionAssignment.get().size();
         final int queueSize = edge.getConfig().getQueueSize();
 
-        final int[][] ptionsPerProcessor = ptionArrgmt.assignPartitionsToProcessors(downstreamParallelism, edge.isDistributed());
+        final int[][] ptionsPerProcessor =
+                ptionArrgmt.assignPartitionsToProcessors(downstreamParallelism, edge.isDistributed());
 
         // in a one to many edge, each downstream processor is assigned only one processor.
         if (edge.forwardingPattern() == ForwardingPattern.ONE_TO_MANY) {

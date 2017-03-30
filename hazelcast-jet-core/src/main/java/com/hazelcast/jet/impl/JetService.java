@@ -168,7 +168,8 @@ public class JetService
     }
 
     public ResourceStore getResourceStore(long executionId) {
-        return resourceStores.computeIfAbsent(executionId, (k) -> new ResourceStore(config.getInstanceConfig().getTempDir()));
+        return resourceStores.computeIfAbsent(executionId,
+                (k) -> new ResourceStore(config.getInstanceConfig().getTempDir()));
     }
 
     public ClassLoader getClassLoader(long executionId) {
@@ -182,7 +183,8 @@ public class JetService
     }
 
     public Map<Member, ExecutionPlan> createExecutionPlans(DAG dag) {
-        return ExecutionPlanBuilder.createExecutionPlans(nodeEngine, dag, config.getInstanceConfig().getCooperativeThreadCount());
+        return ExecutionPlanBuilder.createExecutionPlans(nodeEngine, dag,
+                config.getInstanceConfig().getCooperativeThreadCount());
     }
 
 

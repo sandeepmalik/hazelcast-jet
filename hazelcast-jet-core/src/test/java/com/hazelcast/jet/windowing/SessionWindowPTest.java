@@ -25,15 +25,29 @@ import com.hazelcast.util.MutableLong;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map.Entry;
+import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Stream;
 
 import static com.hazelcast.jet.Projections.entryKey;
 import static com.hazelcast.jet.Util.entry;
+import static java.util.Arrays.asList;
+import static java.util.Collections.shuffle;
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static java.util.stream.Collectors.toSet;
+import static java.util.stream.IntStream.range;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
 public class SessionWindowPTest {
+    private static final int MAX_SEQ_GAP = 10;
     private SessionWindowP swp;
     private ArrayDequeInbox inbox;
     private ArrayDequeOutbox outbox;
@@ -43,7 +57,7 @@ public class SessionWindowPTest {
         inbox = new ArrayDequeInbox();
         outbox = new ArrayDequeOutbox(1, new int[] {100});
         swp = new SessionWindowP<Entry<String, Long>, String, MutableLong, Long>(
-                10,
+                MAX_SEQ_GAP,
                 Entry::getValue,
                 entryKey(),
                 DistributedCollector.of(
@@ -56,25 +70,119 @@ public class SessionWindowPTest {
     }
 
     @Test
-    public void smokeTest() {
-        inbox.add(entry("a", 1L));
-        inbox.add(entry("a", 12L));
-        inbox.add(entry("a", 6L));
-        inbox.add(entry("a", 30L));
-        inbox.add(entry("a", 35L));
-        inbox.add(entry("a", 40L));
-        inbox.add(entry("b", 40L));
-        inbox.add(new Punctuation(100));
-        swp.process(0, inbox);
-        assertEquals(new Session<>("a", 3L, 1, 22), pollOutbox());
-        assertEquals(new Session<>("a", 3L, 30, 50), pollOutbox());
-        assertEquals(new Session<>("b", 1L, 40, 50), pollOutbox());
+    public void when_orderedEventsWithOneKey() {
+        List<Entry<String, Long>> evs = eventsWithKey("a");
+        assertCorrectness(evs);
+    }
 
+    @Test
+    public void when_disorderedEventsWithOneKey() {
+        List<Entry<String, Long>> evs = eventsWithKey("a");
+        shuffle(evs);
+        assertCorrectness(evs);
+    }
+
+    @Test
+    public void when_orderedEventsWithThreeKeys() {
+        List<Entry<String, Long>> evs = new ArrayList<>();
+        evs.addAll(eventsWithKey("a"));
+        evs.addAll(eventsWithKey("b"));
+        evs.addAll(eventsWithKey("c"));
+        assertCorrectness(evs);
+    }
+
+    @Test
+    public void when_disorderedEVentsWithThreeKeys() {
+        List<Entry<String, Long>> evs = new ArrayList<>();
+        evs.addAll(eventsWithKey("a"));
+        evs.addAll(eventsWithKey("b"));
+        evs.addAll(eventsWithKey("c"));
+        shuffle(evs);
+        assertCorrectness(evs);
+    }
+
+    private void assertCorrectness(List<Entry<String, Long>> evs) {
+        // Given
+        Set<String> keys = new HashSet<>();
+        for (Entry<String, Long> ev : evs) {
+            inbox.add(ev);
+            keys.add(ev.getKey());
+        }
+        Set<Session> expectedSessions = keys.stream().flatMap(SessionWindowPTest::expectedSessions).collect(toSet());
+        inbox.add(new Punctuation(100));
+
+        // When
+        swp.process(0, inbox);
+        Set<Object> actualSessions = range(0, expectedSessions.size())
+                .mapToObj(x -> pollOutbox())
+                .collect(toSet());
+
+        // Then
+        assertEquals(expectedSessions, actualSessions);
+        assertNull(pollOutbox());
+        // Check against memory leaks
         assertTrue("keyToIvToAcc not empty", swp.keyToIvToAcc.isEmpty());
         assertTrue("deadlineToKeys not empty", swp.deadlineToKeys.isEmpty());
     }
 
+    public static void main(String[] args) {
+        for (int i = 0; i < 10; i++) {
+            SessionWindowPTest test = new SessionWindowPTest();
+            test.before();
+            test.runBench();
+        }
+    }
+
+    private void runBench() {
+        Random rnd = ThreadLocalRandom.current();
+        long start = System.nanoTime();
+        long eventCount = 100_000_000;
+        long keyCount = 2000;
+        long eventsPerKey = eventCount / keyCount;
+        long puncInterval = eventsPerKey / 10;
+        int spread = 100;
+        System.out.format("keyCount %,d eventsPerKey %,d puncInterval %,d%n", keyCount, eventsPerKey, puncInterval);
+        for (long eventId = 0; eventId < eventsPerKey; eventId++) {
+            for (long key = (eventId / puncInterval) % 2; key < keyCount; key += 2) {
+                while (!swp.tryProcess0(entry(key, eventId + rnd.nextInt(spread))));
+                while (!swp.tryProcess0(entry(key, eventId + rnd.nextInt(spread))));
+            }
+            if (eventId % puncInterval == 0) {
+                Punctuation punc = new Punctuation(eventId + 1);
+                int winCount = 0;
+                while (!swp.tryProcessPunc0(punc)) {
+                    while (pollOutbox() != null) winCount++;
+                }
+                while (pollOutbox() != null) winCount++;
+                System.out.print(winCount + " ");
+            }
+        }
+        long took = System.nanoTime() - start;
+        System.out.format("%nThroughput %,3d events/second%n", SECONDS.toNanos(1) * eventCount / took);
+    }
+
     private Object pollOutbox() {
         return outbox.queueWithOrdinal(0).poll();
+    }
+
+    private static List<Entry<String, Long>> eventsWithKey(String key) {
+        return asList(
+                // session 1: [12..22]
+                entry(key, 1L),
+                entry(key, 6L),
+                entry(key, 12L),
+
+                // session 2: [30..50]
+                entry(key, 30L),
+                entry(key, 35L),
+                entry(key, 40L)
+        );
+    }
+
+    private static Stream<Session<String, Long>> expectedSessions(String key) {
+        return Stream.of(
+                new Session<>(key, 1, 22, 3L),
+                new Session<>(key, 30, 50, 3L)
+        );
     }
 }

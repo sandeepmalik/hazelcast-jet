@@ -18,6 +18,7 @@ package com.hazelcast.jet.stream.impl.pipeline;
 
 import com.hazelcast.core.IList;
 import com.hazelcast.jet.Distributed;
+import com.hazelcast.jet.config.JobConfig;
 import com.hazelcast.jet.stream.DistributedCollectors;
 import com.hazelcast.jet.stream.DistributedDoubleStream;
 import com.hazelcast.jet.stream.DistributedIntStream;
@@ -45,6 +46,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static com.hazelcast.jet.stream.impl.StreamUtil.checkSerializable;
+import static com.hazelcast.jet.stream.impl.StreamUtil.uniqueListName;
 
 @SuppressWarnings("checkstyle:methodcount")
 class IntPipeline implements DistributedIntStream {
@@ -109,7 +111,6 @@ class IntPipeline implements DistributedIntStream {
 
     @Override
     public DistributedIntStream peek(IntConsumer action) {
-        checkSerializable(action, "action");
         return wrap(inner.peek(action::accept));
     }
 
@@ -125,39 +126,37 @@ class IntPipeline implements DistributedIntStream {
 
     @Override
     public void forEach(IntConsumer action) {
-        checkSerializable(action, "action");
         inner.forEach(action::accept);
     }
 
     @Override
     public void forEachOrdered(IntConsumer action) {
-        checkSerializable(action, "action");
         inner.forEachOrdered(action::accept);
     }
 
     @Override
     public int[] toArray() {
-        IList<Integer> list = inner.collect(DistributedCollectors.toIList());
-        int[] array = new int[list.size()];
+        IList<Integer> list = inner.collect(DistributedCollectors.toIList(uniqueListName()));
+        try {
+            int[] array = new int[list.size()];
 
-        Iterator<Integer> iterator = list.iterator();
-        int index = 0;
-        while (iterator.hasNext()) {
-            array[index++] = iterator.next();
+            int index = 0;
+            for (Integer i : list) {
+                array[index++] = i;
+            }
+            return array;
+        } finally {
+            list.destroy();
         }
-        return array;
     }
 
     @Override
     public int reduce(int identity, IntBinaryOperator op) {
-        checkSerializable(op, "op");
         return inner.reduce(identity, op::applyAsInt);
     }
 
     @Override
     public OptionalInt reduce(IntBinaryOperator op) {
-        checkSerializable(op, "op");
-
         Optional<Integer> result = inner.reduce(op::applyAsInt);
         return result.isPresent() ? OptionalInt.of(result.get()) : OptionalInt.empty();
     }
@@ -166,7 +165,6 @@ class IntPipeline implements DistributedIntStream {
     public <R> R collect(Supplier<R> supplier,
                          ObjIntConsumer<R> accumulator,
                          BiConsumer<R, R> combiner) {
-        checkSerializable(accumulator, "accumulator");
         Distributed.BiConsumer<R, Integer> boxedAccumulator = accumulator::accept;
         return inner.collect(supplier, boxedAccumulator, combiner);
     }
@@ -215,19 +213,16 @@ class IntPipeline implements DistributedIntStream {
 
     @Override
     public boolean anyMatch(IntPredicate predicate) {
-        checkSerializable(predicate, "predicate");
         return inner.anyMatch(predicate::test);
     }
 
     @Override
     public boolean allMatch(IntPredicate predicate) {
-        checkSerializable(predicate, "predicate");
         return inner.allMatch(predicate::test);
     }
 
     @Override
     public boolean noneMatch(IntPredicate predicate) {
-        checkSerializable(predicate, "predicate");
         return inner.noneMatch(predicate::test);
     }
 
@@ -305,6 +300,11 @@ class IntPipeline implements DistributedIntStream {
     @Override
     public boolean isParallel() {
         return inner.isParallel();
+    }
+
+    @Override
+    public DistributedIntStream configure(JobConfig jobConfig) {
+        return wrap(inner.configure(jobConfig));
     }
 
     private DistributedIntStream wrap(Stream<Integer> pipeline) {

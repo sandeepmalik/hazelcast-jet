@@ -17,6 +17,7 @@
 package com.hazelcast.jet.stream.impl.pipeline;
 
 import com.hazelcast.core.IList;
+import com.hazelcast.jet.config.JobConfig;
 import com.hazelcast.jet.stream.DistributedCollector;
 import com.hazelcast.jet.stream.DistributedCollector.Reducer;
 import com.hazelcast.jet.stream.DistributedDoubleStream;
@@ -52,6 +53,7 @@ import java.util.stream.Stream;
 import static com.hazelcast.jet.Traversers.traverseStream;
 import static com.hazelcast.jet.stream.DistributedCollectors.toIList;
 import static com.hazelcast.jet.stream.impl.StreamUtil.checkSerializable;
+import static com.hazelcast.jet.stream.impl.StreamUtil.uniqueListName;
 import static com.hazelcast.util.Preconditions.checkTrue;
 
 @SuppressWarnings(value = {"checkstyle:methodcount", "checkstyle:classfanoutcomplexity"})
@@ -163,22 +165,19 @@ abstract class AbstractPipeline<E_OUT> implements Pipeline<E_OUT> {
 
     @Override
     public void forEach(Consumer<? super E_OUT> action) {
-        checkSerializable(action, "action");
-        IList<E_OUT> list = this.collect(toIList());
+        IList<E_OUT> list = this.collect(toIList(uniqueListName()));
         list.forEach(action::accept);
         list.destroy();
     }
 
     @Override
     public void forEachOrdered(Consumer<? super E_OUT> action) {
-        checkSerializable(action, "action");
-
         forEach(action);
     }
 
     @Override
     public Object[] toArray() {
-        IList<E_OUT> list = collect(toIList());
+        IList<E_OUT> list = collect(toIList(uniqueListName()));
         Object[] array = list.toArray();
         list.destroy();
         return array;
@@ -186,7 +185,7 @@ abstract class AbstractPipeline<E_OUT> implements Pipeline<E_OUT> {
 
     @Override
     public <A> A[] toArray(IntFunction<A[]> generator) {
-        IList<E_OUT> list = collect(toIList());
+        IList<E_OUT> list = collect(toIList(uniqueListName()));
         A[] array = generator.apply(list.size());
         array = list.toArray(array);
         list.destroy();
@@ -277,7 +276,7 @@ abstract class AbstractPipeline<E_OUT> implements Pipeline<E_OUT> {
 
     @Override
     public Optional<E_OUT> findFirst() {
-        IList<E_OUT> first = this.limit(1).collect(toIList());
+        IList<E_OUT> first = this.limit(1).collect(toIList(uniqueListName()));
         Optional<E_OUT> value = first.size() == 0 ? Optional.empty() : Optional.of(first.get(0));
         first.destroy();
         return value;
@@ -290,7 +289,7 @@ abstract class AbstractPipeline<E_OUT> implements Pipeline<E_OUT> {
 
     @Override
     public Iterator<E_OUT> iterator() {
-        IList<E_OUT> list = collect(toIList());
+        IList<E_OUT> list = collect(toIList(uniqueListName()));
         Iterator<E_OUT> iterator = list.iterator();
         list.destroy();
         return iterator;
@@ -342,4 +341,9 @@ abstract class AbstractPipeline<E_OUT> implements Pipeline<E_OUT> {
         throw new UnsupportedOperationException();
     }
 
+    @Override
+    public DistributedStream<E_OUT> configure(JobConfig jobConfig) {
+        context.setJobConfig(jobConfig);
+        return this;
+    }
 }

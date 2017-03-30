@@ -20,6 +20,7 @@ import com.hazelcast.core.Member;
 import com.hazelcast.internal.serialization.InternalSerializationService;
 import com.hazelcast.jet.JetInstance;
 import com.hazelcast.jet.impl.JetService;
+import com.hazelcast.jet.Distributed;
 import com.hazelcast.nio.Address;
 import com.hazelcast.nio.BufferObjectDataInput;
 import com.hazelcast.nio.BufferObjectDataOutput;
@@ -53,6 +54,11 @@ public final class Util {
 
     public static <T> Supplier<T> memoize(Supplier<T> onceSupplier) {
         return new MemoizingSupplier<>(onceSupplier);
+    }
+
+    public static <T> Distributed.Consumer<T> noopConsumer() {
+        return t -> {
+        };
     }
 
     public static <T> T uncheckedGet(@Nonnull Future<T> f) {
@@ -110,15 +116,6 @@ public final class Util {
     public static BufferObjectDataInput createObjectDataInput(@Nonnull NodeEngine engine, @Nonnull byte[] buf) {
         return ((InternalSerializationService) engine.getSerializationService())
                 .createObjectDataInput(buf);
-    }
-
-    @Nonnull
-    public static byte[] read(@Nonnull InputStream in, int count) throws IOException {
-        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            byte[] b = new byte[count];
-            out.write(b, 0, in.read(b));
-            return out.toByteArray();
-        }
     }
 
     @Nonnull

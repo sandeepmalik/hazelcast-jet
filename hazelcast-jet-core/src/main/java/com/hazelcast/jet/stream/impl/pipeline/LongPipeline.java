@@ -18,6 +18,7 @@ package com.hazelcast.jet.stream.impl.pipeline;
 
 import com.hazelcast.core.IList;
 import com.hazelcast.jet.Distributed;
+import com.hazelcast.jet.config.JobConfig;
 import com.hazelcast.jet.stream.DistributedCollectors;
 import com.hazelcast.jet.stream.DistributedDoubleStream;
 import com.hazelcast.jet.stream.DistributedIntStream;
@@ -45,6 +46,7 @@ import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static com.hazelcast.jet.stream.impl.StreamUtil.checkSerializable;
+import static com.hazelcast.jet.stream.impl.StreamUtil.uniqueListName;
 
 @SuppressWarnings("checkstyle:methodcount")
 class LongPipeline implements DistributedLongStream {
@@ -109,7 +111,6 @@ class LongPipeline implements DistributedLongStream {
 
     @Override
     public DistributedLongStream peek(LongConsumer action) {
-        checkSerializable(action, "action");
         return wrap(inner.peek(action::accept));
     }
 
@@ -125,38 +126,37 @@ class LongPipeline implements DistributedLongStream {
 
     @Override
     public void forEach(LongConsumer action) {
-        checkSerializable(action, "action");
         inner.forEach(action::accept);
     }
 
     @Override
     public void forEachOrdered(LongConsumer action) {
-        checkSerializable(action, "action");
         inner.forEachOrdered(action::accept);
     }
 
     @Override
     public long[] toArray() {
-        IList<Long> list = inner.collect(DistributedCollectors.toIList());
-        long[] array = new long[list.size()];
+        IList<Long> list = inner.collect(DistributedCollectors.toIList(uniqueListName()));
+        try {
+            long[] array = new long[list.size()];
 
-        Iterator<Long> iterator = list.iterator();
-        int index = 0;
-        while (iterator.hasNext()) {
-            array[index++] = iterator.next();
+            int index = 0;
+            for (Long l : list) {
+                array[index++] = l;
+            }
+            return array;
+        } finally {
+            list.destroy();
         }
-        return array;
     }
 
     @Override
     public long reduce(long identity, LongBinaryOperator op) {
-        checkSerializable(op, "op");
         return inner.<Long>reduce(identity, op::applyAsLong);
     }
 
     @Override
     public OptionalLong reduce(LongBinaryOperator op) {
-        checkSerializable(op, "op");
         Optional<Long> result = inner.reduce(op::applyAsLong);
         return result.isPresent() ? OptionalLong.of(result.get()) : OptionalLong.empty();
     }
@@ -165,7 +165,6 @@ class LongPipeline implements DistributedLongStream {
     public <R> R collect(Supplier<R> supplier,
                          ObjLongConsumer<R> accumulator,
                          BiConsumer<R, R> combiner) {
-        checkSerializable(accumulator, "accumulator");
         Distributed.BiConsumer<R, Long> boxedAccumulator = accumulator::accept;
         return inner.collect(supplier, boxedAccumulator, combiner);
     }
@@ -214,19 +213,16 @@ class LongPipeline implements DistributedLongStream {
 
     @Override
     public boolean anyMatch(LongPredicate predicate) {
-        checkSerializable(predicate, "predicate");
         return inner.anyMatch(predicate::test);
     }
 
     @Override
     public boolean allMatch(LongPredicate predicate) {
-        checkSerializable(predicate, "predicate");
         return inner.allMatch(predicate::test);
     }
 
     @Override
     public boolean noneMatch(LongPredicate predicate) {
-        checkSerializable(predicate, "predicate");
         return inner.noneMatch(predicate::test);
     }
 
@@ -300,6 +296,11 @@ class LongPipeline implements DistributedLongStream {
     @Override
     public boolean isParallel() {
         return inner.isParallel();
+    }
+
+    @Override
+    public DistributedLongStream configure(JobConfig jobConfig) {
+        return wrap(inner.configure(jobConfig));
     }
 
     private DistributedLongStream wrap(Stream<Long> pipeline) {

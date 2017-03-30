@@ -17,6 +17,7 @@
 package com.hazelcast.jet.stream;
 
 import com.hazelcast.jet.Distributed;
+import com.hazelcast.jet.config.JobConfig;
 
 import java.util.OptionalInt;
 import java.util.function.BiConsumer;
@@ -212,42 +213,6 @@ public interface DistributedIntStream extends IntStream {
      * @throws IllegalArgumentException if {@code n} is negative
      */
     DistributedIntStream skip(long n);
-
-    /**
-     * Performs an action for each element of this stream.
-     *
-     * <p>This is a terminal
-     * operation.
-     *
-     * <p>For parallel stream pipelines, this operation does <em>not</em>
-     * guarantee to respect the encounter order of the stream, as doing so
-     * would sacrifice the benefit of parallelism.  For any given element, the
-     * action may be performed at whatever time and in whatever thread the
-     * library chooses.  If the action accesses shared state, it is
-     * responsible for providing the required synchronization.
-     *
-     * @param action a
-     *               non-interfering action to perform on the elements
-     */
-    default void forEach(Distributed.IntConsumer action) {
-        forEach((IntConsumer) action);
-    }
-
-    /**
-     * Performs an action for each element of this stream, guaranteeing that
-     * each element is processed in encounter order for streams that have a
-     * defined encounter order.
-     *
-     * <p>This is a terminal
-     * operation.
-     *
-     * @param action a
-     *               non-interfering action to perform on the elements
-     * @see #forEach(Distributed.IntConsumer)
-     */
-    default void forEachOrdered(Distributed.IntConsumer action) {
-        forEachOrdered((IntConsumer) action);
-    }
 
     /**
      * Performs a reduction on the
@@ -511,12 +476,6 @@ public interface DistributedIntStream extends IntStream {
     DistributedIntStream peek(IntConsumer action);
 
     @Override
-    void forEach(IntConsumer action);
-
-    @Override
-    void forEachOrdered(IntConsumer action);
-
-    @Override
     int reduce(int identity, IntBinaryOperator op);
 
     @Override
@@ -533,4 +492,10 @@ public interface DistributedIntStream extends IntStream {
 
     @Override
     boolean noneMatch(IntPredicate predicate);
+
+    /**
+     * @param jobConfig Job configuration which will be used while executing underlying DAG
+     * @return the new stream
+     */
+    DistributedIntStream configure(JobConfig jobConfig);
 }

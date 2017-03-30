@@ -1,0 +1,29 @@
+In this Release Notes document, you will find the new features, enhancements and fixes of the Hazelcast Jet release. 
+The numbers in the square brackets refer to the issue number in Hazelcast Jet GitHub repository. You can reach to the full descriptions of the issues at https://github.com/hazelcast/hazelcast-jet/issues/<issue number>.
+The label in the brackets refer to the respective module.
+
+** Hazelcast Jet 0.3.1 **
+
+1. New features
+- [core] The Jet cluster can be scaled up without affecting running jobs. Please refer to the [elasticity](https://github.com/hazelcast/hazelcast-jet-reference-manual/blob/master/src/Introduction.md#elasticity) section in the user guide for details. 
+
+2. Enhancements
+
+- [core] Improved DAG.toString [310] 
+- [core] Convenience to make any processor non-cooperative [321] 
+- [core] Update Hazelcast version to 3.8 [323] 
+- [core] Add missing functional interfaces to the Distributed class [324] 
+- [java.util.stream] Refactor of Jet collectors into a new type called Reducer [313]
+- [java.util.stream] Allow branching of the j.u.s pipeline [318]
+- [hadoop] Added support for reading and writing non-text data from or to HDFS. Please refer to the  [hazelcast-jet-hadoop documentation](https://github.com/hazelcast/hazelcast-jet-reference-manual/blob/master/src/Modules.md#hazelcast-jet-hadoop) for details.
+- [hadoop] Added key/value mappers for ReadHdfsP and WriteHdfsP [328]
+- [kafka] Kafka connector now makes use consumer groups. Please refer to (hazelcast-jet-kafka documentation) [https://github.com/hazelcast/hazelcast-jet-reference-manual/blob/master/src/Modules.md#hazelcast-jet-kafka] 
+- [code-samples] Jet vs java.util.stream benchmark added to code samples
+- [code-samples] New hadoop word count example added
+- [code-samples] Kafka consumer example added
+
+3. Fixes
+- [core] Remove dead and potentially racy code from async operations [320] 
+- [core] ReadSocketTextStreamP should emit items immediately after reading [335]
+- [core] Wrong configuration file is used for IMDG when Jet config file present in classpath [345]
+- [java.util.stream] Do not require forEach action to be serializable [340, 341] 

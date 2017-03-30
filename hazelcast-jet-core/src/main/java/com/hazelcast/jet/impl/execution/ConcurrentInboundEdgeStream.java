@@ -49,8 +49,8 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
         this.conveyor = conveyor;
         this.ordinal = ordinal;
         this.priority = priority;
-
-        skewReductionPolicy = new SkewReductionPolicy(conveyor.queueCount(), maxSkew, applyPriorityThreshold, skewExceededAction);
+        this.skewReductionPolicy = new SkewReductionPolicy(
+                conveyor.queueCount(), maxSkew, applyPriorityThreshold, skewExceededAction);
     }
 
     @Override
