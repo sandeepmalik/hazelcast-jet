@@ -21,28 +21,27 @@ import com.hazelcast.jet.Distributed.Function;
 import com.hazelcast.jet.Processor;
 import com.hazelcast.jet.ProcessorMetaSupplier;
 import com.hazelcast.jet.ProcessorSupplier;
+import com.hazelcast.jet.Traverser;
 import com.hazelcast.jet.impl.util.Util;
 import com.hazelcast.nio.Address;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.ConsumerRecords;
+import com.hazelcast.util.Preconditions;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.clients.consumer.OffsetAndMetadata;
-import org.apache.kafka.common.TopicPartition;
 
 import javax.annotation.Nonnull;
 import java.io.Closeable;
-import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map.Entry;
 import java.util.Properties;
 
-import static java.util.Collections.singletonMap;
+import static com.hazelcast.jet.Traversers.traverseIterable;
+import static com.hazelcast.jet.Util.entry;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.IntStream.range;
 
 
 /**
- * Kafka Consumer for Jet, emits records read from Kafka as {@code Map.Entry}.
+ * Kafka reader for Jet, emits records read from Kafka as {@code Map.Entry}.
  *
  * @param <K> type of the message key
  * @param <V> type of the message value
@@ -53,6 +52,7 @@ public final class ReadKafkaP<K, V> extends AbstractProcessor implements Closeab
     private final Properties properties;
     private final String[] topicIds;
     private KafkaConsumer<K, V> consumer;
+    private Traverser<Entry<K, V>> traverser;
 
     private ReadKafkaP(String[] topicIds, Properties properties) {
         this.topicIds = topicIds;
@@ -61,29 +61,32 @@ public final class ReadKafkaP<K, V> extends AbstractProcessor implements Closeab
     }
 
     /**
-     * Returns a meta-supplier of processors that consume a kafka topic and emit
+     * Returns a meta-supplier of processors that consume one or more Kafka topics and emit
      * items from it as {@code Map.Entry} instances.
      * <p>
-     * <p>
-     * You can specify a partition to offset mapper to mark the start offset of each partition.
-     * Any negative value as an offset will throw {@code IllegalArgumentException}
-     * </p>
+     * A {@code KafkaConsumer} is created per {@code Processor} instance using the
+     * supplied properties. All processors must be in the same consumer group
+     * supplied by the {@code group.id} property.
+     * The supplied properties will be passed on to the {@code KafkaConsumer} instance.
+     * These processors are only terminated in case of an error or if the underlying job is cancelled.
      *
-     * @param <K>        type of keys read
-     * @param <V>        type of values read
-     * @param topicIds   kafka topic names
+     * @param topics     the list of topics
      * @param properties consumer properties which should contain consumer group name,
      *                   broker address and key/value deserializers
      */
-    public static <K, V> ProcessorMetaSupplier readKafka(Properties properties, String... topicIds) {
-        return new MetaSupplier<>(topicIds, properties);
+    public static ProcessorMetaSupplier readKafka(Properties properties, String... topics) {
+        Preconditions.checkPositive(topics.length, "At least one topic must be supplied");
+        Preconditions.checkTrue(properties.containsKey("group.id"), "Properties should contain `group.id`");
+        properties.put("enable.auto.commit", false);
+
+        return new MetaSupplier<>(topics, properties);
     }
 
     @Override
     protected void init(@Nonnull Context context) throws Exception {
-        properties.put("enable.auto.commit", false);
         consumer = new KafkaConsumer<>(properties);
         consumer.subscribe(Arrays.asList(topicIds));
+        traverser = () -> null;
     }
 
     @Override
@@ -93,32 +96,11 @@ public final class ReadKafkaP<K, V> extends AbstractProcessor implements Closeab
 
     @Override
     public boolean complete() {
-        ConsumerRecords<K, V> records = consumer.poll(POLL_TIMEOUT_MS);
-        if (records.isEmpty()) {
-            return false;
-        }
-        for (TopicPartition topicPartition : records.partitions()) {
-            List<ConsumerRecord<K, V>> partitionRecords = records.records(topicPartition);
-            long latestOffset = -1;
-            for (ConsumerRecord<K, V> record : partitionRecords) {
-                K key = record.key();
-                V value = record.value();
-                emit(new AbstractMap.SimpleImmutableEntry<>(key, value));
-                latestOffset = record.offset();
-                if (getOutbox().hasReachedLimit()) {
-                    commitPartition(topicPartition, latestOffset);
-                    return false;
-                }
-            }
-            commitPartition(topicPartition, latestOffset);
+        if (emitCooperatively(traverser)) {
+            consumer.commitSync();
+            traverser = traverseIterable(consumer.poll(POLL_TIMEOUT_MS)).map(r -> entry(r.key(), r.value()));
         }
         return false;
-    }
-
-    private void commitPartition(TopicPartition topicPartition, long latestOffset) {
-        if (latestOffset != -1) {
-            consumer.commitSync(singletonMap(topicPartition, new OffsetAndMetadata(latestOffset + 1)));
-        }
     }
 
     @Override
@@ -135,7 +117,6 @@ public final class ReadKafkaP<K, V> extends AbstractProcessor implements Closeab
         private MetaSupplier(String[] topicIds, Properties properties) {
             this.topicIds = topicIds;
             this.properties = properties;
-            this.properties.put("enable.auto.commit", false);
         }
 
         @Override @Nonnull

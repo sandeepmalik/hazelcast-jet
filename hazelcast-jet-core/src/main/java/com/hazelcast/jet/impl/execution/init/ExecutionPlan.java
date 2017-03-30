@@ -107,10 +107,10 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
             for (Processor p : createProcessors(srcVertex, srcVertex.parallelism())) {
                 // createOutboundEdgeStreams() populates localConveyorMap and edgeSenderConveyorMap.
                 // Also populates instance fields: senderMap, receiverMap, tasklets.
-                final List<OutboundEdgeStream> outboundStreams = createOutboundEdgeStreams(srcVertex, processorIdx);
-                final List<InboundEdgeStream> inboundStreams = createInboundEdgeStreams(srcVertex, processorIdx);
-                ILogger logger = nodeEngine.getLogger(
-                        srcVertex.name() + '(' + p.getClass().getSimpleName() + ")#" + processorIdx);
+                List<OutboundEdgeStream> outboundStreams = createOutboundEdgeStreams(srcVertex, processorIdx);
+                List<InboundEdgeStream> inboundStreams = createInboundEdgeStreams(srcVertex, processorIdx);
+                ILogger logger =
+                        nodeEngine.getLogger(p.getClass().getName() + '.' + srcVertex.name() + '#' + processorIdx);
                 ProcCtx context =
                         new ProcCtx(instance, logger, srcVertex.name(), processorIdx + srcVertex.getProcIdxOffset());
                 tasklets.add(new ProcessorTasklet(srcVertex.name(), context, p, inboundStreams, outboundStreams));

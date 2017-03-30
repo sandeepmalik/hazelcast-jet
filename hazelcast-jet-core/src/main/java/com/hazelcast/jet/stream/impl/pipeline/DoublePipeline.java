@@ -18,6 +18,7 @@ package com.hazelcast.jet.stream.impl.pipeline;
 
 import com.hazelcast.core.IList;
 import com.hazelcast.jet.Distributed;
+import com.hazelcast.jet.config.JobConfig;
 import com.hazelcast.jet.stream.DistributedCollectors;
 import com.hazelcast.jet.stream.DistributedDoubleStream;
 import com.hazelcast.jet.stream.DistributedIntStream;
@@ -44,6 +45,7 @@ import java.util.stream.DoubleStream;
 import java.util.stream.Stream;
 
 import static com.hazelcast.jet.stream.impl.StreamUtil.checkSerializable;
+import static com.hazelcast.jet.stream.impl.StreamUtil.uniqueListName;
 
 @SuppressWarnings("checkstyle:methodcount")
 class DoublePipeline implements DistributedDoubleStream {
@@ -108,7 +110,6 @@ class DoublePipeline implements DistributedDoubleStream {
 
     @Override
     public DistributedDoubleStream peek(DoubleConsumer action) {
-        checkSerializable(action, "action");
         return wrap(inner.peek(action::accept));
     }
 
@@ -129,34 +130,33 @@ class DoublePipeline implements DistributedDoubleStream {
 
     @Override
     public void forEachOrdered(DoubleConsumer action) {
-        checkSerializable(action, "action");
         inner.forEachOrdered(action::accept);
     }
 
     @Override
     public double[] toArray() {
-        IList<Double> list = inner.collect(DistributedCollectors.toIList());
-        double[] array = new double[list.size()];
+        IList<Double> list = inner.collect(DistributedCollectors.toIList(uniqueListName()));
+        try {
+            double[] array = new double[list.size()];
 
-        Iterator<Double> iterator = list.iterator();
-        int index = 0;
-        while (iterator.hasNext()) {
-            array[index++] = iterator.next();
+            int index = 0;
+            for (Double d : list) {
+                array[index++] = d;
+            }
+
+            return array;
+        } finally {
+            list.destroy();
         }
-        return array;
     }
 
     @Override
     public double reduce(double identity, DoubleBinaryOperator op) {
-        checkSerializable(op, "op");
-
         return inner.reduce(identity, op::applyAsDouble);
     }
 
     @Override
     public OptionalDouble reduce(DoubleBinaryOperator op) {
-        checkSerializable(op, "op");
-
         Optional<Double> result = inner.reduce(op::applyAsDouble);
         return result.isPresent() ? OptionalDouble.of(result.get()) : OptionalDouble.empty();
     }
@@ -165,7 +165,6 @@ class DoublePipeline implements DistributedDoubleStream {
     public <R> R collect(Supplier<R> supplier,
                          ObjDoubleConsumer<R> accumulator,
                          BiConsumer<R, R> combiner) {
-        checkSerializable(accumulator, "accumulator");
         Distributed.BiConsumer<R, Double> boxedAccumulator = accumulator::accept;
         return inner.collect(supplier, boxedAccumulator, combiner);
     }
@@ -214,19 +213,16 @@ class DoublePipeline implements DistributedDoubleStream {
 
     @Override
     public boolean anyMatch(DoublePredicate predicate) {
-        checkSerializable(predicate, "predicate");
         return inner.anyMatch(predicate::test);
     }
 
     @Override
     public boolean allMatch(DoublePredicate predicate) {
-        checkSerializable(predicate, "predicate");
         return inner.allMatch(predicate::test);
     }
 
     @Override
     public boolean noneMatch(DoublePredicate predicate) {
-        checkSerializable(predicate, "predicate");
         return inner.noneMatch(predicate::test);
     }
 
@@ -294,6 +290,11 @@ class DoublePipeline implements DistributedDoubleStream {
     @Override
     public boolean isParallel() {
         return inner.isParallel();
+    }
+
+    @Override
+    public DistributedDoubleStream configure(JobConfig jobConfig) {
+        return wrap(inner.configure(jobConfig));
     }
 
     private DistributedDoubleStream wrap(Stream<Double> pipeline) {

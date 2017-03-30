@@ -17,6 +17,7 @@
 package com.hazelcast.jet.stream;
 
 import com.hazelcast.jet.Distributed;
+import com.hazelcast.jet.config.JobConfig;
 
 import java.util.OptionalLong;
 import java.util.function.BiConsumer;
@@ -215,42 +216,6 @@ public interface DistributedLongStream extends LongStream {
      * @throws IllegalArgumentException if {@code n} is negative
      */
     DistributedLongStream skip(long n);
-
-    /**
-     * Performs an action for each element of this stream.
-     *
-     * <p>This is a terminal
-     * operation.
-     *
-     * <p>For parallel stream pipelines, this operation does <em>not</em>
-     * guarantee to respect the encounter order of the stream, as doing so
-     * would sacrifice the benefit of parallelism.  For any given element, the
-     * action may be performed at whatever time and in whatever thread the
-     * library chooses.  If the action accesses shared state, it is
-     * responsible for providing the required synchronization.
-     *
-     * @param action a
-     *               non-interfering action to perform on the elements
-     */
-    default void forEach(Distributed.LongConsumer action) {
-        forEach((LongConsumer) action);
-    }
-
-    /**
-     * Performs an action for each element of this stream, guaranteeing that
-     * each element is processed in encounter order for streams that have a
-     * defined encounter order.
-     *
-     * <p>This is a terminal
-     * operation.
-     *
-     * @param action a
-     *               non-interfering action to perform on the elements
-     * @see #forEach(LongConsumer)
-     */
-    default void forEachOrdered(Distributed.LongConsumer action) {
-        forEachOrdered((LongConsumer) action);
-    }
 
     /**
      * Performs a reduction on the
@@ -501,12 +466,6 @@ public interface DistributedLongStream extends LongStream {
     DistributedLongStream peek(LongConsumer action);
 
     @Override
-    void forEach(LongConsumer action);
-
-    @Override
-    void forEachOrdered(LongConsumer action);
-
-    @Override
     long reduce(long identity, LongBinaryOperator op);
 
     @Override
@@ -523,4 +482,10 @@ public interface DistributedLongStream extends LongStream {
 
     @Override
     boolean noneMatch(LongPredicate predicate);
+
+    /**
+     * @param jobConfig Job configuration which will be used while executing underlying DAG
+     * @return the new stream
+     */
+    DistributedLongStream configure(JobConfig jobConfig);
 }
