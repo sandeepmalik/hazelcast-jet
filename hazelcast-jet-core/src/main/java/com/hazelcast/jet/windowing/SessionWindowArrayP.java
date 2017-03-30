@@ -16,7 +16,6 @@
 
 package com.hazelcast.jet.windowing;
 
-import com.hazelcast.internal.util.sort.QuickSorter;
 import com.hazelcast.jet.Distributed.BinaryOperator;
 import com.hazelcast.jet.Distributed.Function;
 import com.hazelcast.jet.Distributed.Supplier;
@@ -30,14 +29,16 @@ import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Iterator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.function.BiConsumer;
+import java.util.stream.Stream;
 
-import static com.hazelcast.jet.Traversers.traverseIterable;
-import static java.lang.Math.max;
+import static com.hazelcast.jet.Traversers.traverseStream;
 import static java.lang.Math.min;
 
 /**
@@ -63,6 +64,7 @@ public class SessionWindowArrayP<T, K, A, R> extends StreamingProcessorBase {
 
     // exposed for testing, to check for memory leaks
     final Map<K, Windows> keyToWindows = new HashMap<>();
+    SortedMap<Long, Set<K>> deadlineToKeys = new TreeMap<>();
 
     private final long maxSeqGap;
     private final ToLongFunction<? super T> extractEventSeqF;
@@ -100,12 +102,16 @@ public class SessionWindowArrayP<T, K, A, R> extends StreamingProcessorBase {
     }
 
     private Traverser<Session<K, R>> closedWindowTraverser(Punctuation punc) {
-        List<Session<K, R>> sessions = new ArrayList<>();
-        for (Iterator<Entry<K, Windows>> it = keyToWindows.entrySet().iterator(); it.hasNext();) {
-            Entry<K, Windows> e = it.next();
-            sessions.addAll(e.getValue().closeWindows(punc.seq(), e, it));
-        }
-        return traverseIterable(sessions);
+        Stream<Session<K, R>> sessions = deadlineToKeys
+                .headMap(punc.seq())
+                .values().stream()
+                .flatMap(Set::stream)
+                .distinct()
+                .map(keyToWindows::get)
+                .map(wins -> wins.closeWindows(punc.seq()))
+                .flatMap(List::stream);
+        deadlineToKeys = deadlineToKeys.tailMap(punc.seq());
+        return traverseStream(sessions);
     }
 
     @Override
@@ -117,7 +123,8 @@ public class SessionWindowArrayP<T, K, A, R> extends StreamingProcessorBase {
             return true;
         }
         K key = extractKeyF.apply(event);
-        keyToWindows.computeIfAbsent(key, Windows::new).addEvent(eventSeq, event);
+        keyToWindows.computeIfAbsent(key, Windows::new)
+                    .addEvent(eventSeq, event);
         return true;
     }
 
@@ -139,92 +146,109 @@ public class SessionWindowArrayP<T, K, A, R> extends StreamingProcessorBase {
         }
 
         void addEvent(long eventSeq, T event) {
-            long eventEnd = eventSeq + maxSeqGap;
-            for (int i = 0; i < size; i++) {
-                if (starts[i] <= eventEnd && ends[i] >= eventSeq) {
-                    starts[i] = min(starts[i], eventSeq);
-                    ends[i] = max(ends[i], eventEnd);
-                    accumulateF.accept(accs[i], event);
-                    return;
-                }
-            }
-            A acc = newAccumulatorF.get();
-            accumulateF.accept(acc, event);
-            addWindow(eventSeq, eventEnd, acc);
+            accumulateF.accept(resolveAcc(eventSeq), event);
         }
 
-        void addWindow(long start, long end, A acc) {
-            if (size == starts.length) {
-                starts = Arrays.copyOf(starts, 2 * starts.length);
-                ends = Arrays.copyOf(ends, 2 * ends.length);
-                accs = Arrays.copyOf(accs, 2 * accs.length);
-            }
-            starts[size] = start;
-            ends[size] = end;
-            accs[size] = acc;
-            size++;
-        }
-
-        List<Session<K, R>> closeWindows(long puncSeq, Entry<?, Windows> winEntry, Iterator<?> winIter) {
-            new WinSorter().sort(0, size);
-            Windows survivors = new Windows(key);
+        List<Session<K, R>> closeWindows(long puncSeq) {
             List<Session<K, R>> sessions = new ArrayList<>();
-            for (int i = 0; i < size;) {
-                long start = starts[i];
-                long end = ends[i];
-                A acc = accs[i];
-                for (i++; i < size && starts[i] <= end; i++) {
-                    end = max(end, ends[i]);
-                    acc = combineAccF.apply(acc, accs[i]);
-                }
-                if (end < puncSeq) {
-                    sessions.add(new Session<>(key, start, end, finishAccumulationF.apply(acc)));
-                } else {
-                    survivors.addWindow(start, end, acc);
-                }
+            int i = 0;
+            for (; i < size && ends[i] < puncSeq; i++) {
+                sessions.add(new Session<>(key, starts[i], ends[i], finishAccumulationF.apply(accs[i])));
             }
-            if (survivors.size > 0) {
-                winEntry.setValue(survivors);
+            if (i != size) {
+                deleteHead(i);
             } else {
-                winIter.remove();
+                keyToWindows.remove(key);
             }
             return sessions;
         }
 
-        private class WinSorter extends QuickSorter {
-            private long pivot;
-
-            @Override
-            protected void loadPivot(long idx) {
-                pivot = starts[(int) idx];
+        private void deleteHead(int deletedCount) {
+            for (int i = deletedCount; i < size; i++) {
+                copy(i, i - deletedCount);
             }
+            size -= deletedCount;
+        }
 
-            @Override
-            protected boolean isLessThanPivot(long idx) {
-                return starts[(int) idx] < pivot;
+        private A resolveAcc(long eventSeq) {
+            long eventEnd = eventSeq + maxSeqGap;
+            int i = 0;
+            for (; i < size && starts[i] <= eventEnd; i++) {
+                if (!overlaps(i, eventSeq, eventEnd)) {
+                    continue;
+                }
+                if (covers(i, eventSeq, eventEnd)) {
+                    return accs[i];
+                }
+                if (i + 1 == size || !overlaps(i + 1, eventSeq, eventEnd)) {
+                    starts[i] = min(starts[i], eventSeq);
+                    if (ends[i] < eventEnd) {
+                        removeFromDeadlines(ends[i]);
+                        ends[i] = eventEnd;
+                        addToDeadlines(ends[i]);
+                    }
+                    return accs[i];
+                }
+                removeFromDeadlines(ends[i]);
+                ends[i] = ends[i + 1];
+                accs[i] = combineAccF.apply(accs[i], accs[i + 1]);
+                deleteWindow(i + 1);
+                return accs[i];
             }
+            return insertWindow(i, eventSeq, eventEnd);
+        }
 
-            @Override
-            protected boolean isGreaterThanPivot(long idx) {
-                return starts[(int) idx] > pivot;
+        private void deleteWindow(int idx) {
+            size--;
+            for (int i = idx; i < size; i++) {
+                copy(i + 1, i);
             }
+        }
 
-            @Override
-            protected void swap(long idx1, long idx2) {
-                int i = (int) idx1;
-                int j = (int) idx2;
+        private A insertWindow(int idx, long eventSeq, long eventEnd) {
+            addToDeadlines(eventEnd);
+            expandIfNeeded();
+            for (int i = size; i > idx; i--) {
+                copy(i - 1, i);
+            }
+            size++;
+            starts[idx] = eventSeq;
+            ends[idx] = eventEnd;
+            accs[idx] = newAccumulatorF.get();
+            return accs[idx];
+        }
 
-                long tStart = starts[i];
-                starts[i] = starts[j];
-                starts[j] = tStart;
+        private void copy(int from, int to) {
+            starts[to] = starts[from];
+            ends[to] = ends[from];
+            accs[to] = accs[from];
+        }
 
-                long tEnd = ends[i];
-                ends[i] = ends[j];
-                ends[j] = tEnd;
+        private boolean overlaps(int i, long eventStart, long eventEnd) {
+            return eventEnd >= starts[i] && ends[i] >= eventStart;
+        }
 
-                A tAcc = accs[i];
-                accs[i] = accs[j];
-                accs[j] = tAcc;
+        private boolean covers(int i, long eventStart, long eventEnd) {
+            return starts[i] <= eventStart && ends[i] >= eventEnd;
+        }
+
+        private void addToDeadlines(long deadline) {
+            deadlineToKeys.computeIfAbsent(deadline, x -> new HashSet<>()).add(key);
+        }
+
+        private void removeFromDeadlines(long deadline) {
+            Set<K> ks = deadlineToKeys.get(deadline);
+            ks.remove(key);
+            if (ks.isEmpty()) {
+                deadlineToKeys.remove(deadline);
+            }
+        }
+
+        private void expandIfNeeded() {
+            if (size == starts.length) {
+                starts = Arrays.copyOf(starts, 2 * starts.length);
+                ends = Arrays.copyOf(ends, 2 * ends.length);
+                accs = Arrays.copyOf(accs, 2 * accs.length);
             }
         }
     }
