@@ -18,13 +18,18 @@ package com.hazelcast.jet.windowing;
 
 import org.junit.Test;
 
+import java.util.concurrent.TimeUnit;
+
 import static com.hazelcast.jet.windowing.PunctuationKeepers.cappingEventSeqLagAndLull;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.junit.Assert.assertEquals;
 
 public class PunctuationKeepers_CappingEventSeqLagAndLull_Test {
 
-    private long[] clock = new long[1];
-    private PunctuationKeeper p = cappingEventSeqLagAndLull(2, 3_000_000, () -> clock[0]);
+    private static final int MAX_LULL_MS = 3;
+    private long currTime;
+    private PunctuationKeeper p = cappingEventSeqLagAndLull(2, MAX_LULL_MS, () -> currTime);
 
     @Test
     public void when_outOfOrderEvents_then_monotonicPunct() {
@@ -36,36 +41,40 @@ public class PunctuationKeepers_CappingEventSeqLagAndLull_Test {
     }
 
     @Test
-    public void when_eventsStop_then_punctIncreases() {
+    public void when_eventsStop_then_puncIncreases() {
         // Given - starting event
         assertEquals(10, p.reportEvent(12));
+        long maxLullNanos = MILLISECONDS.toNanos(MAX_LULL_MS);
 
         // When
-        for (int i = 0; i < 3; i++) {
-            clock[0] += 1_000_000;
+        for (; currTime < maxLullNanos; currTime += 1_000_000) {
             assertEquals(10, p.getCurrentPunctuation());
         }
 
-        // Then - punct increases
-        for (int i = 1; i <= 10; i++) {
-            clock[0] += 1_000_000;
-            assertEquals("at i=" + i, 10 + i, p.getCurrentPunctuation());
+        // Then - punc increases
+        for (; currTime <= 10_000_000; currTime += 1_000_000) {
+            assertEquals("at time=" + currTime,
+                    10 + NANOSECONDS.toMillis(currTime - maxLullNanos),
+                    p.getCurrentPunctuation());
         }
     }
 
     @Test
     public void when_noEventEver_then_increaseFromLongMinValue() {
+        // Given
+        assertEquals(Long.MIN_VALUE, p.getCurrentPunctuation()); // initializes maxLullAt
+        long maxLullNanos = MILLISECONDS.toNanos(MAX_LULL_MS);
+
         // When
-        assertEquals(Long.MIN_VALUE, p.getCurrentPunctuation()); // this is the artificial "first item"
-        for (int i = 0; i < 3; i++) {
-            clock[0] += 1_000_000;
+        for (; currTime < maxLullNanos; currTime += 1_000_000) {
             assertEquals(Long.MIN_VALUE, p.getCurrentPunctuation());
         }
 
         // Then - punct increases
-        for (int i = 1; i <= 10; i++) {
-            clock[0] += 1_000_000;
-            assertEquals("at i=" + i, Long.MIN_VALUE + i, p.getCurrentPunctuation());
+        for (; currTime <= 10_000_000; currTime += 1_000_000) {
+            assertEquals("at time=" + currTime,
+                    Long.MIN_VALUE + NANOSECONDS.toMillis(currTime - maxLullNanos),
+                    p.getCurrentPunctuation());
         }
     }
 }

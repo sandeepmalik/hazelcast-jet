@@ -38,6 +38,11 @@ public final class PunctuationKeepers {
             return punc;
         }
 
+        long advancePuncBy(long amount) {
+            punc += amount;
+            return punc;
+        }
+
         @Override
         public long getCurrentPunctuation() {
             return punc;
@@ -138,22 +143,27 @@ public final class PunctuationKeepers {
         checkNotNegative(maxLullMs, "maxLullMs must not be negative");
 
         return new PunctuationKeeperBase() {
-            private long lastEventAt = Long.MIN_VALUE;
+            private long maxLullAt = Long.MIN_VALUE;
 
             @Override
             public long reportEvent(long eventSeq) {
-                lastEventAt = monotonicTimeMillis();
+                maxLullAt = monotonicTimeMillis() + maxLullMs;
                 return makePuncAtLeast(eventSeq - eventSeqLag);
             }
 
             @Override
             public long getCurrentPunctuation() {
                 long now = monotonicTimeMillis();
-                if (lastEventAt == Long.MIN_VALUE) {
-                    lastEventAt = now;
+                ensureInitialized(now);
+                long millisPastMaxLull = max(0, now - maxLullAt);
+                maxLullAt += millisPastMaxLull;
+                return advancePuncBy(millisPastMaxLull);
+            }
+
+            private void ensureInitialized(long now) {
+                if (maxLullAt == Long.MIN_VALUE) {
+                    maxLullAt = now + maxLullMs;
                 }
-                long millisPastMaxLull = max(0, now - lastEventAt - maxLullMs);
-                return makePuncAtLeast(lastEventAt + millisPastMaxLull);
             }
 
             private long monotonicTimeMillis() {
