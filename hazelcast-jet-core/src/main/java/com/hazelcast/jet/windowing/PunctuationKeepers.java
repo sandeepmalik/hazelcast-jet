@@ -47,7 +47,7 @@ public final class PunctuationKeepers {
     /**
      * Maintains punctuation that lags behind the top observed event seq by the
      * given amount. In the case of a stream lull the punctuation does not
-     * advance.
+     * advance and stays lagged.
      *
      * @param eventSeqLag the desired difference between the top observed event seq
      *                    and the punctuation
