@@ -174,13 +174,20 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
             long eventEnd = eventSeq + maxSeqGap;
             int i = 0;
             for (; i < size && starts[i] <= eventEnd; i++) {
-                if (!overlaps(i, eventSeq, eventEnd)) {
+                // this window is not entirely after the event interval
+
+                if (ends[i] < eventSeq) {
+                    // this window is entirely before the event interval
                     continue;
                 }
-                if (covers(i, eventSeq, eventEnd)) {
+                if (starts[i] <= eventSeq && ends[i] >= eventEnd) {
+                    // event interval is entirely within this window
                     return accs[i];
                 }
-                if (i + 1 == size || !overlaps(i + 1, eventSeq, eventEnd)) {
+                // this window overlaps the event interval
+
+                if (i + 1 == size || starts[i + 1] > eventEnd) {
+                    // next window doesn't overlap the event interval
                     starts[i] = min(starts[i], eventSeq);
                     if (ends[i] < eventEnd) {
                         removeFromDeadlines(ends[i]);
@@ -189,6 +196,7 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
                     }
                     return accs[i];
                 }
+                // event belongs to both this and the next window
                 removeFromDeadlines(ends[i]);
                 ends[i] = ends[i + 1];
                 accs[i] = combineAccF.apply(accs[i], accs[i + 1]);
@@ -196,14 +204,6 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
                 return accs[i];
             }
             return insertWindow(i, eventSeq, eventEnd);
-        }
-
-        private boolean overlaps(int i, long eventStart, long eventEnd) {
-            return eventEnd >= starts[i] && ends[i] >= eventStart;
-        }
-
-        private boolean covers(int i, long eventStart, long eventEnd) {
-            return starts[i] <= eventStart && ends[i] >= eventEnd;
         }
 
         private void deleteWindow(int idx) {
