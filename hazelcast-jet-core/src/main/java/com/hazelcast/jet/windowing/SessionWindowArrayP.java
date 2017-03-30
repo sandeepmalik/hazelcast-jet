@@ -143,7 +143,6 @@ public class SessionWindowArrayP<T, K, A, R> extends StreamingProcessorBase {
             for (int i = 0; i < size; i++) {
                 if (starts[i] <= eventEnd && ends[i] >= eventSeq) {
                     starts[i] = min(starts[i], eventSeq);
-                    long oldEnd = ends[i];
                     ends[i] = max(ends[i], eventEnd);
                     accumulateF.accept(accs[i], event);
                     return;
@@ -175,8 +174,7 @@ public class SessionWindowArrayP<T, K, A, R> extends StreamingProcessorBase {
                 long end = ends[i];
                 A acc = accs[i];
                 for (i++; i < size && starts[i] <= end; i++) {
-                    long newEnd = max(end, ends[i]);
-                    end = newEnd;
+                    end = max(end, ends[i]);
                     acc = combineAccF.apply(acc, accs[i]);
                 }
                 if (end < puncSeq) {

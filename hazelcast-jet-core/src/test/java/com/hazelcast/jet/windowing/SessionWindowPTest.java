@@ -118,11 +118,16 @@ public class SessionWindowPTest {
                 .collect(toSet());
 
         // Then
-        assertEquals(expectedSessions, actualSessions);
-        assertNull(pollOutbox());
-        // Check against memory leaks
-        assertTrue("keyToIvToAcc not empty", swp.keyToIvToAcc.isEmpty());
-        assertTrue("deadlineToKeys not empty", swp.deadlineToKeys.isEmpty());
+        try {
+            assertEquals(expectedSessions, actualSessions);
+            assertNull(pollOutbox());
+            // Check against memory leaks
+            assertTrue("keyToIvToAcc not empty", swp.keyToIvToAcc.isEmpty());
+            assertTrue("deadlineToKeys not empty", swp.deadlineToKeys.isEmpty());
+        } catch (AssertionError e) {
+            System.err.println("Tested with events: " + evs);
+            throw e;
+        }
     }
 
     public static void main(String[] args) {

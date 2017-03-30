@@ -49,15 +49,15 @@ import static java.lang.Math.min;
  * Aggregates events into session windows. Events and windows under
  * different grouping keys are completely independent.
  * <p>
- * Initially a new event causes a new session window to be created. A
- * following event under the same key belongs to this window if its seq is
- * within {@code maxSeqGap} of the window's start seq (in either direction).
- * If the event's seq is less than the window's, it is extended by moving
- * its start seq to the event's seq. Similarly the window's end is adjusted
- * to reach at least up to {@code eventSeq + maxSeqGap}.
+ * The functioning of this processor is easiest to explain in terms of
+ * the <em>event interval</em>: the range {@code [eventSeq, eventSeq + maxSeqGap]}.
+ * Initially an event causes a new session window to be created, covering
+ * exactly the event interval. A following event under the same key belongs
+ * to this window iff its interval overlaps it. The window is extended to
+ * cover the entire interval of the new event.
  * <p>
- * The event may happen to belong to two existing windows (by bridging the gap
- * between them); in that case they are combined into one.
+ * The event may happen to belong to two existing windows if its interval
+ * bridges the gap between them; in that case they are combined into one.
  *
  * @param <T> type of stream event
  * @param <K> type of event's grouping key
@@ -113,17 +113,19 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
         deadlineToKeys = deadlineToKeys.tailMap(punc.seq());
         Interval deadlineIv = new Interval(punc.seq(), punc.seq());
         return traverseStream(keys)
-                .flatMap(k -> traverseWithRemoval(keyToIvToAcc.get(k).headMap(deadlineIv).entrySet())
-                        .map(ivAndAcc -> new Session<>(
-                                k, ivAndAcc.getKey().start, ivAndAcc.getKey().end,
-                                finishAccumulationF.apply(ivAndAcc.getValue())
-                        ))
-                        .onNull(() -> {
-                            if (keyToIvToAcc.get(k).isEmpty()) {
-                                keyToIvToAcc.remove(k);
-                            }
-                        })
-                );
+                .flatMap(k -> {
+                    NavigableMap<Interval, A> ivToAcc = keyToIvToAcc.get(k);
+                    return traverseWithRemoval(ivToAcc.headMap(deadlineIv).entrySet())
+                            .map(ivAndAcc -> new Session<>(
+                                    k, ivAndAcc.getKey().start, ivAndAcc.getKey().end,
+                                    finishAccumulationF.apply(ivAndAcc.getValue())
+                            ))
+                            .onNull(() -> {
+                                if (ivToAcc.isEmpty()) {
+                                    keyToIvToAcc.remove(k);
+                                }
+                            });
+                });
     }
 
     @Override
