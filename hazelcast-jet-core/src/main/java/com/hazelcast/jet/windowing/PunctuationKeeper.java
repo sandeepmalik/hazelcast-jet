@@ -35,5 +35,9 @@ public interface PunctuationKeeper {
      */
     long reportEvent(long eventSeq);
 
+    /**
+     * Called to get the current punctuation in the absence of an observed event.
+     * The punctuation may advance just based on the passage of time.
+     */
     long getCurrentPunctuation();
 }

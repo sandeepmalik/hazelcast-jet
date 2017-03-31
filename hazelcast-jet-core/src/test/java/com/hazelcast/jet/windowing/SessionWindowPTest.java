@@ -34,7 +34,7 @@ import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Stream;
 
-import static com.hazelcast.jet.Projections.entryKey;
+import static com.hazelcast.jet.DistributedFunctions.entryKey;
 import static com.hazelcast.jet.Util.entry;
 import static java.util.Arrays.asList;
 import static java.util.Collections.shuffle;

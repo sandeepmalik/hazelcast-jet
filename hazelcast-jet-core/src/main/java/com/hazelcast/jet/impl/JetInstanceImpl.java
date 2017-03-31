@@ -19,25 +19,26 @@ package com.hazelcast.jet.impl;
 import com.hazelcast.core.Member;
 import com.hazelcast.instance.HazelcastInstanceImpl;
 import com.hazelcast.jet.DAG;
-import com.hazelcast.jet.config.JetConfig;
 import com.hazelcast.jet.JetInstance;
 import com.hazelcast.jet.Job;
+import com.hazelcast.jet.config.JetConfig;
 import com.hazelcast.jet.config.JobConfig;
 import com.hazelcast.jet.config.ResourceConfig;
 import com.hazelcast.jet.impl.deployment.ResourceCompleteOperation;
 import com.hazelcast.jet.impl.deployment.ResourceIterator;
 import com.hazelcast.jet.impl.deployment.ResourceUpdateOperation;
 import com.hazelcast.jet.impl.operation.ExecuteJobOperation;
-import com.hazelcast.jet.impl.util.Util;
 import com.hazelcast.logging.ILogger;
 import com.hazelcast.spi.NodeEngine;
 import com.hazelcast.spi.Operation;
 import com.hazelcast.spi.OperationService;
 import com.hazelcast.util.function.Supplier;
+
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Future;
 
+import static com.hazelcast.jet.impl.util.Util.uncheckCall;
 import static java.util.stream.Collectors.toList;
 
 public class JetInstanceImpl extends AbstractJetInstance {
@@ -118,7 +119,7 @@ public class JetInstanceImpl extends AbstractJetInstance {
                                   .<T>invoke())
                           .collect(toList())
                           .stream()
-                          .map(Util::uncheckedGet)
+                          .map(f -> uncheckCall(f::get))
                           .collect(toList());
         }
 

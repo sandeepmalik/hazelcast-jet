@@ -20,7 +20,6 @@ import com.hazelcast.core.Member;
 import com.hazelcast.internal.serialization.InternalSerializationService;
 import com.hazelcast.jet.JetInstance;
 import com.hazelcast.jet.impl.JetService;
-import com.hazelcast.jet.Distributed;
 import com.hazelcast.nio.Address;
 import com.hazelcast.nio.BufferObjectDataInput;
 import com.hazelcast.nio.BufferObjectDataOutput;
@@ -37,36 +36,20 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.function.Supplier;
 
-import static com.hazelcast.jet.impl.util.ExceptionUtil.rethrow;
 import static com.hazelcast.jet.impl.util.ExceptionUtil.sneakyThrow;
 import static java.util.stream.Collectors.toList;
 
 public final class Util {
 
-    public static final int BUFFER_SIZE = 1 << 15;
+    private static final int BUFFER_SIZE = 1 << 15;
 
     private Util() {
     }
 
     public static <T> Supplier<T> memoize(Supplier<T> onceSupplier) {
         return new MemoizingSupplier<>(onceSupplier);
-    }
-
-    public static <T> Distributed.Consumer<T> noopConsumer() {
-        return t -> {
-        };
-    }
-
-    public static <T> T uncheckedGet(@Nonnull Future<T> f) {
-        try {
-            return f.get();
-        } catch (InterruptedException | ExecutionException e) {
-            throw rethrow(e);
-        }
     }
 
     public static <T> T uncheckCall(@Nonnull Callable<T> callable) {

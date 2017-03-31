@@ -19,27 +19,35 @@ package com.hazelcast.jet;
 import java.util.Map;
 
 /**
- * Factory methods for several common projection functions that extract
- * a part of a data item.
+ * Factory methods for several common distributed functions.
  */
-public final class Projections {
+public final class DistributedFunctions {
 
-    private Projections() {
+    private DistributedFunctions() {
     }
 
     /**
-     * Transparent projection: returns its argument.
+     * Synonym for {@link Distributed.Function#identity}, to be used as a
+     * projection function (e.g., key extractor).
      */
     public static <T> Distributed.Function<T, T> wholeItem() {
         return Distributed.Function.identity();
     }
 
     /**
-     * Extracts the key of a {@link Map.Entry}.
+     * Returns a function that extracts the key of a {@link Map.Entry}.
      *
      * @param <K> type of entry's key
      */
     public static <K> Distributed.Function<Map.Entry<K, ?>, K> entryKey() {
         return Map.Entry::getKey;
+    }
+
+    /**
+     * Returns a consumer that does nothing with the argument.
+     */
+    public static <T> Distributed.Consumer<T> noopConsumer() {
+        return t -> {
+        };
     }
 }

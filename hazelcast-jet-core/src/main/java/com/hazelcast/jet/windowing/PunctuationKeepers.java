@@ -30,7 +30,7 @@ public final class PunctuationKeepers {
     private PunctuationKeepers() {
     }
 
-    private static abstract class PunctuationKeeperBase implements PunctuationKeeper {
+    private abstract static class PunctuationKeeperBase implements PunctuationKeeper {
         private long punc = Long.MIN_VALUE;
 
         long makePuncAtLeast(long proposedPunc) {

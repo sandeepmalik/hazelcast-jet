@@ -52,15 +52,15 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static com.hazelcast.jet.Edge.between;
-import static com.hazelcast.jet.Projections.entryKey;
-import static com.hazelcast.jet.Projections.wholeItem;
+import static com.hazelcast.jet.DistributedFunctions.entryKey;
+import static com.hazelcast.jet.DistributedFunctions.wholeItem;
 import static com.hazelcast.jet.Partitioner.HASH_CODE;
 import static com.hazelcast.jet.Processors.flatMap;
 import static com.hazelcast.jet.Processors.groupAndAccumulate;
 import static com.hazelcast.jet.Processors.readMap;
 import static com.hazelcast.jet.Processors.writeMap;
 import static com.hazelcast.jet.Util.entry;
-import static com.hazelcast.jet.impl.util.Util.uncheckedGet;
+import static com.hazelcast.jet.impl.util.Util.uncheckCall;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
@@ -177,7 +177,7 @@ public class WordCountTest extends HazelcastTestSupport implements Serializable 
                    .partitioned(entryKey()))
            .edge(between(combine, sink.localParallelism(1)));
 
-        benchmark("jet", () -> uncheckedGet(instance.newJob(dag).execute()));
+        benchmark("jet", () -> uncheckCall(instance.newJob(dag).execute()::get));
         assertCounts(instance.getMap("counts"));
     }
 
@@ -196,7 +196,7 @@ public class WordCountTest extends HazelcastTestSupport implements Serializable 
            .edge(between(combineLocal, combineGlobal).distributed().allToOne())
            .edge(between(combineGlobal, sink));
 
-        benchmark("jet", () -> uncheckedGet(instance.newJob(dag).execute()));
+        benchmark("jet", () -> uncheckCall(instance.newJob(dag).execute()::get));
 
         assertCounts((Map<String, Long>) instance.getMap("counts").get("result"));
     }

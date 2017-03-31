@@ -154,8 +154,10 @@ public final class ReadWithPartitionIteratorP<T> extends AbstractProcessor {
 
         private transient int remotePartitionCount;
 
-        RemoteClusterMetaSupplier(ClientConfig clientConfig,
-                                  Distributed.Function<HazelcastInstance, Function<Integer, Iterator<T>>> iteratorSupplier) {
+        RemoteClusterMetaSupplier(
+                ClientConfig clientConfig,
+                Distributed.Function<HazelcastInstance, Function<Integer, Iterator<T>>> iteratorSupplier
+        ) {
             this.serializableConfig = new SerializableClientConfig(clientConfig);
             this.iteratorSupplier = iteratorSupplier;
         }
@@ -195,9 +197,11 @@ public final class ReadWithPartitionIteratorP<T> extends AbstractProcessor {
         private transient HazelcastInstance client;
         private transient Function<Integer, Iterator<T>> partitionToIterator;
 
-        RemoteClusterProcessorSupplier(List<Integer> ownedPartitions,
-                                       SerializableClientConfig serializableClientConfig,
-                                       Distributed.Function<HazelcastInstance, Function<Integer, Iterator<T>>> iteratorSupplier) {
+        RemoteClusterProcessorSupplier(
+                List<Integer> ownedPartitions,
+                SerializableClientConfig serializableClientConfig,
+                Distributed.Function<HazelcastInstance, Function<Integer, Iterator<T>>> iteratorSupplier
+        ) {
             this.ownedPartitions = ownedPartitions;
             this.serializableClientConfig = serializableClientConfig;
             this.iteratorSupplier = iteratorSupplier;
@@ -228,7 +232,9 @@ public final class ReadWithPartitionIteratorP<T> extends AbstractProcessor {
 
         private transient Map<Address, List<Integer>> addrToPartitions;
 
-        LocalClusterMetaSupplier(Distributed.Function<HazelcastInstance, Function<Integer, Iterator<T>>> iteratorSupplier) {
+        LocalClusterMetaSupplier(
+                Distributed.Function<HazelcastInstance, Function<Integer, Iterator<T>>> iteratorSupplier
+        ) {
             this.iteratorSupplier = iteratorSupplier;
         }
 
@@ -255,8 +261,10 @@ public final class ReadWithPartitionIteratorP<T> extends AbstractProcessor {
 
         private transient Function<Integer, Iterator<T>> partitionToIterator;
 
-        LocalClusterProcessorSupplier(List<Integer> ownedPartitions,
-                                      Distributed.Function<HazelcastInstance, Function<Integer, Iterator<T>>> iteratorSupplier) {
+        LocalClusterProcessorSupplier(
+                List<Integer> ownedPartitions,
+                Distributed.Function<HazelcastInstance, Function<Integer, Iterator<T>>> iteratorSupplier
+        ) {
             this.ownedPartitions = ownedPartitions != null ? ownedPartitions : Collections.emptyList();
             this.iteratorSupplier = iteratorSupplier;
         }

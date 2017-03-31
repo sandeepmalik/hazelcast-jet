@@ -45,12 +45,12 @@ import java.util.Map.Entry;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static com.hazelcast.jet.Edge.between;
-import static com.hazelcast.jet.Projections.wholeItem;
+import static com.hazelcast.jet.DistributedFunctions.wholeItem;
 import static com.hazelcast.jet.Processors.writeMap;
 import static com.hazelcast.jet.Traversers.lazy;
 import static com.hazelcast.jet.Traversers.traverseIterable;
 import static com.hazelcast.jet.Util.entry;
-import static com.hazelcast.jet.impl.util.Util.uncheckedGet;
+import static com.hazelcast.jet.impl.util.Util.uncheckCall;
 import static java.util.Arrays.asList;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -110,7 +110,7 @@ public class BackpressureTest extends JetTestSupport {
                 .distributed().partitioned(wholeItem(), (x, y) -> ptionOwnedByMember2))
            .edge(between(hiccup, sink));
 
-        uncheckedGet(jet1.newJob(dag).execute());
+        uncheckCall(jet1.newJob(dag).execute()::get);
         assertCounts(jet1.getMap("counts"));
     }
 
