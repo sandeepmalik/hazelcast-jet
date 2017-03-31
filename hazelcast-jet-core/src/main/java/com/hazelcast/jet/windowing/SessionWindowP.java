@@ -106,8 +106,7 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
                 .values().stream()
                 .flatMap(Set::stream)
                 .distinct()
-                .map(keyToWindows::get)
-                .map(wins -> wins.closeWindows(punc.seq()))
+                .map(key -> keyToWindows.get(key).closeWindows(key, punc.seq()))
                 .flatMap(List::stream);
         deadlineToKeys = deadlineToKeys.tailMap(punc.seq());
         return traverseStream(sessions);
@@ -128,27 +127,22 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
             return true;
         }
         K key = extractKeyF.apply(event);
-        keyToWindows.computeIfAbsent(key, Windows::new)
-                    .addEvent(eventSeq, event);
+        keyToWindows.computeIfAbsent(key, k -> new Windows())
+                    .addEvent(key, eventSeq, event);
         return true;
     }
 
     private class Windows {
-        private final K key;
-        private int size = 0;
+        private int size;
         private long[] starts = new long[2];
         private long[] ends = new long[2];
         private A[] accs = (A[]) new Object[2];
 
-        Windows(K key) {
-            this.key = key;
+        void addEvent(K key, long eventSeq, T event) {
+            accumulateF.accept(resolveAcc(key, eventSeq), event);
         }
 
-        void addEvent(long eventSeq, T event) {
-            accumulateF.accept(resolveAcc(eventSeq), event);
-        }
-
-        List<Session<K, R>> closeWindows(long puncSeq) {
+        List<Session<K, R>> closeWindows(K key, long puncSeq) {
             List<Session<K, R>> sessions = new ArrayList<>();
             int i = 0;
             for (; i < size && ends[i] < puncSeq; i++) {
@@ -169,7 +163,7 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
             size -= deletedCount;
         }
 
-        private A resolveAcc(long eventSeq) {
+        private A resolveAcc(K key, long eventSeq) {
             long eventEnd = eventSeq + maxSeqGap;
             int i = 0;
             for (; i < size && starts[i] <= eventEnd; i++) {
@@ -189,20 +183,20 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
                     // next window doesn't overlap the event interval
                     starts[i] = min(starts[i], eventSeq);
                     if (ends[i] < eventEnd) {
-                        removeFromDeadlines(ends[i]);
+                        removeFromDeadlines(key, ends[i]);
                         ends[i] = eventEnd;
-                        addToDeadlines(ends[i]);
+                        addToDeadlines(key, ends[i]);
                     }
                     return accs[i];
                 }
                 // event belongs to both this and next window
-                removeFromDeadlines(ends[i]);
+                removeFromDeadlines(key, ends[i]);
                 ends[i] = ends[i + 1];
                 accs[i] = combineAccF.apply(accs[i], accs[i + 1]);
                 deleteWindow(i + 1);
                 return accs[i];
             }
-            return insertWindow(i, eventSeq, eventEnd);
+            return insertWindow(key, i, eventSeq, eventEnd);
         }
 
         private void deleteWindow(int idx) {
@@ -212,8 +206,8 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
             }
         }
 
-        private A insertWindow(int idx, long eventSeq, long eventEnd) {
-            addToDeadlines(eventEnd);
+        private A insertWindow(K key, int idx, long eventSeq, long eventEnd) {
+            addToDeadlines(key, eventEnd);
             expandIfNeeded();
             for (int i = size; i > idx; i--) {
                 copy(i - 1, i);
@@ -225,11 +219,11 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
             return accs[idx];
         }
 
-        private void addToDeadlines(long deadline) {
+        private void addToDeadlines(K key, long deadline) {
             deadlineToKeys.computeIfAbsent(deadline, x -> new HashSet<>()).add(key);
         }
 
-        private void removeFromDeadlines(long deadline) {
+        private void removeFromDeadlines(K key, long deadline) {
             Set<K> ks = deadlineToKeys.get(deadline);
             ks.remove(key);
             if (ks.isEmpty()) {
