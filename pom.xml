@@ -19,13 +19,14 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
                       http://maven.apache.org/maven-v4_0_0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <groupId>com.hazelcast.jet</groupId>
-    <artifactId>hazelcast-jet-root</artifactId>
     <packaging>pom</packaging>
-    <version>0.3.2-SNAPSHOT</version>
     <name>hazelcast-jet-root</name>
     <description>Hazelcast Jet Data Processor</description>
     <url>http://www.hazelcast.com/</url>
+
+    <groupId>com.hazelcast.jet</groupId>
+    <artifactId>hazelcast-jet-root</artifactId>
+    <version>0.4-SNAPSHOT</version>
 
     <modules>
         <module>hazelcast-jet-all</module>
@@ -59,7 +60,14 @@
     </repositories>
 
     <properties>
-        <argLine></argLine> <!-- to be filled by JaCoCo -->
+        <argLine> <!-- surefire parameters -->
+            -Xmx2G
+            -Dhazelcast.phone.home.enabled=false
+            -Dhazelcast.mancenter.enabled=false
+            -Dhazelcast.logging.type=log4j
+            -Dhazelcast.test.use.network=false
+            -Djava.net.preferIPv4Stack=true
+        </argLine>
         <main.basedir>${project.basedir}</main.basedir>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
@@ -284,13 +292,7 @@
                     <forkCount>0.5C</forkCount>
                     <failIfNoTests>false</failIfNoTests>
                     <argLine>
-                        @{argLine}
-                        -Xmx2G
-                        -Dhazelcast.phone.home.enabled=false
-                        -Dhazelcast.mancenter.enabled=false
-                        -Dhazelcast.logging.type=log4j
-                        -Dhazelcast.test.use.network=false
-                        -Djava.net.preferIPv4Stack=true
+                        ${argLine}
                     </argLine>
                     <excludedGroups>
                         com.hazelcast.test.annotation.SlowTest,com.hazelcast.test.annotation.NightlyTest
@@ -420,6 +422,7 @@
                         <artifactId>maven-surefire-plugin</artifactId>
                         <configuration>
                             <testFailureIgnore>true</testFailureIgnore>
+                            <argLine>@{argLine}</argLine>
                         </configuration>
                     </plugin>
                 </plugins>
