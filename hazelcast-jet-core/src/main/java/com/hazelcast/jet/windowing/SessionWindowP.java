@@ -40,6 +40,7 @@ import java.util.stream.Stream;
 
 import static com.hazelcast.jet.Traversers.traverseStream;
 import static java.lang.Math.min;
+import static java.lang.System.arraycopy;
 
 /**
  * Aggregates events into session windows. Events and windows under
@@ -157,9 +158,7 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
         }
 
         private void deleteHead(int deletedCount) {
-            for (int i = deletedCount; i < size; i++) {
-                copy(i, i - deletedCount);
-            }
+            copy(deletedCount, 0, size - deletedCount);
             size -= deletedCount;
         }
 
@@ -202,16 +201,12 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
 
         private void deleteWindow(int idx) {
             size--;
-            for (int i = idx; i < size; i++) {
-                copy(i + 1, i);
-            }
+            copy(idx + 1, idx, size - idx);
         }
 
         private A insertWindow(int idx, long eventSeq, long eventEnd) {
             expandIfNeeded();
-            for (int i = size; i > idx; i--) {
-                copy(i - 1, i);
-            }
+            copy(idx, idx + 1, size - idx);
             size++;
             starts[idx] = eventSeq;
             ends[idx] = eventEnd;
@@ -231,10 +226,10 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
             }
         }
 
-        private void copy(int from, int to) {
-            starts[to] = starts[from];
-            ends[to] = ends[from];
-            accs[to] = accs[from];
+        private void copy(int from, int to, int length) {
+            arraycopy(starts, from, starts, to, length);
+            arraycopy(ends, from, ends, to, length);
+            arraycopy(accs, from, accs, to, length);
         }
 
         private void expandIfNeeded() {
