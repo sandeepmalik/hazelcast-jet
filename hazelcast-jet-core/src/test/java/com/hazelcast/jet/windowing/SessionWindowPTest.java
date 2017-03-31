@@ -47,7 +47,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
 public class SessionWindowPTest {
-    private static final int MAX_SEQ_GAP = 200;
+    private static final int MAX_SEQ_GAP = 10;
     private SessionWindowP swp;
     private ArrayDequeInbox inbox;
     private ArrayDequeOutbox outbox;
