@@ -196,7 +196,8 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
                 deleteWindow(i + 1);
                 return accs[i];
             }
-            return insertWindow(key, i, eventSeq, eventEnd);
+            addToDeadlines(key, eventEnd);
+            return insertWindow(i, eventSeq, eventEnd);
         }
 
         private void deleteWindow(int idx) {
@@ -206,8 +207,7 @@ public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
             }
         }
 
-        private A insertWindow(K key, int idx, long eventSeq, long eventEnd) {
-            addToDeadlines(key, eventEnd);
+        private A insertWindow(int idx, long eventSeq, long eventEnd) {
             expandIfNeeded();
             for (int i = size; i > idx; i--) {
                 copy(i - 1, i);
