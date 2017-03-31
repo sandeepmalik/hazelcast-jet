@@ -122,7 +122,7 @@ public class SessionWindowPTest {
             assertEquals(expectedSessions, actualSessions);
             assertNull(pollOutbox());
             // Check against memory leaks
-//            assertTrue("keyToWindows not empty", swp.keyToWindows.isEmpty());
+            assertTrue("keyToWindows not empty", swp.keyToWindows.isEmpty());
             assertTrue("deadlineToKeys not empty", swp.deadlineToKeys.isEmpty());
         } catch (AssertionError e) {
             System.err.println("Tested with events: " + evs);
