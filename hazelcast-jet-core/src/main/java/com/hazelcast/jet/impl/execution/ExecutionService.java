@@ -39,17 +39,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import static java.util.concurrent.Executors.newCachedThreadPool;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.partitioningBy;
+import static java.util.stream.Collectors.toList;
 
 public class ExecutionService {
 
-    private static final IdleStrategy IDLER =
+    static final IdleStrategy IDLER =
             new BackoffIdleStrategy(0, 0, MICROSECONDS.toNanos(1), MILLISECONDS.toNanos(1));
     private final ExecutorService blockingTaskletExecutor = newCachedThreadPool(new BlockingTaskThreadFactory());
     private final CooperativeWorker[] workers;
@@ -102,9 +102,10 @@ public class ExecutionService {
 
     private void submitBlockingTasklets(JobFuture jobFuture, List<Tasklet> tasklets) {
         jobFuture.blockingFutures = tasklets.stream()
+                                            .peek(t -> t.init(jobFuture))
                                             .map(t -> new BlockingWorker(new TaskletTracker(t, jobFuture)))
                                             .map(blockingTaskletExecutor::submit)
-                                            .collect(Collectors.toList());
+                                            .collect(toList());
     }
 
     private void submitCooperativeTasklets(JobFuture jobFuture, List<Tasklet> tasklets) {
@@ -113,7 +114,7 @@ public class ExecutionService {
         Arrays.setAll(trackersByThread, i -> new ArrayList());
         int i = 0;
         for (Tasklet t : tasklets) {
-            t.init();
+            t.init(jobFuture);
             trackersByThread[i++ % trackersByThread.length].add(new TaskletTracker(t, jobFuture));
         }
         for (i = 0; i < trackersByThread.length; i++) {
@@ -127,16 +128,9 @@ public class ExecutionService {
             return;
         }
         Arrays.setAll(workers, i -> new CooperativeWorker(workers));
-        Arrays.setAll(threads, i -> createThread(workers[i], "cooperative", i));
+        Arrays.setAll(threads, i -> new Thread(workers[i],
+                String.format("hz.%s.jet.cooperative.thread-%d", hzInstanceName, i)));
         Arrays.stream(threads).forEach(Thread::start);
-    }
-
-    private Thread createThread(Runnable r, String executorName, int seq) {
-        return new Thread(r, threadNamePrefix() + executorName + ".thread-" + seq);
-    }
-
-    private String threadNamePrefix() {
-        return "hz." + hzInstanceName + ".jet.";
     }
 
     private String trackersToString() {
@@ -159,7 +153,7 @@ public class ExecutionService {
         public void run() {
             final Tasklet t = tracker.tasklet;
             try {
-                t.init();
+                t.init(tracker.jobFuture);
                 long idleCount = 0;
                 for (ProgressState result;
                      !(result = t.call()).isDone() && !tracker.jobFuture.isCompletedExceptionally();
@@ -243,8 +237,8 @@ public class ExecutionService {
                         toStealFrom = w.trackers;
                     }
                 }
-                // if we couldn't find a list longer by more than one, there's nothing to steal
-                if (toStealFrom.size() <= trackers.size() + 1) {
+                // if we couldn't find a list longer by at least two, there's nothing to steal
+                if (toStealFrom.size() < trackers.size() + 2) {
                     return;
                 }
                 // now we must find a task on this list which isn't already scheduled for moving
@@ -277,8 +271,9 @@ public class ExecutionService {
         private final AtomicInteger seq = new AtomicInteger();
 
         @Override
-        public Thread newThread(Runnable r) {
-            return createThread(r, "blocking", seq.getAndIncrement());
+        public Thread newThread(@Nonnull Runnable r) {
+            return new Thread(r,
+                    String.format("hz.%s.jet.blocking.thread-%d", hzInstanceName, seq.getAndIncrement()));
         }
     }
 
@@ -312,5 +307,4 @@ public class ExecutionService {
             }
         }
     }
-
 }

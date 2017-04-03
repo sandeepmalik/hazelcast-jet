@@ -26,13 +26,14 @@ import com.hazelcast.jet.Processor;
 import com.hazelcast.jet.ProcessorSupplier;
 import com.hazelcast.jet.config.JetConfig;
 import com.hazelcast.jet.impl.JetService;
+import com.hazelcast.jet.impl.execution.BlockingProcessorTasklet;
 import com.hazelcast.jet.impl.execution.ConcurrentInboundEdgeStream;
 import com.hazelcast.jet.impl.execution.ConveyorCollector;
 import com.hazelcast.jet.impl.execution.ConveyorCollectorWithPartition;
+import com.hazelcast.jet.impl.execution.CooperativeProcessorTasklet;
 import com.hazelcast.jet.impl.execution.InboundEdgeStream;
 import com.hazelcast.jet.impl.execution.OutboundCollector;
 import com.hazelcast.jet.impl.execution.OutboundEdgeStream;
-import com.hazelcast.jet.impl.execution.ProcessorTasklet;
 import com.hazelcast.jet.impl.execution.ReceiverTasklet;
 import com.hazelcast.jet.impl.execution.SenderTasklet;
 import com.hazelcast.jet.impl.execution.Tasklet;
@@ -113,7 +114,10 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
                         nodeEngine.getLogger(p.getClass().getName() + '.' + srcVertex.name() + '#' + processorIdx);
                 ProcCtx context =
                         new ProcCtx(instance, logger, srcVertex.name(), processorIdx + srcVertex.getProcIdxOffset());
-                tasklets.add(new ProcessorTasklet(srcVertex.name(), context, p, inboundStreams, outboundStreams));
+                tasklets.add(p.isCooperative()
+                        ? new CooperativeProcessorTasklet(srcVertex.name(), context, p, inboundStreams, outboundStreams)
+                        : new BlockingProcessorTasklet(srcVertex.name(), context, p, inboundStreams, outboundStreams)
+                );
                 processorIdx++;
             }
         }
