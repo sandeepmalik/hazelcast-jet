@@ -54,7 +54,7 @@ public final class ArrayDequeOutbox implements Outbox {
     }
 
     @Override
-    public boolean isHighWater(int ordinal) {
+    public boolean hasReachedLimit(int ordinal) {
         if (ordinal != -1) {
             return buckets[ordinal].size() >= highWaterMarks[ordinal];
         }

@@ -42,9 +42,9 @@ import javax.annotation.Nonnull;
  * limit the amount of data they output per invocation because the outbox
  * will not be emptied until the processor yields control back to its
  * caller. Specifically, {@code Outbox} has a method {@link
- * Outbox#isHighWater isHighWater()} that can be tested to see whether it's
+ * Outbox#hasReachedLimit isHighWater()} that can be tested to see whether it's
  * time to stop pushing more data into it.  There is also a finer-grained
- * method {@link Outbox#isHighWater(int) isHighWater(ordinal)}, which tells
+ * method {@link Outbox#hasReachedLimit(int) isHighWater(ordinal)}, which tells
  * the state of an individual output bucket.
  * <p>
  * On the other hand, if the processor declares itself as "non-cooperative"

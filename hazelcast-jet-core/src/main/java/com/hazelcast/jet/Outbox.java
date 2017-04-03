@@ -28,7 +28,7 @@ import javax.annotation.Nonnull;
  * In the case of a processor declared as <em>cooperative</em>, the
  * execution engine will not try to flush the outbox into downstream
  * queues until the processing method returns. Therefore the processor is
- * advised to check {@link #isHighWater()} or {@link #isHighWater(int)}
+ * advised to check {@link #hasReachedLimit()} or {@link #hasReachedLimit(int)}
  * regularly and refrain from outputting more data when it returns true.
  * <p>
  * A non-cooperative processor's outbox will have auto-flushing behavior
@@ -58,11 +58,11 @@ public interface Outbox {
 
     /**
      * Returns {@code true} if any of this outbox's buckets is above its
-     * high water mark (i.e., {@link #isHighWater(int)} would return true
+     * high water mark (i.e., {@link #hasReachedLimit(int)} would return true
      * for it).
      */
-    default boolean isHighWater() {
-        return isHighWater(-1);
+    default boolean hasReachedLimit() {
+        return hasReachedLimit(-1);
     }
 
     /**
@@ -71,7 +71,7 @@ public interface Outbox {
      * to the bucket during the current invocation of the {@code Processor}
      * method that made the inquiry.
      * <p>
-     * If {@code ordinal == -1}, behaves identically to {@link #isHighWater()}.
+     * If {@code ordinal == -1}, behaves identically to {@link #hasReachedLimit()}.
      */
-    boolean isHighWater(int ordinal);
+    boolean hasReachedLimit(int ordinal);
 }
