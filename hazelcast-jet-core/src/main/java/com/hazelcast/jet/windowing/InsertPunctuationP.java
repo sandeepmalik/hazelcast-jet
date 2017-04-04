@@ -80,9 +80,10 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
      * @param timeThrottleMs maximum system time that can pass between emitting successive punctuations
      */
     public InsertPunctuationP(@Nonnull ToLongFunction<T> extractEventSeqF,
-            @Nonnull PunctuationKeeper punctuationKeeper,
-            long eventSeqThrottle,
-            long timeThrottleMs) {
+                              @Nonnull PunctuationKeeper punctuationKeeper,
+                              long eventSeqThrottle,
+                              long timeThrottleMs
+    ) {
         this(extractEventSeqF, punctuationKeeper, eventSeqThrottle, MILLISECONDS.toNanos(timeThrottleMs),
                 System::nanoTime);
     }
