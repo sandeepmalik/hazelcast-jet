@@ -17,6 +17,7 @@
 package com.hazelcast.jet.impl.execution;
 
 import com.hazelcast.jet.Processor;
+import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.impl.util.ArrayDequeOutbox;
 import com.hazelcast.jet.impl.util.ProgressState;
 import com.hazelcast.util.Preconditions;
@@ -27,7 +28,7 @@ import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Stream;
 
-import static com.hazelcast.jet.impl.util.DoneItem.DONE_ITEM;
+import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
 
 /**
  * Tasklet that drives a cooperative processor.
@@ -40,8 +41,8 @@ public class CooperativeProcessorTasklet extends ProcessorTaskletBase {
                                        List<InboundEdgeStream> instreams, List<OutboundEdgeStream> outstreams) {
         super(vertexName, context, processor, instreams, outstreams);
         Preconditions.checkTrue(processor.isCooperative(), "Processor is non-cooperative");
-        int[] highWaterMarks = Stream.of(this.outstreams).mapToInt(OutboundEdgeStream::getHighWaterMark).toArray();
-        this.outbox = new ArrayDequeOutbox(outstreams.size(), highWaterMarks);
+        int[] outboxLimits = Stream.of(this.outstreams).mapToInt(OutboundEdgeStream::getOutboxLimit).toArray();
+        this.outbox = new ArrayDequeOutbox(outstreams.size(), outboxLimits);
     }
 
     @Override
@@ -104,8 +105,9 @@ public class CooperativeProcessorTasklet extends ProcessorTaskletBase {
         for (int i = 0; i < outbox.bucketCount(); i++) {
             final Queue q = outbox.queueWithOrdinal(i);
             for (Object item; (item = q.peek()) != null; ) {
-                OutboundCollector collector = outstreams[i].getCollector();
-                final ProgressState state = (item != DONE_ITEM) ? collector.offer(item) : collector.close();
+                final OutboundCollector c = outstreams[i].getCollector();
+                final ProgressState state = (item instanceof Punctuation || item instanceof DoneItem ?
+                        c.offerBroadcast(item) : c.offer(item));
                 progTracker.madeProgress(state.isMadeProgress());
                 if (!state.isDone()) {
                     progTracker.notDone();

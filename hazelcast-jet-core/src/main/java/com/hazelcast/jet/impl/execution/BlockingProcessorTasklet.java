@@ -26,8 +26,8 @@ import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
+import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
 import static com.hazelcast.jet.impl.execution.ExecutionService.IDLER;
-import static com.hazelcast.jet.impl.util.DoneItem.DONE_ITEM;
 
 /**
  * Tasklet that drives a non-cooperative processor.
@@ -113,7 +113,7 @@ public class BlockingProcessorTasklet extends ProcessorTaskletBase {
         private void submit(OutboundEdgeStream outstream, @Nonnull Object item) {
             OutboundCollector collector = outstream.getCollector();
             for (long idleCount = 0; ;) {
-                ProgressState result = (item != DONE_ITEM) ? collector.offer(item) : collector.close();
+                ProgressState result = (item != DONE_ITEM) ? collector.offer(item) : collector.offerBroadcast(item);
                 if (result.isDone()) {
                     return;
                 }
