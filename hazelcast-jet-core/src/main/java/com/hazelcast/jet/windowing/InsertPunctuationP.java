@@ -123,7 +123,7 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
 
     @Override
     public void process() {
-        maybeEmitPunctuation(punctuationKeeper.reportEvent(Long.MIN_VALUE));
+        maybeEmitPunctuation(punctuationKeeper.getCurrentPunctuation());
     }
 
     private void maybeEmitPunctuation(long newIdealPunct) {
