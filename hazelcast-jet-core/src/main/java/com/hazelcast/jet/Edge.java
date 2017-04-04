@@ -349,10 +349,13 @@ public class Edge implements IdentifiedDataSerializable {
             case VARIABLE_UNICAST:
                 break;
             case PARTITIONED:
-                b.append(getPartitioner() instanceof Single ? ".allToOne()" : ".partitioned(...)");
+                b.append(getPartitioner() instanceof Single ? ".allToOne()" : ".partitioned(?)");
                 break;
             case BROADCAST:
                 b.append(".broadcast()");
+                break;
+            case ONE_TO_MANY:
+                b.append(".oneToMany()");
                 break;
             default:
         }
