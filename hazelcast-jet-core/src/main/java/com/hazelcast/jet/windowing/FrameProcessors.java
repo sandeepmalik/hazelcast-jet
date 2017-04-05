@@ -112,10 +112,7 @@ public final class FrameProcessors {
         private final LongUnaryOperator toFrameSeqF;
         private final Supplier<F> supplier;
         private final BiConsumer<F, ? super T> accumulator;
-        private final FlatMapper<Punctuation, Object> puncFlatMapper;
-
-        private long lowestOpenFrame = Long.MIN_VALUE;
-        private long emittedPunctuation = Long.MIN_VALUE;
+        private final FlatMapper<Long, Object> puncFlatMapper;
 
         GroupByFrameP(
                 Function<? super T, K> extractKeyF,
@@ -132,19 +129,12 @@ public final class FrameProcessors {
             this.supplier = collector.supplier();
             this.accumulator = collector.accumulator();
             this.puncFlatMapper = flatMapper(punc ->
-                    traverseWithRemoval(seqToKeyToFrame.headMap(lowestOpenFrame).entrySet())
-                            .flatMap(seqAndFrame -> concat(
-                                    traverseIterable(seqAndFrame.getValue().entrySet())
-                                            .map(e -> new Frame<>(seqAndFrame.getKey(), e.getKey(), e.getValue())),
-                                    Traverser.over(new Punctuation(emittedPunctuation = seqAndFrame.getKey()))))
-                            .onNull(() -> emitPunctuation(lowestOpenFrame - frameLength)));
-        }
-
-        private void emitPunctuation(long punctSeq) {
-            if (punctSeq > emittedPunctuation) {
-                emit(new Punctuation(punctSeq));
-                emittedPunctuation = punctSeq;
-            }
+                    traverseWithRemoval(seqToKeyToFrame.headMap(punc).entrySet())
+                    .flatMap(seqAndFrame ->
+                            traverseIterable(seqAndFrame.getValue().entrySet())
+                                    .map(e -> new Frame<>(seqAndFrame.getKey(), e.getKey(), e.getValue()))
+                            )
+                    .onNull(() -> emit(new Punctuation(punc))));
         }
 
         @Override
@@ -152,10 +142,6 @@ public final class FrameProcessors {
             T t = (T) item;
             long eventSeq = extractEventSeqF.applyAsLong(t);
             long frameSeq = toFrameSeqF.applyAsLong(eventSeq);
-            if (frameSeq < lowestOpenFrame) {
-                // drop late event
-                return true;
-            }
             K key = extractKeyF.apply(t);
             F frame = seqToKeyToFrame.computeIfAbsent(frameSeq, x -> new HashMap<>())
                                      .computeIfAbsent(key, x -> supplier.get());
@@ -165,12 +151,7 @@ public final class FrameProcessors {
 
         @Override
         protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
-            long puncFrameSeq = toFrameSeqF.applyAsLong(punc.seq());
-            if (puncFrameSeq > lowestOpenFrame) {
-                lowestOpenFrame = puncFrameSeq;
-                return puncFlatMapper.tryProcess(punc);
-            }
-            return true;
+            return puncFlatMapper.tryProcess(punc.seq());
         }
     }
 
