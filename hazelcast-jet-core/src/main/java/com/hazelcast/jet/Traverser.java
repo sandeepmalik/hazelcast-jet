@@ -73,6 +73,29 @@ public interface Traverser<T> {
     }
 
     /**
+     * Returns a traverser which appends an additional item to the
+     * original traverser after it returns a null value.
+     */
+    @Nonnull
+    default Traverser<T> append(T item) {
+        return new Traverser<T>() {
+            T appendedItem = item;
+            @Override
+            public T next() {
+                T t = Traverser.this.next();
+                if (t == null) {
+                    try {
+                        return appendedItem;
+                    } finally {
+                        appendedItem = null;
+                    }
+                }
+                return t;
+            }
+        };
+    }
+
+    /**
      * Adds a flat-mapping layer to this traverser. The returned traverser
      * will apply the given mapping function to each item retrieved from this
      * traverser, and will emit all the items from the resulting traverser(s).

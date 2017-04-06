@@ -40,7 +40,6 @@ import static com.hazelcast.jet.Traversers.traverseIterable;
 import static com.hazelcast.jet.Traversers.traverseWithRemoval;
 import static com.hazelcast.util.Preconditions.checkPositive;
 import static com.hazelcast.util.Preconditions.checkTrue;
-import static java.util.stream.Collectors.toMap;
 
 /**
  * Contains factory methods for processors dealing with windowing operations.
@@ -98,8 +97,7 @@ public final class FrameProcessors {
      * @param <R> type of the result derived from a frame
      */
     public static <K, F, R> ProcessorSupplier slidingWindow(
-            long frameLength, long windowSize, DistributedCollector<K, F, R> collector
-    ) {
+            long frameLength, long windowSize, DistributedCollector<K, F, R> collector) {
         return ProcessorSupplier.of(() -> new SlidingWindowP<>(frameLength, windowSize, collector));
     }
 
@@ -129,11 +127,11 @@ public final class FrameProcessors {
             this.accumulator = collector.accumulator();
             this.puncFlatMapper = flatMapper(punc ->
                     traverseWithRemoval(seqToKeyToFrame.headMap(punc.seq()).entrySet())
-                    .flatMap(seqAndFrame ->
+                    .<Object>flatMap(seqAndFrame ->
                             traverseIterable(seqAndFrame.getValue().entrySet())
                                     .map(e -> new Frame<>(seqAndFrame.getKey(), e.getKey(), e.getValue()))
                             )
-                    .onNull(() -> emit(punc)));
+                    .append(punc));
         }
 
         @Override
@@ -157,12 +155,13 @@ public final class FrameProcessors {
     private static class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
         private final SortedMap<Long, Map<K, F>> seqToKeyToFrame = new TreeMap<>();
         private final BinaryOperator<F> combiner;
-        private final long windowSize;
-        private final Distributed.Function<F, R> finisher;
         private final long frameLength;
+        private final long windowSize;
+        private final Function<F, R> finisher;
+        private final Supplier<F> supplier;
 
-        private Traverser<Frame<K, R>> outputTraverser;
-        private long oldestFrame = Long.MIN_VALUE;
+        private Traverser<Object> traverser;
+        private long windowEnd = Long.MIN_VALUE;
 
         /**
          * @param windowSize Should be in multiples of input frame length (if frameLength
@@ -174,8 +173,10 @@ public final class FrameProcessors {
             checkTrue(windowSize % frameLength == 0, "windowSize must be an integer multiple of frameLength");
             this.frameLength = frameLength;
             this.windowSize = windowSize;
+            this.supplier = collector.supplier();
             this.combiner = collector.combiner();
             this.finisher = collector.finisher();
+
         }
 
         @Override
@@ -183,49 +184,49 @@ public final class FrameProcessors {
             final Frame<K, F> e = (Frame) item;
             final Long frameSeq = e.getSeq();
             final F frame = e.getValue();
-            if (frameSeq >= oldestFrame) {
-                seqToKeyToFrame.computeIfAbsent(frameSeq, x -> new HashMap<>())
+            seqToKeyToFrame.computeIfAbsent(frameSeq, x -> new HashMap<>())
                         .merge(e.getKey(), frame, combiner);
-            }
+
             return true;
         }
 
         @Override
         protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
-            while (outputTraverser == null) {
-                // emit the oldest key
-                Long oldestFrameInMap;
-                if (seqToKeyToFrame.isEmpty()
-                        || oldestFrame > punc.seq()
-                        || (oldestFrameInMap = seqToKeyToFrame.firstKey()) >= punc.seq()) {
-                    oldestFrame = punc.seq();
-                    // nothing was accumulated so far
-                    return true;
+            if (traverser != null) {
+                if (!emitCooperatively(traverser)) {
+                    return false;
                 }
-                oldestFrame = Math.max(oldestFrameInMap + frameLength, oldestFrame);
-
-                // collect frames belonging to this window to a map
-                Map<K, F> window = seqToKeyToFrame.subMap(oldestFrame - windowSize, oldestFrame)
-                        .values().stream()
-                        .flatMap(m -> m.entrySet().stream())
-                        .collect(toMap(Entry::getKey, Entry::getValue, combiner));
-                seqToKeyToFrame.remove(oldestFrame - windowSize);
-
-                if (window.isEmpty()) {
-                    // nothing in this frame, try the next one
-                    continue;
-                }
-
-                outputTraverser = traverseIterable(window.entrySet())
-                        .map(e -> new Frame<>(oldestFrame, e.getKey(), finisher.apply(e.getValue())))
-                        .onNull(() -> oldestFrame += frameLength);
+                traverser = null;
             }
 
-            if (emitCooperatively(outputTraverser)) {
-                outputTraverser = null;
-                return oldestFrame > punc.seq();
+            if (seqToKeyToFrame.isEmpty()) {
+                return true;
             }
-            return false;
+            if (windowEnd == Long.MIN_VALUE) {
+                windowEnd = seqToKeyToFrame.firstKey();
+            }
+            while (windowEnd <= punc.seq()) {
+                long windowStart = windowEnd - windowSize;
+
+                // materialize the window
+                Map<K,F> window = new HashMap<>();
+                for (Map<K, F> keyToFrame : seqToKeyToFrame.subMap(windowStart, windowEnd).values()) {
+                    for (Entry<K, F> entry : keyToFrame.entrySet()) {
+                        window.compute(entry.getKey(), (k,v) -> combiner.apply(v != null ? v : supplier.get(), entry.getValue()));
+                    }
+                }
+
+                seqToKeyToFrame.remove(windowStart);
+
+                final long frameSeq = windowEnd;
+                windowEnd += frameLength;
+                traverser = traverseIterable(window.entrySet())
+                        .map(e -> new Frame<>(frameSeq, e.getKey(), finisher.apply(e.getValue())));
+                if (!emitCooperatively(traverser)) {
+                    return false;
+                }
+            }
+            return true;
         }
     }
 }
