@@ -154,7 +154,7 @@ public final class FrameProcessors {
 
     private static class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
         private final SortedMap<Long, Map<K, F>> seqToKeyToFrame = new TreeMap<>();
-        private final FlatMapper<Punctuation, Object> flatMapper;
+        private final FlatMapper<Punctuation, Frame<K, R>> flatMapper;
         private final BinaryOperator<F> combiner;
         private final long frameLength;
         private final long windowSize;
@@ -200,7 +200,7 @@ public final class FrameProcessors {
             return flatMapper.tryProcess(punc);
         }
 
-        private Traverser<?> slideTheWindow(Punctuation punc) {
+        private Traverser<Frame<K, R>> slideTheWindow(Punctuation punc) {
             return rangeClosed(windowEnd, updateAndGetWindowEnd(punc), frameLength)
                     .flatMap(frameSeq -> {
                         long windowStart = frameSeq - windowSize;
@@ -245,17 +245,15 @@ public final class FrameProcessors {
             this.step = step;
         }
 
-        <T> Traverser<T> flatMap(LongFunction<T> mapper) {
-            return () -> {
-                if (current <= end) {
-                    try {
-                        return mapper.apply(current);
-                    } finally {
-                        current += step;
-                    }
+        <T> Traverser<T> flatMap(LongFunction<Traverser<T>> mapper) {
+            if (current <= end) {
+                try {
+                    return mapper.apply(current);
+                } finally {
+                    current += step;
                 }
-                return null;
-            };
+            }
+            return null;
         }
     }
 }
