@@ -25,7 +25,6 @@ import com.hazelcast.jet.Vertex;
 import com.hazelcast.jet.stream.DistributedCollector;
 import com.hazelcast.jet.windowing.InsertPunctuationP;
 import com.hazelcast.jet.windowing.SessionWindowP;
-import com.hazelcast.nio.Address;
 import com.hazelcast.util.MutableLong;
 
 import javax.annotation.Nonnull;
@@ -90,10 +89,10 @@ public class SessionWindows {
         }
 
         static ProcessorMetaSupplier metaSupplier() {
-            return ProcessorMetaSupplier.of((Address addr) -> {
+            return addresses -> addr -> {
                 String key = String.valueOf(addr.getPort());
-                return (int count) -> range(0, count).mapToObj(i -> new SourceP(key + i)).collect(toList());
-            });
+                return count -> range(0, count).mapToObj(i -> new SourceP(key + i)).collect(toList());
+            };
         }
 
         @Override

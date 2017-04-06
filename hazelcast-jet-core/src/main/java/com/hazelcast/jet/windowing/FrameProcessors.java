@@ -36,7 +36,6 @@ import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 
-import static com.hazelcast.jet.Traverser.concat;
 import static com.hazelcast.jet.Traversers.traverseIterable;
 import static com.hazelcast.jet.Traversers.traverseWithRemoval;
 import static com.hazelcast.util.Preconditions.checkPositive;
