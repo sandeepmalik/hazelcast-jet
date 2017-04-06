@@ -111,7 +111,7 @@ public final class FrameProcessors {
         private final LongUnaryOperator toFrameSeqF;
         private final Supplier<F> supplier;
         private final BiConsumer<F, ? super T> accumulator;
-        private final FlatMapper<Long, Object> puncFlatMapper;
+        private final FlatMapper<Punctuation, Object> puncFlatMapper;
 
         GroupByFrameP(
                 Function<? super T, K> extractKeyF,
@@ -128,12 +128,12 @@ public final class FrameProcessors {
             this.supplier = collector.supplier();
             this.accumulator = collector.accumulator();
             this.puncFlatMapper = flatMapper(punc ->
-                    traverseWithRemoval(seqToKeyToFrame.headMap(punc).entrySet())
+                    traverseWithRemoval(seqToKeyToFrame.headMap(punc.seq()).entrySet())
                     .flatMap(seqAndFrame ->
                             traverseIterable(seqAndFrame.getValue().entrySet())
                                     .map(e -> new Frame<>(seqAndFrame.getKey(), e.getKey(), e.getValue()))
                             )
-                    .onNull(() -> emit(new Punctuation(punc))));
+                    .onNull(() -> emit(punc)));
         }
 
         @Override
@@ -150,7 +150,7 @@ public final class FrameProcessors {
 
         @Override
         protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
-            return puncFlatMapper.tryProcess(punc.seq());
+            return puncFlatMapper.tryProcess(punc);
         }
     }
 
