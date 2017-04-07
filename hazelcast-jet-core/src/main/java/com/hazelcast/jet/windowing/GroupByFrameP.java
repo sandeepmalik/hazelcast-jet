@@ -66,8 +66,7 @@ public class GroupByFrameP<T, K, F> extends StreamingProcessorBase {
             DistributedCollector<? super T, F, ?> collector
     ) {
         checkPositive(frameLength, "frameLength must be positive");
-        checkTrue(frameOffset >= 0 && frameOffset < frameLength,
-                "frameOffset must be 0..frameLength-1");
+        checkTrue(frameOffset >= 0 && frameOffset < frameLength, "frameOffset must be 0..frameLength-1");
         this.extractKeyF = extractKeyF;
         this.extractEventSeqF = extractEventSeqF;
         this.toFrameSeqF = time -> time - Math.floorMod(time - frameOffset, frameLength) + frameLength;

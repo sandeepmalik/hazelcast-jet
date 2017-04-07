@@ -38,6 +38,7 @@ import static com.hazelcast.jet.DistributedFunctions.entryKey;
 import static com.hazelcast.jet.Edge.between;
 import static com.hazelcast.jet.Util.entry;
 import static com.hazelcast.jet.windowing.PunctuationKeepers.cappingEventSeqLag;
+import static com.hazelcast.jet.windowing.WindowingProcessors.sessionWindow;
 import static com.hazelcast.jet.windowing.example.SessionWindows.SourceP.eventCount;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toList;
@@ -55,7 +56,7 @@ public class SessionWindows {
         Vertex source = dag.newVertex("source", SourceP.metaSupplier());
         Vertex punctuation = dag.newVertex("punctuation", () -> new InsertPunctuationP<>(
                 eventSeqF, cappingEventSeqLag(MAX_SEQ_GAP), 100_000, 100));
-        Vertex session = dag.newVertex("session", () -> new SessionWindowP<>(
+        Vertex session = dag.newVertex("session", sessionWindow(
                 MAX_SEQ_GAP,
                 eventSeqF,
                 entryKey(),

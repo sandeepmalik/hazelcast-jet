@@ -27,7 +27,7 @@ import static org.junit.Assert.assertEquals;
 
 class StreamingTestSupport {
     ArrayDequeInbox inbox = new ArrayDequeInbox();
-    ArrayDequeOutbox outbox = new ArrayDequeOutbox(1, new int[] {200});
+    ArrayDequeOutbox outbox = new ArrayDequeOutbox(1, new int[] {1024});
 
     static Punctuation punc(long seq) {
         return new Punctuation(seq);
