@@ -72,10 +72,15 @@ public class SlidingWindowPTest extends StreamingTestSupport {
         assertOutbox(asList(
                 frame(0, 1),
                 frame(1, 2),
+                punc(1),
                 frame(2, 3),
+                punc(2),
                 frame(3, 4),
+                punc(3),
                 frame(4, 4),
+                punc(4),
                 frame(5, 3),
+                punc(5),
                 null
         ));
     }
@@ -104,10 +109,15 @@ public class SlidingWindowPTest extends StreamingTestSupport {
         assertOutbox(asList(
                 frame(0, 1),
                 frame(1, 2),
+                punc(1),
                 frame(2, 3),
+                punc(2),
                 frame(3, 4),
+                punc(3),
                 frame(4, 4),
+                punc(4),
                 frame(5, 3),
+                punc(5),
                 null
         ));
     }
@@ -132,16 +142,26 @@ public class SlidingWindowPTest extends StreamingTestSupport {
         assertOutbox(asList(
                 frame(0, 1),
                 frame(1, 2),
+                punc(1),
                 frame(2, 3),
-                frame(3, 4)
+                punc(2),
+                frame(3, 4),
+                punc(3)
         ));
         for (long seq = 4; seq < 100; seq++) {
             assertEquals(frame(seq, 4), pollOutbox());
+            assertEquals(punc(seq), pollOutbox());
         }
         assertOutbox(asList(
                 frame(100, 3),
+                punc(100),
                 frame(101, 2),
+                punc(101),
                 frame(102, 1),
+                punc(102),
+                punc(103),
+                punc(104),
+                punc(105),
                 null
         ));
         assertEquals(null, pollOutbox());
@@ -176,7 +196,9 @@ public class SlidingWindowPTest extends StreamingTestSupport {
                 frame(13, 2),
                 frame(14, 1),
 
+                punc(50),
                 frame(51, 3),
+                punc(51),
                 null
         ));
     }
