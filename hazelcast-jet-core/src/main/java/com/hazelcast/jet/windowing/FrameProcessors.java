@@ -36,6 +36,7 @@ import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 
+import static com.hazelcast.jet.Traversers.newNullTraverser;
 import static com.hazelcast.jet.Traversers.traverseIterable;
 import static com.hazelcast.jet.Traversers.traverseWithRemoval;
 import static com.hazelcast.util.Preconditions.checkPositive;
@@ -97,8 +98,8 @@ public final class FrameProcessors {
      * @param <R> type of the result derived from a frame
      */
     public static <K, F, R> ProcessorSupplier slidingWindow(
-            long frameLength, long windowSize, DistributedCollector<K, F, R> collector) {
-        return ProcessorSupplier.of(() -> new SlidingWindowP<>(frameLength, windowSize, collector));
+            long frameLength, long framesPerWindow, DistributedCollector<K, F, R> collector) {
+        return ProcessorSupplier.of(() -> new SlidingWindowP<>(frameLength, framesPerWindow, collector));
     }
 
     static class GroupByFrameP<T, K, F> extends StreamingProcessorBase {
@@ -129,9 +130,8 @@ public final class FrameProcessors {
                     traverseWithRemoval(seqToKeyToFrame.headMap(punc.seq()).entrySet())
                     .<Object>flatMap(seqAndFrame ->
                             traverseIterable(seqAndFrame.getValue().entrySet())
-                                    .map(e -> new Frame<>(seqAndFrame.getKey(), e.getKey(), e.getValue()))
-                            )
-                    .append(punc));
+                                    .map(e -> new Frame<>(seqAndFrame.getKey(), e.getKey(), e.getValue())))
+                            .append(punc));
         }
 
         @Override
@@ -156,23 +156,18 @@ public final class FrameProcessors {
         private final SortedMap<Long, Map<K, F>> seqToKeyToFrame = new TreeMap<>();
         private final FlatMapper<Punctuation, Frame<K, R>> flatMapper;
         private final BinaryOperator<F> combiner;
-        private final long frameLength;
-        private final long windowSize;
         private final Function<F, R> finisher;
         private final Supplier<F> supplier;
+        private final long frameSize;
+        private final long windowSize;
 
         private long windowEnd = Long.MIN_VALUE;
 
-        /**
-         * @param windowSize Should be in multiples of input frame length (if frameLength
-         *                   is 1000, then it should be 1000, 2000 etc.)
-         */
-        SlidingWindowP(long frameLength, long windowSize, @Nonnull DistributedCollector<K, F, R> collector) {
-            checkPositive(windowSize, "windowSize must be >0");
-            checkPositive(frameLength, "frameLength must be >0");
-            checkTrue(windowSize % frameLength == 0, "windowSize must be an integer multiple of frameLength");
-            this.frameLength = frameLength;
-            this.windowSize = windowSize;
+        SlidingWindowP(long frameSize, long framesPerWindow, @Nonnull DistributedCollector<K, F, R> collector) {
+            checkPositive(framesPerWindow, "framesPerWindow must be positive");
+            checkPositive(frameSize, "frameLength must be positive");
+            this.frameSize = frameSize;
+            this.windowSize = frameSize * framesPerWindow;
             this.supplier = collector.supplier();
             this.combiner = collector.combiner();
             this.finisher = collector.finisher();
@@ -191,61 +186,76 @@ public final class FrameProcessors {
 
         @Override
         protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
-            if (seqToKeyToFrame.isEmpty()) {
-                return true;
-            }
-            if (windowEnd == Long.MIN_VALUE) {
+            if (windowEnd == Long.MIN_VALUE && !seqToKeyToFrame.isEmpty()) {
                 windowEnd = seqToKeyToFrame.firstKey();
             }
             return flatMapper.tryProcess(punc);
         }
 
         private Traverser<Frame<K, R>> slideTheWindow(Punctuation punc) {
-            return rangeClosed(windowEnd, updateAndGetWindowEnd(punc), frameLength)
-                    .flatMap(frameSeq -> {
-                        long windowStart = frameSeq - windowSize;
-                        Map<K, F> window = computeWindow(windowStart);
-                        seqToKeyToFrame.remove(windowStart);
+            return flatMapRange(windowEnd, updateAndGetWindowEnd(punc), frameSize,
+                    frameSeq -> {
+                        Map<K, F> window = computeWindow(frameSeq);
+                        seqToKeyToFrame.remove(frameSeq - windowSize);
                         return traverseIterable(window.entrySet())
                                 .map(e -> new Frame<>(frameSeq, e.getKey(), finisher.apply(e.getValue())));
                     });
         }
 
-        private Map<K, F> computeWindow(long windowStart) {
+        private long updateAndGetWindowEnd(Punctuation punc) {
+            long delta = punc.seq() - windowEnd;
+            windowEnd += delta - delta % frameSize;
+            return windowEnd;
+        }
+
+        private Map<K, F> computeWindow(long frameSeq) {
             Map<K, F> window = new HashMap<>();
-            for (Map<K, F> keyToFrame : seqToKeyToFrame.subMap(windowStart, windowEnd).values()) {
-                keyToFrame.forEach((key, frame) ->
-                        window.compute(key, (x, acc) ->
-                                combiner.apply(acc != null ? acc : supplier.get(), frame))
-                );
+            for (Map<K, F> keyToFrame : seqToKeyToFrame.subMap(frameSeq - windowSize, frameSeq).values()) {
+                keyToFrame.forEach((key, currAcc) ->
+                        window.compute(key, (x, acc) -> combiner.apply(acc != null ? acc : supplier.get(), currAcc)));
             }
             return window;
         }
-
-        private long updateAndGetWindowEnd(Punctuation punc) {
-            long delta = punc.seq() - windowEnd;
-            windowEnd += delta - delta % frameLength;
-            return windowEnd;
-        }
     }
 
-    private static RangeTraverser rangeClosed(long start, long end, long step) {
-        return new RangeTraverser(start, end, step);
+    private static <T> RangeFlatmapper<T> flatMapRange(
+            long start, long end, long step, LongFunction<Traverser<T>> mapper
+    ) {
+        return new RangeFlatmapper<>(start, end, step, mapper);
     }
 
-    private static final class RangeTraverser {
+    private static final class RangeFlatmapper<T> implements Traverser<T> {
+        private static final Traverser NULL_TRAVERSER = newNullTraverser();
+
+        private final LongFunction<Traverser<T>> mapper;
+        private Traverser<T> currentTraverser;
+
         private final long end;
         private final long step;
 
         private long current;
 
-        RangeTraverser(long start, long end, long step) {
+        RangeFlatmapper(long start, long end, long step, LongFunction<Traverser<T>> mapper) {
             this.current = start;
             this.end = end;
             this.step = step;
+            this.mapper = mapper;
+            this.currentTraverser = nextTraverser();
         }
 
-        <T> Traverser<T> flatMap(LongFunction<Traverser<T>> mapper) {
+        @Override
+        public T next() {
+            do {
+                T r = currentTraverser.next();
+                if (r != null) {
+                    return r;
+                }
+                currentTraverser = nextTraverser();
+            } while (currentTraverser != NULL_TRAVERSER);
+            return null;
+        }
+
+        private Traverser<T> nextTraverser() {
             if (current <= end) {
                 try {
                     return mapper.apply(current);
@@ -253,7 +263,7 @@ public final class FrameProcessors {
                     current += step;
                 }
             }
-            return null;
+            return NULL_TRAVERSER;
         }
     }
 }

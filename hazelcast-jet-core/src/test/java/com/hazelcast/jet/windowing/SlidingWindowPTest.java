@@ -42,8 +42,15 @@ public class SlidingWindowPTest {
 
     @Before
     public void before() {
-        swp = slidingWindow(1, 4, DistributedCollector.of(() -> null, (a, b) -> {}, (Long a, Long b) -> a + b, x -> x))
-                .get(1).iterator().next();
+        swp = slidingWindow(1, 4, DistributedCollector.of(
+                () -> 0L,
+                (acc, val) -> { },
+                (acc1, acc2) -> acc1 + acc2,
+                acc -> acc)
+        )
+                .get(1)
+                .iterator()
+                .next();
         outbox = new ArrayDequeOutbox(1, new int[] {101});
         swp.init(outbox, mock(Context.class));
         inbox = new ArrayDequeInbox();
@@ -60,8 +67,9 @@ public class SlidingWindowPTest {
         }
 
         // When
-        while (!inbox.isEmpty())
+        while (!inbox.isEmpty()) {
             swp.process(0, inbox);
+        }
 
         System.out.println(outbox);
 
@@ -85,9 +93,9 @@ public class SlidingWindowPTest {
         }
 
         // When
-        while (!inbox.isEmpty())
+        while (!inbox.isEmpty()) {
             swp.process(0, inbox);
-
+        }
 
         // Then
         assertEquals(frame(1, 1), pollOutbox());
@@ -111,8 +119,9 @@ public class SlidingWindowPTest {
         }
 
         // When
-        while (!inbox.isEmpty())
+        while (!inbox.isEmpty()) {
             swp.process(0, inbox);
+        }
 
         for (Object o : outbox.queueWithOrdinal(0)) {
             System.out.println(o);
@@ -142,8 +151,9 @@ public class SlidingWindowPTest {
         inbox.add(new Punctuation(51));
 
         // When
-        while (!inbox.isEmpty())
+        while (!inbox.isEmpty()) {
             swp.process(0, inbox);
+        }
 
         // Then
         assertEquals(frame(1, 1), pollOutbox());
