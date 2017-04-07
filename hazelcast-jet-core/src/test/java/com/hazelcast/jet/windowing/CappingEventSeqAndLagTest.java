@@ -25,7 +25,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.junit.Assert.assertEquals;
 
-public class PunctuationKeepersTest {
+public class CappingEventSeqAndLagTest {
 
     private static final int MAX_LULL_MS = 3;
     private long currTime;
