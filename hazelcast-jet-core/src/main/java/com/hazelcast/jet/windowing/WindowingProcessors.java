@@ -20,6 +20,7 @@ import com.hazelcast.jet.Distributed;
 import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.StreamingProcessorBase;
 import com.hazelcast.jet.Traverser;
+import com.hazelcast.jet.Traversers;
 import com.hazelcast.jet.stream.DistributedCollector;
 
 import javax.annotation.Nonnull;
@@ -36,7 +37,6 @@ import java.util.function.ToLongFunction;
 import java.util.stream.LongStream;
 
 import static com.hazelcast.jet.Traversers.traverseIterable;
-import static com.hazelcast.jet.Traversers.traverseStream;
 import static com.hazelcast.jet.Traversers.traverseWithRemoval;
 import static com.hazelcast.util.Preconditions.checkPositive;
 import static com.hazelcast.util.Preconditions.checkTrue;
@@ -172,7 +172,7 @@ public final class FrameProcessors {
      */
     public static class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
         private final NavigableMap<Long, Map<K, F>> seqToKeyToFrame = new TreeMap<>();
-        private final FlatMapper<Punctuation, Frame<K, R>> flatMapper;
+        private final FlatMapper<Punctuation, Object> flatMapper;
         private final BinaryOperator<F> combiner;
         private final Function<F, R> finisher;
         private final Supplier<F> supplier;
@@ -213,14 +213,16 @@ public final class FrameProcessors {
             return flatMapper.tryProcess(punc);
         }
 
-        private Traverser<Frame<K, R>> slideTheWindow(Punctuation punc) {
-            return traverseStream(range(nextFrameSeqToEmit, updateAndGetNextFrameSeq(punc.seq()), frameLength)
+        private Traverser<Object> slideTheWindow(Punctuation punc) {
+            return Traversers.<Object>traverseStream(
+                range(nextFrameSeqToEmit, updateAndGetNextFrameSeq(punc.seq()), frameLength)
                     .mapToObj(frameSeq -> {
                         Map<K, F> window = computeWindow(frameSeq);
                         seqToKeyToFrame.remove(frameSeq - windowLength);
                         return window.entrySet().stream()
                                      .map(e -> new Frame<>(frameSeq, e.getKey(), finisher.apply(e.getValue())));
-                    }).flatMap(identity()));
+                    }).flatMap(identity()))
+                .append(punc);
         }
 
         private long updateAndGetNextFrameSeq(long puncSeq) {

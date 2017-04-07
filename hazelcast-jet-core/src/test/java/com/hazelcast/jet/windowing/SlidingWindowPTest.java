@@ -19,14 +19,13 @@ package com.hazelcast.jet.windowing;
 import com.hazelcast.jet.Processor.Context;
 import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.stream.DistributedCollector;
-import com.hazelcast.jet.windowing.FrameProcessors.SlidingWindowP;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.util.List;
 import java.util.stream.LongStream;
 
-import static com.hazelcast.jet.windowing.FrameProcessors.slidingWindow;
+import static com.hazelcast.jet.windowing.WindowingProcessors.slidingWindow;
 import static java.util.Arrays.asList;
 import static java.util.Collections.shuffle;
 import static java.util.stream.Collectors.toList;

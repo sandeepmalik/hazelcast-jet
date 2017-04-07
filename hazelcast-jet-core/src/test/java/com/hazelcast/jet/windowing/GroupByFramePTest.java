@@ -20,7 +20,6 @@ import com.hazelcast.jet.Processor.Context;
 import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.impl.util.ArrayDequeInbox;
 import com.hazelcast.jet.stream.DistributedCollector;
-import com.hazelcast.jet.windowing.FrameProcessors.GroupByFrameP;
 import com.hazelcast.util.MutableLong;
 import org.junit.Before;
 import org.junit.Test;
@@ -41,7 +40,7 @@ public class GroupByFramePTest extends StreamingTestSupport {
 
     @Before
     public void before() {
-        processor = FrameProcessors.<Entry<Long, Long>, Long, MutableLong>groupByFrame(
+        processor = WindowingProcessors.<Entry<Long, Long>, Long, MutableLong>groupByFrame(
                 (Entry<Long, Long> x) -> KEY,
                 Entry<Long, Long>::getKey,
                 4, 0,

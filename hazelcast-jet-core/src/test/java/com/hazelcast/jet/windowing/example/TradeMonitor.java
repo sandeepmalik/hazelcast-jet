@@ -44,8 +44,8 @@ import static com.hazelcast.jet.Edge.between;
 import static com.hazelcast.jet.Partitioner.HASH_CODE;
 import static com.hazelcast.jet.Processors.readMap;
 import static com.hazelcast.jet.stream.DistributedCollectors.counting;
-import static com.hazelcast.jet.windowing.FrameProcessors.groupByFrame;
-import static com.hazelcast.jet.windowing.FrameProcessors.slidingWindow;
+import static com.hazelcast.jet.windowing.WindowingProcessors.groupByFrame;
+import static com.hazelcast.jet.windowing.WindowingProcessors.slidingWindow;
 import static java.lang.Runtime.getRuntime;
 
 public class TradeMonitor {
