@@ -161,7 +161,7 @@ public final class FrameProcessors {
         private final long frameSize;
         private final long windowSize;
 
-        private long windowEnd = Long.MIN_VALUE;
+        private long nextFrameSeqToEmit = Long.MIN_VALUE;
 
         SlidingWindowP(long frameSize, long framesPerWindow, @Nonnull DistributedCollector<K, F, R> collector) {
             checkPositive(framesPerWindow, "framesPerWindow must be positive");
@@ -186,14 +186,14 @@ public final class FrameProcessors {
 
         @Override
         protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
-            if (windowEnd == Long.MIN_VALUE && !seqToKeyToFrame.isEmpty()) {
-                windowEnd = seqToKeyToFrame.firstKey();
+            if (nextFrameSeqToEmit == Long.MIN_VALUE && !seqToKeyToFrame.isEmpty()) {
+                nextFrameSeqToEmit = seqToKeyToFrame.firstKey();
             }
             return flatMapper.tryProcess(punc);
         }
 
         private Traverser<Frame<K, R>> slideTheWindow(Punctuation punc) {
-            return flatMapRange(windowEnd, updateAndGetWindowEnd(punc), frameSize,
+            return flatMapRange(nextFrameSeqToEmit, updateAndGetNextFrameSeq(punc), frameSize,
                     frameSeq -> {
                         Map<K, F> window = computeWindow(frameSeq);
                         seqToKeyToFrame.remove(frameSeq - windowSize);
@@ -202,10 +202,13 @@ public final class FrameProcessors {
                     });
         }
 
-        private long updateAndGetWindowEnd(Punctuation punc) {
-            long delta = punc.seq() - windowEnd;
-            windowEnd += delta - delta % frameSize;
-            return windowEnd;
+        private long updateAndGetNextFrameSeq(Punctuation punc) {
+            long delta = punc.seq() - nextFrameSeqToEmit;
+            if (delta <= 0) {
+                return nextFrameSeqToEmit;
+            }
+            nextFrameSeqToEmit += delta + frameSize - delta % frameSize;
+            return nextFrameSeqToEmit;
         }
 
         private Map<K, F> computeWindow(long frameSeq) {
@@ -256,7 +259,7 @@ public final class FrameProcessors {
         }
 
         private Traverser<T> nextTraverser() {
-            if (current <= end) {
+            if (current < end) {
                 try {
                     return mapper.apply(current);
                 } finally {
