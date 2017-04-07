@@ -26,7 +26,7 @@ import com.hazelcast.jet.stream.DistributedCollector;
 import javax.annotation.Nonnull;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.SortedMap;
+import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import java.util.function.BinaryOperator;
@@ -104,7 +104,7 @@ public final class FrameProcessors {
 
     static class GroupByFrameP<T, K, F> extends StreamingProcessorBase {
 
-        final SortedMap<Long, Map<K, F>> seqToKeyToFrame = new TreeMap<>();
+        final NavigableMap<Long, Map<K, F>> seqToKeyToFrame = new TreeMap<>();
         private final ToLongFunction<? super T> extractEventSeqF;
         private final Function<? super T, K> extractKeyF;
         private final LongUnaryOperator toFrameSeqF;
@@ -127,7 +127,7 @@ public final class FrameProcessors {
             this.supplier = collector.supplier();
             this.accumulator = collector.accumulator();
             this.puncFlatMapper = flatMapper(punc ->
-                    traverseWithRemoval(seqToKeyToFrame.headMap(punc.seq()).entrySet())
+                    traverseWithRemoval(seqToKeyToFrame.headMap(punc.seq(), true).entrySet())
                     .<Object>flatMap(seqAndFrame ->
                             traverseIterable(seqAndFrame.getValue().entrySet())
                                     .map(e -> new Frame<>(seqAndFrame.getKey(), e.getKey(), e.getValue())))
@@ -153,7 +153,7 @@ public final class FrameProcessors {
     }
 
     private static class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
-        private final SortedMap<Long, Map<K, F>> seqToKeyToFrame = new TreeMap<>();
+        private final NavigableMap<Long, Map<K, F>> seqToKeyToFrame = new TreeMap<>();
         private final FlatMapper<Punctuation, Frame<K, R>> flatMapper;
         private final BinaryOperator<F> combiner;
         private final Function<F, R> finisher;
@@ -186,7 +186,10 @@ public final class FrameProcessors {
 
         @Override
         protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
-            if (nextFrameSeqToEmit == Long.MIN_VALUE && !seqToKeyToFrame.isEmpty()) {
+            if (nextFrameSeqToEmit == Long.MIN_VALUE) {
+                if (seqToKeyToFrame.isEmpty()) {
+                    return true;
+                }
                 nextFrameSeqToEmit = seqToKeyToFrame.firstKey();
             }
             return flatMapper.tryProcess(punc);
@@ -214,7 +217,7 @@ public final class FrameProcessors {
 
         private Map<K, F> computeWindow(long frameSeq) {
             Map<K, F> window = new HashMap<>();
-            for (Map<K, F> keyToFrame : seqToKeyToFrame.subMap(frameSeq - windowLength, frameSeq).values()) {
+            for (Map<K, F> keyToFrame : seqToKeyToFrame.subMap(frameSeq - windowLength, true, frameSeq, true).values()) {
                 keyToFrame.forEach((key, currAcc) ->
                         window.compute(key, (x, acc) -> combiner.apply(acc != null ? acc : supplier.get(), currAcc)));
             }
