@@ -99,24 +99,6 @@ public final class Traversers {
     }
 
     /**
-     * Returns a traverser over the given iterable. The iterator is obtained
-     * immediately. Items are removed from iterator as they are traversed.
-     */
-    @Nonnull
-    public static <T> Traverser<T> traverseWithRemoval(@Nonnull Iterable<T> iterable) {
-        Iterator<T> iterator = iterable.iterator();
-        return () -> {
-            if (!iterator.hasNext()) {
-                return null;
-            }
-            T t = iterator.next();
-            assert t != null : "Iterator returned null element";
-            iterator.remove();
-            return t;
-        };
-    }
-
-    /**
      * Returns a traverser over the given array.
      */
     @Nonnull

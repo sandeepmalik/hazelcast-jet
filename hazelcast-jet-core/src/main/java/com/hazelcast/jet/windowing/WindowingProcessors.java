@@ -17,37 +17,18 @@
 package com.hazelcast.jet.windowing;
 
 import com.hazelcast.jet.Distributed;
-import com.hazelcast.jet.Punctuation;
-import com.hazelcast.jet.StreamingProcessorBase;
-import com.hazelcast.jet.Traverser;
-import com.hazelcast.jet.Traversers;
+import com.hazelcast.jet.Distributed.Function;
+import com.hazelcast.jet.Distributed.ToLongFunction;
 import com.hazelcast.jet.stream.DistributedCollector;
 
-import javax.annotation.Nonnull;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.NavigableMap;
-import java.util.TreeMap;
-import java.util.function.BiConsumer;
-import java.util.function.BinaryOperator;
-import java.util.function.Function;
-import java.util.function.LongUnaryOperator;
-import java.util.function.Supplier;
-import java.util.function.ToLongFunction;
-import java.util.stream.LongStream;
-
-import static com.hazelcast.jet.Traversers.traverseIterable;
-import static com.hazelcast.jet.Traversers.traverseWithRemoval;
 import static com.hazelcast.util.Preconditions.checkPositive;
-import static com.hazelcast.util.Preconditions.checkTrue;
-import static java.util.function.Function.identity;
 
 /**
  * Contains factory methods for processors dealing with windowing operations.
  */
-public final class FrameProcessors {
+public final class WindowingProcessors {
 
-    private FrameProcessors() {
+    private WindowingProcessors() {
     }
 
     /**
@@ -88,9 +69,10 @@ public final class FrameProcessors {
     }
 
     /**
-     * Combines frames received from several upstream instances of
-     * {@link GroupByFrameP} into finalized frames. Combines frames into sliding
-     * windows. Applies the finisher function to produce its emitted output.
+     * Combines frames received from several upstream instances of {@link
+     * GroupByFrameP} into finalized frames. Combines finalized frames into
+     * sliding windows. Applies the finisher function to produce its emitted
+     * output.
      *
      * @param <K> type of the grouping key
      * @param <F> type of the frame
@@ -102,153 +84,34 @@ public final class FrameProcessors {
     }
 
     /**
-     * Group-by-frame processor, the first stage for sliding and tumbling
-     * windows.
+     * Aggregates events into session windows. Events and windows under
+     * different grouping keys behave independenly.
+     * <p>
+     * The functioning of this processor is easiest to explain in terms of
+     * the <em>event interval</em>: the range {@code [eventSeq, eventSeq + maxSeqGap]}.
+     * Initially an event causes a new session window to be created, covering
+     * exactly the event interval. A following event under the same key belongs
+     * to this window iff its interval overlaps it. The window is extended to
+     * cover the entire interval of the new event. The event may happen to
+     * belong to two existing windows if its interval bridges the gap between
+     * them; in that case they are combined into one.
      *
-     * @param <T> type of item
-     * @param <K> type of grouping key
-     * @param <F> type of the accumulated result in the frame
-     */
-    public static class GroupByFrameP<T, K, F> extends StreamingProcessorBase {
-        final NavigableMap<Long, Map<K, F>> seqToKeyToFrame = new TreeMap<>();
-        private final ToLongFunction<? super T> extractEventSeqF;
-        private final Function<? super T, K> extractKeyF;
-        private final LongUnaryOperator toFrameSeqF;
-        private final Supplier<F> supplier;
-        private final BiConsumer<F, ? super T> accumulator;
-        private final FlatMapper<Punctuation, Object> puncFlatMapper;
-
-        GroupByFrameP(
-                Function<? super T, K> extractKeyF,
-                ToLongFunction<? super T> extractEventSeqF,
-                long frameLength,
-                long frameOffset,
-                DistributedCollector<? super T, F, ?> collector
-        ) {
-            checkPositive(frameLength, "frameLength must be positive");
-            checkTrue(frameOffset >= 0 && frameOffset < frameLength,
-                    "frameOffset must be 0..frameLength-1");
-            this.extractKeyF = extractKeyF;
-            this.extractEventSeqF = extractEventSeqF;
-            this.toFrameSeqF = time -> time - Math.floorMod(time - frameOffset, frameLength) + frameLength;
-            this.supplier = collector.supplier();
-            this.accumulator = collector.accumulator();
-            this.puncFlatMapper = flatMapper(this::emitFrames);
-        }
-
-        @Override
-        protected boolean tryProcess0(@Nonnull Object item) {
-            T t = (T) item;
-            long eventSeq = extractEventSeqF.applyAsLong(t);
-            long frameSeq = toFrameSeqF.applyAsLong(eventSeq);
-            K key = extractKeyF.apply(t);
-            F frame = seqToKeyToFrame.computeIfAbsent(frameSeq, x -> new HashMap<>())
-                                     .computeIfAbsent(key, x -> supplier.get());
-            accumulator.accept(frame, t);
-            return true;
-        }
-
-        @Override
-        protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
-            return puncFlatMapper.tryProcess(punc);
-        }
-
-        private Traverser<Object> emitFrames(Punctuation punc) {
-            return traverseWithRemoval(seqToKeyToFrame.headMap(punc.seq(), true).entrySet())
-                    .<Object>flatMap(seqAndFrame ->
-                            traverseIterable(seqAndFrame.getValue().entrySet())
-                                    .map(e -> new Frame<>(seqAndFrame.getKey(), e.getKey(), e.getValue())))
-                    .append(punc);
-        }
-    }
-
-    /**
-     * Sliding window processor, second stage that receives input from
-     * {@link GroupByFrameP}.
+     * @param maxSeqGap        maximum gap between consecutive events in the same session window
+     * @param extractEventSeqF function to extract the event seq from the event item
+     * @param extractKeyF      function to extract the grouping key from the event iem
+     * @param collector        contains aggregation logic
      *
-     * @param <K> type of key
-     * @param <F> type of the accumulated value in the frame
-     * @param <R> type of the final result
+     * @param <T> type of stream event
+     * @param <K> type of event's grouping key
+     * @param <A> type of the container of accumulated value
+     * @param <R> type of the result value for a session window
      */
-    public static class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
-        private final NavigableMap<Long, Map<K, F>> seqToKeyToFrame = new TreeMap<>();
-        private final FlatMapper<Punctuation, Object> flatMapper;
-        private final BinaryOperator<F> combiner;
-        private final Function<F, R> finisher;
-        private final Supplier<F> supplier;
-        private final long frameLength;
-        private final long windowLength;
-
-        private long nextFrameSeqToEmit = Long.MIN_VALUE;
-
-        SlidingWindowP(long frameLength, long framesPerWindow, @Nonnull DistributedCollector<K, F, R> collector) {
-            checkPositive(frameLength, "frameLength must be positive");
-            checkPositive(framesPerWindow, "framesPerWindow must be positive");
-            this.frameLength = frameLength;
-            this.windowLength = frameLength * framesPerWindow;
-            this.supplier = collector.supplier();
-            this.combiner = collector.combiner();
-            this.finisher = collector.finisher();
-            this.flatMapper = flatMapper(this::slideTheWindow);
-        }
-
-        @Override
-        protected boolean tryProcess0(@Nonnull Object item) {
-            final Frame<K, F> e = (Frame) item;
-            final Long frameSeq = e.getSeq();
-            final F frame = e.getValue();
-            seqToKeyToFrame.computeIfAbsent(frameSeq, x -> new HashMap<>())
-                           .merge(e.getKey(), frame, combiner);
-            return true;
-        }
-
-        @Override
-        protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
-            if (nextFrameSeqToEmit == Long.MIN_VALUE) {
-                if (seqToKeyToFrame.isEmpty()) {
-                    return true;
-                }
-                nextFrameSeqToEmit = seqToKeyToFrame.firstKey();
-            }
-            return flatMapper.tryProcess(punc);
-        }
-
-        private Traverser<Object> slideTheWindow(Punctuation punc) {
-            return Traversers.<Object>traverseStream(
-                range(nextFrameSeqToEmit, updateAndGetNextFrameSeq(punc.seq()), frameLength)
-                    .mapToObj(frameSeq -> {
-                        Map<K, F> window = computeWindow(frameSeq);
-                        seqToKeyToFrame.remove(frameSeq - windowLength);
-                        return window.entrySet().stream()
-                                     .map(e -> new Frame<>(frameSeq, e.getKey(), finisher.apply(e.getValue())));
-                    }).flatMap(identity()))
-                .append(punc);
-        }
-
-        private long updateAndGetNextFrameSeq(long puncSeq) {
-            long deltaToPunc = puncSeq - nextFrameSeqToEmit;
-            if (deltaToPunc < 0) {
-                return nextFrameSeqToEmit;
-            }
-            long frameSeqDelta = deltaToPunc - deltaToPunc % frameLength;
-            nextFrameSeqToEmit += frameSeqDelta + frameLength;
-            return nextFrameSeqToEmit;
-        }
-
-        private Map<K, F> computeWindow(long frameSeq) {
-            Map<K, F> window = new HashMap<>();
-            Map<Long, Map<K, F>> frames = seqToKeyToFrame.subMap(frameSeq - windowLength, false, frameSeq, true);
-            for (Map<K, F> keyToFrame : frames.values()) {
-                keyToFrame.forEach((key, currAcc) ->
-                        window.compute(key, (x, acc) -> combiner.apply(acc != null ? acc : supplier.get(), currAcc)));
-            }
-            return window;
-        }
-
-        private static LongStream range(long start, long end, long step) {
-            return start >= end
-                    ? LongStream.empty()
-                    : LongStream.iterate(start, n -> n + step).limit(1 + (end - start - 1) / step);
-        }
+    public static <T, K, A, R> Distributed.Supplier<SessionWindowP<T, K, A, R>> sessionWindow(
+            long maxSeqGap,
+            ToLongFunction<? super T> extractEventSeqF,
+            Function<? super T, K> extractKeyF,
+            DistributedCollector<? super T, A, R> collector
+    ) {
+        return () -> new SessionWindowP<>(maxSeqGap, extractEventSeqF, extractKeyF, collector);
     }
 }
