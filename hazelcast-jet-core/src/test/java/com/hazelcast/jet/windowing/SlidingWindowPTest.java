@@ -47,10 +47,7 @@ public class SlidingWindowPTest {
                 (acc, val) -> { },
                 (acc1, acc2) -> acc1 + acc2,
                 acc -> acc)
-        )
-                .get(1)
-                .iterator()
-                .next();
+        ).get(1).iterator().next();
         outbox = new ArrayDequeOutbox(1, new int[] {101});
         swp.init(outbox, mock(Context.class));
         inbox = new ArrayDequeInbox();
@@ -146,7 +143,6 @@ public class SlidingWindowPTest {
         inbox.add(frame(10, 1));
         inbox.add(frame(11, 1));
         inbox.add(new Punctuation(50));
-        inbox.add(frame(49, 2)); // will be dropped
         inbox.add(frame(50, 3));
         inbox.add(new Punctuation(51));
 

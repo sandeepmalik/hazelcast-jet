@@ -158,16 +158,16 @@ public final class FrameProcessors {
         private final BinaryOperator<F> combiner;
         private final Function<F, R> finisher;
         private final Supplier<F> supplier;
-        private final long frameSize;
-        private final long windowSize;
+        private final long frameLength;
+        private final long windowLength;
 
         private long nextFrameSeqToEmit = Long.MIN_VALUE;
 
-        SlidingWindowP(long frameSize, long framesPerWindow, @Nonnull DistributedCollector<K, F, R> collector) {
+        SlidingWindowP(long frameLength, long framesPerWindow, @Nonnull DistributedCollector<K, F, R> collector) {
+            checkPositive(frameLength, "frameLength must be positive");
             checkPositive(framesPerWindow, "framesPerWindow must be positive");
-            checkPositive(frameSize, "frameLength must be positive");
-            this.frameSize = frameSize;
-            this.windowSize = frameSize * framesPerWindow;
+            this.frameLength = frameLength;
+            this.windowLength = frameLength * framesPerWindow;
             this.supplier = collector.supplier();
             this.combiner = collector.combiner();
             this.finisher = collector.finisher();
@@ -193,27 +193,28 @@ public final class FrameProcessors {
         }
 
         private Traverser<Frame<K, R>> slideTheWindow(Punctuation punc) {
-            return flatMapRange(nextFrameSeqToEmit, updateAndGetNextFrameSeq(punc), frameSize,
+            return flatMapRange(nextFrameSeqToEmit, updateAndGetNextFrameSeq(punc.seq()), frameLength,
                     frameSeq -> {
                         Map<K, F> window = computeWindow(frameSeq);
-                        seqToKeyToFrame.remove(frameSeq - windowSize);
+                        seqToKeyToFrame.remove(frameSeq - windowLength);
                         return traverseIterable(window.entrySet())
                                 .map(e -> new Frame<>(frameSeq, e.getKey(), finisher.apply(e.getValue())));
                     });
         }
 
-        private long updateAndGetNextFrameSeq(Punctuation punc) {
-            long delta = punc.seq() - nextFrameSeqToEmit;
-            if (delta <= 0) {
+        private long updateAndGetNextFrameSeq(long puncSeq) {
+            long deltaToPunc = puncSeq - nextFrameSeqToEmit;
+            if (deltaToPunc < 0) {
                 return nextFrameSeqToEmit;
             }
-            nextFrameSeqToEmit += delta + frameSize - delta % frameSize;
+            long frameSeqDelta = deltaToPunc - deltaToPunc % frameLength;
+            nextFrameSeqToEmit += frameSeqDelta + frameLength;
             return nextFrameSeqToEmit;
         }
 
         private Map<K, F> computeWindow(long frameSeq) {
             Map<K, F> window = new HashMap<>();
-            for (Map<K, F> keyToFrame : seqToKeyToFrame.subMap(frameSeq - windowSize, frameSeq).values()) {
+            for (Map<K, F> keyToFrame : seqToKeyToFrame.subMap(frameSeq - windowLength, frameSeq).values()) {
                 keyToFrame.forEach((key, currAcc) ->
                         window.compute(key, (x, acc) -> combiner.apply(acc != null ? acc : supplier.get(), currAcc)));
             }
@@ -231,11 +232,10 @@ public final class FrameProcessors {
         private static final Traverser NULL_TRAVERSER = newNullTraverser();
 
         private final LongFunction<Traverser<T>> mapper;
-        private Traverser<T> currentTraverser;
-
-        private final long end;
         private final long step;
+        private final long end;
 
+        private Traverser<T> currentTraverser;
         private long current;
 
         RangeFlatmapper(long start, long end, long step, LongFunction<Traverser<T>> mapper) {
