@@ -37,49 +37,6 @@ public class InsertPunctuationPTest {
     private InsertPunctuationP<Item> p;
     private ArrayDequeOutbox outbox;
 
-    class Item {
-        final long time;
-
-        Item(long time) {
-            this.time = time;
-        }
-
-        public long getTime() {
-            return time;
-        }
-
-        @Override
-        public String toString() {
-            return "Item{time=" + time + '}';
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            return this == o || o instanceof Item && this.time == ((Item) o).time;
-        }
-
-        @Override
-        public int hashCode() {
-            return (int) (time ^ (time >>> 32));
-        }
-    }
-
-    private class MyClock {
-        long time;
-
-        public MyClock(long time) {
-            this.time = time;
-        }
-
-        long time() {
-            return time;
-        }
-
-        void advance(long by) {
-            time += by;
-        }
-    }
-
     @Before
     public void setUp() {
         clock = new MyClock(100);
@@ -157,7 +114,50 @@ public class InsertPunctuationPTest {
             actual.add(o.toString());
     }
 
-    private String toString(List<String> actual) {
+    private static String toString(List<String> actual) {
         return actual.stream().collect(Collectors.joining("\n"));
+    }
+
+    private static class Item {
+        final long time;
+
+        Item(long time) {
+            this.time = time;
+        }
+
+        public long getTime() {
+            return time;
+        }
+
+        @Override
+        public String toString() {
+            return "Item{time=" + time + '}';
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return this == o || o instanceof Item && this.time == ((Item) o).time;
+        }
+
+        @Override
+        public int hashCode() {
+            return (int) (time ^ (time >>> 32));
+        }
+    }
+
+    private static class MyClock {
+        long time;
+
+        public MyClock(long time) {
+            this.time = time;
+        }
+
+        long time() {
+            return time;
+        }
+
+        void advance(long by) {
+            time += by;
+        }
     }
 }

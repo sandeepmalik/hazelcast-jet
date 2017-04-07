@@ -16,12 +16,10 @@
 
 package com.hazelcast.jet.windowing;
 
-import com.hazelcast.jet.Processor;
 import com.hazelcast.jet.Processor.Context;
 import com.hazelcast.jet.Punctuation;
-import com.hazelcast.jet.impl.util.ArrayDequeInbox;
-import com.hazelcast.jet.impl.util.ArrayDequeOutbox;
 import com.hazelcast.jet.stream.DistributedCollector;
+import com.hazelcast.jet.windowing.FrameProcessors.SlidingWindowP;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -29,78 +27,90 @@ import java.util.List;
 import java.util.stream.LongStream;
 
 import static com.hazelcast.jet.windowing.FrameProcessors.slidingWindow;
+import static java.util.Arrays.asList;
 import static java.util.Collections.shuffle;
 import static java.util.stream.Collectors.toList;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
-public class SlidingWindowPTest {
+public class SlidingWindowPTest extends StreamingTestSupport {
 
-    private Processor swp;
-    private ArrayDequeInbox inbox;
-    private ArrayDequeOutbox outbox;
+    private SlidingWindowP<Object, Long, Long> processor;
 
     @Before
     public void before() {
-        swp = slidingWindow(1, 4, DistributedCollector.of(
+        processor = slidingWindow(1, 4, DistributedCollector.of(
                 () -> 0L,
                 (acc, val) -> { },
                 (acc1, acc2) -> acc1 + acc2,
                 acc -> acc)
-        ).get(1).iterator().next();
-        outbox = new ArrayDequeOutbox(1, new int[] {101});
-        swp.init(outbox, mock(Context.class));
-        inbox = new ArrayDequeInbox();
+        ).get();
+        processor.init(outbox, mock(Context.class));
     }
 
     @Test
     public void when_receiveAscendingSeqs_then_emitAscending() {
         // Given
-        for (long seq = 0; seq <= 4; seq++) {
-            inbox.add(frame(seq, 1));
-        }
-        for (long seq = 1; seq <= 5; seq++) {
-            inbox.add(new Punctuation(seq));
-        }
+        inbox.addAll(asList(
+                frame(0, 1),
+                frame(1, 1),
+                frame(2, 1),
+                frame(3, 1),
+                frame(4, 1),
+                punc(1),
+                punc(2),
+                punc(3),
+                punc(4),
+                punc(5)
+        ));
 
         // When
-        while (!inbox.isEmpty()) {
-            swp.process(0, inbox);
-        }
-
-        System.out.println(outbox);
+        processor.process(0, inbox);
+        assertTrue(inbox.isEmpty());
 
         // Then
-        assertEquals(frame(1, 1), pollOutbox());
-        assertEquals(frame(2, 2), pollOutbox());
-        assertEquals(frame(3, 3), pollOutbox());
-        assertEquals(frame(4, 4), pollOutbox());
-        assertEquals(frame(5, 4), pollOutbox());
-        assertEquals(null, pollOutbox());
+        assertOutbox(asList(
+                frame(0, 1),
+                frame(1, 2),
+                frame(2, 3),
+                frame(3, 4),
+                frame(4, 4),
+                frame(5, 3),
+                null
+        ));
     }
 
     @Test
     public void when_receiveDescendingSeqs_then_emitAscending() {
         // Given
-        for (long seq = 4; seq >= 0; seq--) {
-            inbox.add(frame(seq, 1));
-        }
-        for (long seq = 1; seq <= 5; seq++) {
-            inbox.add(new Punctuation(seq));
-        }
+        inbox.addAll(asList(
+                frame(4, 1),
+                frame(3, 1),
+                frame(2, 1),
+                frame(1, 1),
+                frame(0, 1),
+                punc(1),
+                punc(2),
+                punc(3),
+                punc(4),
+                punc(5)
+        ));
 
         // When
-        while (!inbox.isEmpty()) {
-            swp.process(0, inbox);
-        }
+        processor.process(0, inbox);
+        assertTrue(inbox.isEmpty());
 
         // Then
-        assertEquals(frame(1, 1), pollOutbox());
-        assertEquals(frame(2, 2), pollOutbox());
-        assertEquals(frame(3, 3), pollOutbox());
-        assertEquals(frame(4, 4), pollOutbox());
-        assertEquals(frame(5, 4), pollOutbox());
-        assertEquals(null, pollOutbox());
+        assertOutbox(asList(
+                frame(0, 1),
+                frame(1, 2),
+                frame(2, 3),
+                frame(3, 4),
+                frame(4, 4),
+                frame(5, 3),
+                null
+        ));
     }
 
     @Test
@@ -111,65 +121,65 @@ public class SlidingWindowPTest {
         for (long seq : frameSeqsToAdd) {
             inbox.add(frame(seq, 1));
         }
-        for (long i = 1; i <= 100; i++) {
+        for (long i = 1; i <= 105; i++) {
             inbox.add(new Punctuation(i));
         }
 
         // When
-        while (!inbox.isEmpty()) {
-            swp.process(0, inbox);
-        }
-
-        for (Object o : outbox.queueWithOrdinal(0)) {
-            System.out.println(o);
-        }
+        processor.process(0, inbox);
+        assertTrue(inbox.isEmpty());
 
         // Then
-        assertEquals(frame(1, 1), pollOutbox());
-        assertEquals(frame(2, 2), pollOutbox());
-        assertEquals(frame(3, 3), pollOutbox());
-        assertEquals(frame(4, 4), pollOutbox());
-        for (long seq = 5; seq <= 100; seq++) {
+        assertOutbox(asList(
+                frame(0, 1),
+                frame(1, 2),
+                frame(2, 3),
+                frame(3, 4)
+        ));
+        for (long seq = 4; seq < 100; seq++) {
             assertEquals(frame(seq, 4), pollOutbox());
-
         }
+        assertOutbox(asList(
+                frame(100, 3),
+                frame(101, 2),
+                frame(102, 1),
+                null
+        ));
         assertEquals(null, pollOutbox());
     }
 
     @Test
     public void when_receiveWithGaps_then_emitAscending() {
         // Given
-        inbox.add(frame(0, 1));
-        inbox.add(frame(10, 1));
-        inbox.add(frame(11, 1));
-        inbox.add(new Punctuation(50));
-        inbox.add(frame(50, 3));
-        inbox.add(new Punctuation(51));
+        inbox.addAll(asList(
+                frame(0, 1),
+                frame(10, 1),
+                frame(11, 1),
+                new Punctuation(50),
+                frame(50, 3),
+                new Punctuation(51)
+        ));
 
         // When
-        while (!inbox.isEmpty()) {
-            swp.process(0, inbox);
-        }
+        processor.process(0, inbox);
+        assertTrue(inbox.isEmpty());
 
         // Then
-        assertEquals(frame(1, 1), pollOutbox());
-        assertEquals(frame(2, 1), pollOutbox());
-        assertEquals(frame(3, 1), pollOutbox());
-        assertEquals(frame(4, 1), pollOutbox());
+        assertOutbox(asList(
+                frame(0, 1),
+                frame(1, 1),
+                frame(2, 1),
+                frame(3, 1),
 
-        assertEquals(frame(11, 1), pollOutbox());
-        assertEquals(frame(12, 2), pollOutbox());
-        assertEquals(frame(13, 2), pollOutbox());
-        assertEquals(frame(14, 2), pollOutbox());
-        assertEquals(frame(15, 1), pollOutbox());
+                frame(10, 1),
+                frame(11, 2),
+                frame(12, 2),
+                frame(13, 2),
+                frame(14, 1),
 
-        assertEquals(frame(51, 3), pollOutbox());
-
-        assertEquals(null, pollOutbox());
-    }
-
-    private Object pollOutbox() {
-        return outbox.queueWithOrdinal(0).poll();
+                frame(51, 3),
+                null
+        ));
     }
 
     private static Frame<Long, Long> frame(long seq, long value) {

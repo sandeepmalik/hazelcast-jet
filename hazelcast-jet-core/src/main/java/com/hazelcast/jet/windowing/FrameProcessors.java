@@ -17,7 +17,6 @@
 package com.hazelcast.jet.windowing;
 
 import com.hazelcast.jet.Distributed;
-import com.hazelcast.jet.ProcessorSupplier;
 import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.StreamingProcessorBase;
 import com.hazelcast.jet.Traverser;
@@ -31,16 +30,17 @@ import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import java.util.function.BinaryOperator;
 import java.util.function.Function;
-import java.util.function.LongFunction;
 import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
+import java.util.stream.LongStream;
 
-import static com.hazelcast.jet.Traversers.newNullTraverser;
 import static com.hazelcast.jet.Traversers.traverseIterable;
+import static com.hazelcast.jet.Traversers.traverseStream;
 import static com.hazelcast.jet.Traversers.traverseWithRemoval;
 import static com.hazelcast.util.Preconditions.checkPositive;
 import static com.hazelcast.util.Preconditions.checkTrue;
+import static java.util.function.Function.identity;
 
 /**
  * Contains factory methods for processors dealing with windowing operations.
@@ -62,15 +62,14 @@ public final class FrameProcessors {
      * @param <K> type of key returned from {@code extractKeyF}
      * @param <F> type of frame returned from {@code sc.supplier()}
      */
-    public static <T, K, F> ProcessorSupplier groupByFrame(
+    public static <T, K, F> Distributed.Supplier<GroupByFrameP<T, K, F>> groupByFrame(
             Distributed.Function<? super T, K> extractKeyF,
             Distributed.ToLongFunction<? super T> extractTimestampF,
             long frameLength,
             long frameOffset,
             DistributedCollector<T, F, ?> collector
     ) {
-        return ProcessorSupplier.of(() -> new GroupByFrameP<>(
-                extractKeyF, extractTimestampF, frameLength, frameOffset, collector));
+        return () -> new GroupByFrameP<>(extractKeyF, extractTimestampF, frameLength, frameOffset, collector);
     }
 
     /**
@@ -79,7 +78,7 @@ public final class FrameProcessors {
      * groupByFrame(extractKeyF, extractTimeStampF, frameLength, frameOffset, collector)}
      * which doesn't group by key.
      */
-    public static <T, F> ProcessorSupplier groupByFrame(
+    public static <T, F> Distributed.Supplier<GroupByFrameP<T, String, F>> groupByFrame(
             Distributed.ToLongFunction<? super T> extractTimestampF,
             long frameLength,
             long frameOffset,
@@ -97,13 +96,20 @@ public final class FrameProcessors {
      * @param <F> type of the frame
      * @param <R> type of the result derived from a frame
      */
-    public static <K, F, R> ProcessorSupplier slidingWindow(
+    public static <K, F, R> Distributed.Supplier<SlidingWindowP<K, F, R>> slidingWindow(
             long frameLength, long framesPerWindow, DistributedCollector<K, F, R> collector) {
-        return ProcessorSupplier.of(() -> new SlidingWindowP<>(frameLength, framesPerWindow, collector));
+        return () -> new SlidingWindowP<>(frameLength, framesPerWindow, collector);
     }
 
-    static class GroupByFrameP<T, K, F> extends StreamingProcessorBase {
-
+    /**
+     * Group-by-frame processor, the first stage for sliding and tumbling
+     * windows.
+     *
+     * @param <T> type of item
+     * @param <K> type of grouping key
+     * @param <F> type of the accumulated result in the frame
+     */
+    public static class GroupByFrameP<T, K, F> extends StreamingProcessorBase {
         final NavigableMap<Long, Map<K, F>> seqToKeyToFrame = new TreeMap<>();
         private final ToLongFunction<? super T> extractEventSeqF;
         private final Function<? super T, K> extractKeyF;
@@ -119,19 +125,15 @@ public final class FrameProcessors {
                 long frameOffset,
                 DistributedCollector<? super T, F, ?> collector
         ) {
-            checkPositive(frameLength, "frameLength must be > 0");
-            checkTrue(frameOffset < frameLength && frameOffset >= 0, "frameOffset must be 0..frameLength-1");
+            checkPositive(frameLength, "frameLength must be positive");
+            checkTrue(frameOffset >= 0 && frameOffset < frameLength,
+                    "frameOffset must be 0..frameLength-1");
             this.extractKeyF = extractKeyF;
             this.extractEventSeqF = extractEventSeqF;
             this.toFrameSeqF = time -> time - Math.floorMod(time - frameOffset, frameLength) + frameLength;
             this.supplier = collector.supplier();
             this.accumulator = collector.accumulator();
-            this.puncFlatMapper = flatMapper(punc ->
-                    traverseWithRemoval(seqToKeyToFrame.headMap(punc.seq(), true).entrySet())
-                    .<Object>flatMap(seqAndFrame ->
-                            traverseIterable(seqAndFrame.getValue().entrySet())
-                                    .map(e -> new Frame<>(seqAndFrame.getKey(), e.getKey(), e.getValue())))
-                            .append(punc));
+            this.puncFlatMapper = flatMapper(this::emitFrames);
         }
 
         @Override
@@ -150,9 +152,25 @@ public final class FrameProcessors {
         protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
             return puncFlatMapper.tryProcess(punc);
         }
+
+        private Traverser<Object> emitFrames(Punctuation punc) {
+            return traverseWithRemoval(seqToKeyToFrame.headMap(punc.seq(), true).entrySet())
+                    .<Object>flatMap(seqAndFrame ->
+                            traverseIterable(seqAndFrame.getValue().entrySet())
+                                    .map(e -> new Frame<>(seqAndFrame.getKey(), e.getKey(), e.getValue())))
+                    .append(punc);
+        }
     }
 
-    private static class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
+    /**
+     * Sliding window processor, second stage that receives input from
+     * {@link GroupByFrameP}.
+     *
+     * @param <K> type of key
+     * @param <F> type of the accumulated value in the frame
+     * @param <R> type of the final result
+     */
+    public static class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
         private final NavigableMap<Long, Map<K, F>> seqToKeyToFrame = new TreeMap<>();
         private final FlatMapper<Punctuation, Frame<K, R>> flatMapper;
         private final BinaryOperator<F> combiner;
@@ -180,7 +198,7 @@ public final class FrameProcessors {
             final Long frameSeq = e.getSeq();
             final F frame = e.getValue();
             seqToKeyToFrame.computeIfAbsent(frameSeq, x -> new HashMap<>())
-                        .merge(e.getKey(), frame, combiner);
+                           .merge(e.getKey(), frame, combiner);
             return true;
         }
 
@@ -196,13 +214,13 @@ public final class FrameProcessors {
         }
 
         private Traverser<Frame<K, R>> slideTheWindow(Punctuation punc) {
-            return flatMapRange(nextFrameSeqToEmit, updateAndGetNextFrameSeq(punc.seq()), frameLength,
-                    frameSeq -> {
+            return traverseStream(range(nextFrameSeqToEmit, updateAndGetNextFrameSeq(punc.seq()), frameLength)
+                    .mapToObj(frameSeq -> {
                         Map<K, F> window = computeWindow(frameSeq);
                         seqToKeyToFrame.remove(frameSeq - windowLength);
-                        return traverseIterable(window.entrySet())
-                                .map(e -> new Frame<>(frameSeq, e.getKey(), finisher.apply(e.getValue())));
-                    });
+                        return window.entrySet().stream()
+                                     .map(e -> new Frame<>(frameSeq, e.getKey(), finisher.apply(e.getValue())));
+                    }).flatMap(identity()));
         }
 
         private long updateAndGetNextFrameSeq(long puncSeq) {
@@ -217,59 +235,18 @@ public final class FrameProcessors {
 
         private Map<K, F> computeWindow(long frameSeq) {
             Map<K, F> window = new HashMap<>();
-            for (Map<K, F> keyToFrame : seqToKeyToFrame.subMap(frameSeq - windowLength, true, frameSeq, true).values()) {
+            Map<Long, Map<K, F>> frames = seqToKeyToFrame.subMap(frameSeq - windowLength, false, frameSeq, true);
+            for (Map<K, F> keyToFrame : frames.values()) {
                 keyToFrame.forEach((key, currAcc) ->
                         window.compute(key, (x, acc) -> combiner.apply(acc != null ? acc : supplier.get(), currAcc)));
             }
             return window;
         }
-    }
 
-    private static <T> RangeFlatmapper<T> flatMapRange(
-            long start, long end, long step, LongFunction<Traverser<T>> mapper
-    ) {
-        return new RangeFlatmapper<>(start, end, step, mapper);
-    }
-
-    private static final class RangeFlatmapper<T> implements Traverser<T> {
-        private static final Traverser NULL_TRAVERSER = newNullTraverser();
-
-        private final LongFunction<Traverser<T>> mapper;
-        private final long step;
-        private final long end;
-
-        private Traverser<T> currentTraverser;
-        private long current;
-
-        RangeFlatmapper(long start, long end, long step, LongFunction<Traverser<T>> mapper) {
-            this.current = start;
-            this.end = end;
-            this.step = step;
-            this.mapper = mapper;
-            this.currentTraverser = nextTraverser();
-        }
-
-        @Override
-        public T next() {
-            do {
-                T r = currentTraverser.next();
-                if (r != null) {
-                    return r;
-                }
-                currentTraverser = nextTraverser();
-            } while (currentTraverser != NULL_TRAVERSER);
-            return null;
-        }
-
-        private Traverser<T> nextTraverser() {
-            if (current < end) {
-                try {
-                    return mapper.apply(current);
-                } finally {
-                    current += step;
-                }
-            }
-            return NULL_TRAVERSER;
+        private static LongStream range(long start, long end, long step) {
+            return start >= end
+                    ? LongStream.empty()
+                    : LongStream.iterate(start, n -> n + step).limit(1 + (end - start - 1) / step);
         }
     }
 }

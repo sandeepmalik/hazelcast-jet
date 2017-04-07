@@ -18,8 +18,6 @@ package com.hazelcast.jet.windowing;
 
 import com.hazelcast.jet.Processor;
 import com.hazelcast.jet.Punctuation;
-import com.hazelcast.jet.impl.util.ArrayDequeInbox;
-import com.hazelcast.jet.impl.util.ArrayDequeOutbox;
 import com.hazelcast.jet.stream.DistributedCollector;
 import com.hazelcast.util.MutableLong;
 import org.junit.Before;
@@ -46,17 +44,14 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
-public class SessionWindowPTest {
+public class SessionWindowPTest extends StreamingTestSupport {
+
     private static final int MAX_SEQ_GAP = 10;
-    private SessionWindowP swp;
-    private ArrayDequeInbox inbox;
-    private ArrayDequeOutbox outbox;
+    private SessionWindowP<Entry<String, Long>, String, MutableLong, Long> processor;
 
     @Before
     public void before() {
-        inbox = new ArrayDequeInbox();
-        outbox = new ArrayDequeOutbox(1, new int[] {100});
-        swp = new SessionWindowP<Entry<String, Long>, String, MutableLong, Long>(
+        processor = new SessionWindowP<>(
                 MAX_SEQ_GAP,
                 Entry::getValue,
                 entryKey(),
@@ -66,7 +61,7 @@ public class SessionWindowPTest {
                         (a, b) -> MutableLong.valueOf(a.value + b.value),
                         a -> a.value
                 ));
-        swp.init(outbox, mock(Processor.Context.class));
+        processor.init(outbox, mock(Processor.Context.class));
     }
 
     @Test
@@ -112,7 +107,7 @@ public class SessionWindowPTest {
         inbox.add(new Punctuation(100));
 
         // When
-        swp.process(0, inbox);
+        processor.process(0, inbox);
         Set<Object> actualSessions = range(0, expectedSessions.size())
                 .mapToObj(x -> pollOutbox())
                 .collect(toSet());
@@ -122,8 +117,8 @@ public class SessionWindowPTest {
             assertEquals(expectedSessions, actualSessions);
             assertNull(pollOutbox());
             // Check against memory leaks
-            assertTrue("keyToWindows not empty", swp.keyToWindows.isEmpty());
-            assertTrue("deadlineToKeys not empty", swp.deadlineToKeys.isEmpty());
+            assertTrue("keyToWindows not empty", processor.keyToWindows.isEmpty());
+            assertTrue("deadlineToKeys not empty", processor.deadlineToKeys.isEmpty());
         } catch (AssertionError e) {
             System.err.println("Tested with events: " + evs);
             throw e;
@@ -152,13 +147,13 @@ public class SessionWindowPTest {
         for (long idx = 0; idx < eventsPerKey; idx++) {
             long eventSeqBase = idx * eventSeqStep;
             for (long key = (eventSeqBase / MAX_SEQ_GAP) % 2; key < keyCount; key += 2) {
-                while (!swp.tryProcess0(entry(key, eventSeqBase + rnd.nextInt(spread))));
-                while (!swp.tryProcess0(entry(key, eventSeqBase + rnd.nextInt(spread))));
+                while (!processor.tryProcess0(entry(key, eventSeqBase + rnd.nextInt(spread))));
+                while (!processor.tryProcess0(entry(key, eventSeqBase + rnd.nextInt(spread))));
             }
             if (idx % puncInterval == 0) {
                 Punctuation punc = new Punctuation(eventSeqBase - puncLag);
                 int winCount = 0;
-                while (!swp.tryProcessPunc0(punc)) {
+                while (!processor.tryProcessPunc0(punc)) {
                     while (pollOutbox() != null) winCount++;
                 }
                 while (pollOutbox() != null) winCount++;
@@ -167,10 +162,6 @@ public class SessionWindowPTest {
         }
         long took = System.nanoTime() - start;
         System.out.format("%nThroughput %,3d events/second%n", SECONDS.toNanos(1) * eventCount / took);
-    }
-
-    private Object pollOutbox() {
-        return outbox.queueWithOrdinal(0).poll();
     }
 
     private static List<Entry<String, Long>> eventsWithKey(String key) {
