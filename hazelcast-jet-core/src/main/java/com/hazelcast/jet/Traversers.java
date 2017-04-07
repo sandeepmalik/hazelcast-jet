@@ -34,6 +34,17 @@ public final class Traversers {
     }
 
     /**
+     * Returns an empty traverser equivalent to {@code () -> null}, but with
+     * guaranteed unique identity. Such a traverser is useful in a <em>null
+     * object</em> pattern, which relies on identity checks with {@code ==}
+     * against a private object.
+     */
+    @Nonnull
+    public static <T> Traverser<T> newNullTraverser() {
+        return new NullTraverser<T>();
+    }
+
+    /**
      * Returns a simple adapter from {@code Iterator} to {@code Traverser}. The
      * iterator must return non-{@code null} items. Each time its {@code next()}
      * method is called, the traverser will take another item from the iterator
@@ -181,6 +192,13 @@ public final class Traversers {
         @Override
         public T next() {
             return i < array.length && i >= 0 ? array[i++] : null;
+        }
+    }
+
+    private static final class NullTraverser<T> implements Traverser<T> {
+        @Override
+        public T next() {
+            return null;
         }
     }
 }
