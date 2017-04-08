@@ -21,7 +21,7 @@ import com.hazelcast.jet.Distributed.Function;
 import com.hazelcast.jet.Distributed.ToLongFunction;
 import com.hazelcast.jet.stream.DistributedCollector;
 
-import static com.hazelcast.util.Preconditions.checkPositive;
+import javax.annotation.Nonnull;
 
 /**
  * Contains factory methods for processors dealing with windowing operations.
@@ -29,6 +29,39 @@ import static com.hazelcast.util.Preconditions.checkPositive;
 public final class WindowingProcessors {
 
     private WindowingProcessors() {
+    }
+
+    /**
+     * A processor that inserts punctuation into a data stream. A punctuation
+     * item contains a {@code puncSeq} value with this meaning: "there will be
+     * no more items in this stream with {@code eventSeq < puncSeq}". The value
+     * of punctuation is determined by a separate strategy object of type
+     * {@link PunctuationKeeper}.
+     * <p>
+     * Since eagerly emitting punctuation every time a new top {@code eventSeq}
+     * is observed would cause too much overhead, there is throttling that skips
+     * some opportunities to emit punctuation. We shall therefore distinguish
+     * between the <em>ideal punctuation</em> and the <em>emitted punctuation</em>.
+     * There are two triggers that will cause a new punctuation to be emitted:
+     * <ol><li>
+     *     The difference between the ideal and the last emitted punctuation: when it
+     *     exceeds the configured {@code eventSeqThrottle}, a new punctuation is
+     *     emitted.
+     * </li><li>
+     *     The difference between the current time and the time the last punctuation
+     *     was emitted: when it exceeds the configured {@code timeThrottle}, and if the
+     *     current ideal punctuation is greater than the emitted punctuation, a new
+     *     punctuation will be emitted.
+     * </li></ol>
+     * @param <T> the type of stream item
+     */
+    public static <T> Distributed.Supplier<InsertPunctuationP<T>> insertPunctuation(
+            @Nonnull ToLongFunction<T> extractEventSeqF,
+            @Nonnull PunctuationKeeper punctuationKeeper,
+            long eventSeqThrottle,
+            long timeThrottleMs
+    ) {
+        return () -> new InsertPunctuationP<>(extractEventSeqF, punctuationKeeper, eventSeqThrottle, timeThrottleMs);
     }
 
     /**

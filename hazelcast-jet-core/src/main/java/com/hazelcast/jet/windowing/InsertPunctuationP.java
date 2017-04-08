@@ -27,27 +27,11 @@ import static com.hazelcast.util.Preconditions.checkNotNegative;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
- * A processor that inserts punctuation into a data stream. A punctuation
- * item contains a {@code puncSeq} value with this meaning: "there will be
- * no more items in this stream with {@code eventSeq < puncSeq}". The value
- * of punctuation is determined by a separate strategy object of type
- * {@link PunctuationKeeper}.
- * <p>
- * Since eagerly emitting punctuation every time a new top {@code eventSeq}
- * is observed would cause too much overhead, there is throttling that skips
- * some opportunities to emit punctuation. We shall therefore distinguish
- * between the <em>ideal punctuation</em> and the <em>emitted punctuation</em>.
- * There are two triggers that will cause a new punctuation to be emitted:
- * <ol><li>
- *     The difference between the ideal and the last emitted punctuation: when it
- *     exceeds the configured {@code eventSeqThrottle}, a new punctuation is
- *     emitted.
- * </li><li>
- *     The difference between the current time and the time the last punctuation
- *     was emitted: when it exceeds the configured {@code timeThrottle}, and if the
- *     current ideal punctuation is greater than the emitted punctuation, a new
- *     punctuation will be emitted.
- * </li></ol>
+ * A processor that inserts punctuation into a data stream. See
+ * {@link WindowingProcessors#insertPunctuation(ToLongFunction,
+ * PunctuationKeeper, long, long) insertPunctuation(extractEventSeqF,
+ * puncKeeper, eventSeqThrottle, timeThrottle)} for documentation.
+ *
  * @param <T> the type of stream item
  */
 public class InsertPunctuationP<T> extends AbstractProcessor {
@@ -72,10 +56,10 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
      * @param timeThrottleMs maximum system time that can pass between emitting successive
      *                       punctuations
      */
-    public InsertPunctuationP(@Nonnull ToLongFunction<T> extractEventSeqF,
-                              @Nonnull PunctuationKeeper punctuationKeeper,
-                              long eventSeqThrottle,
-                              long timeThrottleMs
+    InsertPunctuationP(@Nonnull ToLongFunction<T> extractEventSeqF,
+                       @Nonnull PunctuationKeeper punctuationKeeper,
+                       long eventSeqThrottle,
+                       long timeThrottleMs
     ) {
         this(extractEventSeqF, punctuationKeeper, eventSeqThrottle, MILLISECONDS.toNanos(timeThrottleMs),
                 System::nanoTime);
@@ -85,7 +69,8 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
             @Nonnull PunctuationKeeper punctuationKeeper,
             long eventSeqThrottle,
             long timeThrottle,
-            LongSupplier clock) {
+            LongSupplier clock
+    ) {
         checkNotNegative(eventSeqThrottle, "eventSeqThrottle must be >= 0");
         checkNotNegative(timeThrottle, "timeThrottle must be >= 0");
         this.extractEventSeqF = extractEventSeqF;
@@ -124,8 +109,9 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
         idealPunct = Math.max(newIdealPunct, idealPunct);
 
         long now = clock.getAsLong();
-        if (idealPunct > lastEmittedPunc && (
-                idealPunct >= nextEmissionAtSeq || now >= nextEmissionAtSystemTime)) {
+        if (idealPunct > lastEmittedPunc
+                && (idealPunct >= nextEmissionAtSeq || now >= nextEmissionAtSystemTime)
+        ) {
             nextEmissionAtSeq = idealPunct + eventSeqThrottle;
             nextEmissionAtSystemTime = now + timeThrottle;
             emit(new Punctuation(idealPunct));
