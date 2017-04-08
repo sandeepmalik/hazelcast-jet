@@ -17,20 +17,23 @@
 package com.hazelcast.jet.windowing;
 
 /**
- * Receives the observed event seqs and returns the punctuation to emit.
+ * A strategy object that "keeps the event time" for a single data
+ * (sub)stream. The event seq of every observed item should be reported to
+ * this object and it will respond with the current value of the
+ * punctuation. Punctuation may also advance even in the absence of
+ * observed events; {@link #getCurrentPunctuation()} can be called at any
+ * time to see this change.
  */
 public interface PunctuationKeeper {
 
     /**
-     * Called to report observing an event with the given {@code eventSeq}.
-     * Returns the punctuation that should be (or have been) emitted before the
-     * event. Can also be called in the absence of received events in order to
-     * drive the punctuation forward during a stream lull. In this case the
-     * argument's value should be {@code Long.MIN_VALUE}.
+     * Called to report the observation of an event with the given {@code
+     * eventSeq}. Returns the punctuation that should be (or have been) emitted
+     * before the event.
      *
      * @param eventSeq event's sequence value
      * @return the punctuation sequence. May be {@code Long.MIN_VALUE} if there is
-     *         not enough information to determine any punctuation (e.g., no events
+     *         insufficient information to determine any punctuation (e.g., no events
      *         observed)
      */
     long reportEvent(long eventSeq);

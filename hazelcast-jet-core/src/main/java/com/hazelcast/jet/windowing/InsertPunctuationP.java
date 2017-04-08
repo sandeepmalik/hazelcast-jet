@@ -27,11 +27,11 @@ import static com.hazelcast.util.Preconditions.checkNotNegative;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
- * A processor that inserts punctuation into a data stream. Punctuation is
- * determined as the top observed {@code eventSeq} minus the configured
- * {@code punctuationLag}. We shall say that a punctuation is <em>behind</em>
- * an item if the item's {@code eventSeq} is higher than it; we shall use
- * the term <em>ahead</em> for the opposite case.
+ * A processor that inserts punctuation into a data stream. A punctuation
+ * item contains a {@code puncSeq} value with this meaning: "there will be
+ * no more items in this stream with {@code eventSeq < puncSeq}". The value
+ * of punctuation is determined by a separate strategy object of type
+ * {@link PunctuationKeeper}.
  * <p>
  * Since eagerly emitting punctuation every time a new top {@code eventSeq}
  * is observed would cause too much overhead, there is throttling that skips
@@ -48,14 +48,6 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  *     current ideal punctuation is greater than the emitted punctuation, a new
  *     punctuation will be emitted.
  * </li></ol>
- * If the top {@code eventSeq} observed {@code maxRetainTime} milliseconds
- * ago was higher than the last emitted punctuation, a new punctuation will
- * be emitted with that {@code eventSeq}. This limits the amount of time the
- * emitted punctuation can stay behind any observed event. Since punctuation
- * drives the emission and removal of aggregated state from processors, this
- * is also the maximum time to retain data about an event in the system before
- * sending it to the data sink.
- *
  * @param <T> the type of stream item
  */
 public class InsertPunctuationP<T> extends AbstractProcessor {
@@ -76,8 +68,9 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
      * @param extractEventSeqF function that extracts the {@code eventSeq} from an input item
      * @param punctuationKeeper the punctuation keeper
      * @param eventSeqThrottle the difference between the ideal and the last emitted punctuation
-     *                        that triggers the emission of a new punctuation
-     * @param timeThrottleMs maximum system time that can pass between emitting successive punctuations
+     *                         that triggers the emission of a new punctuation
+     * @param timeThrottleMs maximum system time that can pass between emitting successive
+     *                       punctuations
      */
     public InsertPunctuationP(@Nonnull ToLongFunction<T> extractEventSeqF,
                               @Nonnull PunctuationKeeper punctuationKeeper,
