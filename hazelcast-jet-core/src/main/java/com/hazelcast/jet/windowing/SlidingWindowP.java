@@ -52,7 +52,7 @@ public class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
 
     private long nextFrameSeqToEmit = Long.MIN_VALUE;
 
-    SlidingWindowP(long frameLength, long framesPerWindow, @Nonnull DistributedCollector<K, F, R> collector) {
+    SlidingWindowP(long frameLength, long framesPerWindow, @Nonnull DistributedCollector<?, F, R> collector) {
         checkPositive(frameLength, "frameLength must be positive");
         checkPositive(framesPerWindow, "framesPerWindow must be positive");
         this.frameLength = frameLength;

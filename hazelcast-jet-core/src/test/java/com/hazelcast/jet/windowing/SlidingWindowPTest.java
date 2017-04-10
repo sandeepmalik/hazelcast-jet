@@ -41,7 +41,7 @@ public class SlidingWindowPTest extends StreamingTestSupport {
     public void before() {
         processor = slidingWindow(1, 4, DistributedCollector.of(
                 () -> 0L,
-                (acc, val) -> { },
+                (acc, val) -> { throw new UnsupportedOperationException(); },
                 (acc1, acc2) -> acc1 + acc2,
                 acc -> acc)
         ).get();

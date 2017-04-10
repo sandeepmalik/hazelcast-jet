@@ -74,7 +74,7 @@ public interface Traverser<T> {
 
     /**
      * Returns a traverser which appends an additional item to the
-     * original traverser after it returns a null value.
+     * original traverser after it returns first {@code null} value.
      */
     @Nonnull
     default Traverser<T> append(T item) {
