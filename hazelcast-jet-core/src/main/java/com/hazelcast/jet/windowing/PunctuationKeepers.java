@@ -17,6 +17,7 @@
 package com.hazelcast.jet.windowing;
 
 import com.hazelcast.jet.Distributed.LongSupplier;
+import com.hazelcast.jet.Distributed.Supplier;
 
 import static com.hazelcast.util.Preconditions.checkNotNegative;
 import static java.lang.Math.max;
@@ -31,9 +32,8 @@ public final class PunctuationKeepers {
     }
 
     private abstract static class PunctuationKeeperBase implements PunctuationKeeper {
-        private static final long serialVersionUID = 1L;
 
-        private long punc = Long.MIN_VALUE;
+        private transient long punc = Long.MIN_VALUE;
 
         long makePuncAtLeast(long proposedPunc) {
             punc = max(punc, proposedPunc);
@@ -59,11 +59,10 @@ public final class PunctuationKeepers {
      * @param eventSeqLag the desired difference between the top observed event seq
      *                    and the punctuation
      */
-    public static PunctuationKeeper cappingEventSeqLag(long eventSeqLag) {
+    public static Supplier<PunctuationKeeper> cappingEventSeqLag(long eventSeqLag) {
         checkNotNegative(eventSeqLag, "eventSeqLag must not be negative");
 
-        return new PunctuationKeeperBase() {
-            private static final long serialVersionUID = 1L;
+        return () -> new PunctuationKeeperBase() {
 
             @Override
             public long reportEvent(long eventSeq) {
@@ -91,12 +90,11 @@ public final class PunctuationKeepers {
      * @param wallClockLag maximum difference between the current value of
      *                     {@code System.currentTimeMillis} and the punctuation
      */
-    public static PunctuationKeeper cappingEventSeqAndWallClockLag(long eventSeqLag, long wallClockLag) {
+    public static Supplier<PunctuationKeeper> cappingEventSeqAndWallClockLag(long eventSeqLag, long wallClockLag) {
         checkNotNegative(eventSeqLag, "eventSeqLag must not be negative");
         checkNotNegative(wallClockLag, "wallClockLag must not be negative");
 
-        return new PunctuationKeeperBase() {
-            private static final long serialVersionUID = 1L;
+        return () -> new PunctuationKeeperBase() {
 
             @Override
             public long reportEvent(long eventSeq) {
@@ -139,16 +137,15 @@ public final class PunctuationKeepers {
      * @param maxLullMs maximum duration of a lull period before starting to
      *                  advance punctuation with system time
      */
-    public static PunctuationKeeper cappingEventSeqLagAndLull(long eventSeqLag, long maxLullMs) {
+    public static Supplier<PunctuationKeeper> cappingEventSeqLagAndLull(long eventSeqLag, long maxLullMs) {
         return cappingEventSeqLagAndLull(eventSeqLag, maxLullMs, System::nanoTime);
     }
 
-    static PunctuationKeeper cappingEventSeqLagAndLull(long eventSeqLag, long maxLullMs, LongSupplier nanoClock) {
+    static Supplier<PunctuationKeeper> cappingEventSeqLagAndLull(long eventSeqLag, long maxLullMs, LongSupplier nanoClock) {
         checkNotNegative(eventSeqLag, "eventSeqLag must not be negative");
         checkNotNegative(maxLullMs, "maxLullMs must not be negative");
 
-        return new PunctuationKeeperBase() {
-            private static final long serialVersionUID = 1L;
+        return () -> new PunctuationKeeperBase() {
 
             private long maxLullAt = Long.MIN_VALUE;
 

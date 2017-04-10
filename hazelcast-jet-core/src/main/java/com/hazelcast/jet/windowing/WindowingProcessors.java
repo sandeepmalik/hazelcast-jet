@@ -18,6 +18,7 @@ package com.hazelcast.jet.windowing;
 
 import com.hazelcast.jet.Distributed;
 import com.hazelcast.jet.Distributed.Function;
+import com.hazelcast.jet.Distributed.Supplier;
 import com.hazelcast.jet.Distributed.ToLongFunction;
 import com.hazelcast.jet.stream.DistributedCollector;
 
@@ -57,11 +58,11 @@ public final class WindowingProcessors {
      */
     public static <T> Distributed.Supplier<InsertPunctuationP<T>> insertPunctuation(
             @Nonnull ToLongFunction<T> extractEventSeqF,
-            @Nonnull PunctuationKeeper punctuationKeeper,
+            @Nonnull Supplier<PunctuationKeeper> newPuncKeeperF,
             long eventSeqThrottle,
             long timeThrottleMs
     ) {
-        return () -> new InsertPunctuationP<>(extractEventSeqF, punctuationKeeper, eventSeqThrottle, timeThrottleMs);
+        return () -> new InsertPunctuationP<>(extractEventSeqF, newPuncKeeperF.get(), eventSeqThrottle, timeThrottleMs);
     }
 
     /**

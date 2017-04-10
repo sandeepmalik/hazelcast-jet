@@ -29,7 +29,7 @@ public class CappingEventSeqAndLagTest {
 
     private static final int MAX_LULL_MS = 3;
     private long currTime;
-    private PunctuationKeeper p = cappingEventSeqLagAndLull(2, MAX_LULL_MS, () -> currTime);
+    private PunctuationKeeper p = cappingEventSeqLagAndLull(2, MAX_LULL_MS, () -> currTime).get();
 
     @Test
     public void when_outOfOrderEvents_then_monotonicPunct() {
