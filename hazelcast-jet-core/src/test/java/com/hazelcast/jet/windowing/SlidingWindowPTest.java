@@ -51,6 +51,24 @@ public class SlidingWindowPTest extends StreamingTestSupport {
     }
 
     @Test
+    public void when_noFramesReceived_then_onlyEmitPunc() {
+        // Given
+        inbox.addAll(asList(
+                punc(1)
+        ));
+
+        // When
+        processor.process(0, inbox);
+        assertTrue(inbox.isEmpty());
+
+        // Then
+        assertOutbox(asList(
+                punc(1),
+                null
+        ));
+    }
+
+    @Test
     public void when_receiveAscendingSeqs_then_emitAscending() {
         // Given
         inbox.addAll(asList(
