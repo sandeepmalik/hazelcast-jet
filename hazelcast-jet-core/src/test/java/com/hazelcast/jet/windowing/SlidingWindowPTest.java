@@ -133,7 +133,7 @@ public class SlidingWindowPTest extends StreamingTestSupport {
             inbox.add(frame(seq, 1));
         }
         for (long i = 1; i <= 105; i++) {
-            inbox.add(new Punctuation(i));
+            inbox.add(punc(i));
         }
 
         // When
@@ -176,9 +176,9 @@ public class SlidingWindowPTest extends StreamingTestSupport {
                 frame(0, 1),
                 frame(10, 1),
                 frame(11, 1),
-                new Punctuation(50),
+                punc(50),
                 frame(50, 3),
-                new Punctuation(51)
+                punc(51)
         ));
 
         // When
@@ -212,12 +212,12 @@ public class SlidingWindowPTest extends StreamingTestSupport {
                 frame(10, 1),
                 frame(11, 1),
                 frame(12, 1),
-                new Punctuation(1),
+                punc(1),
                 frame(2, 1),
                 frame(3, 1),
                 frame(4, 1),
-                new Punctuation(4),
-                new Punctuation(12)
+                punc(4),
+                punc(12)
         ));
 
         // When
