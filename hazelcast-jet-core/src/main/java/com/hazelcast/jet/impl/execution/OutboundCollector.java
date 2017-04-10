@@ -57,6 +57,9 @@ public interface OutboundCollector {
     static OutboundCollector compositeCollector(
             OutboundCollector[] collectors, EdgeDef outboundEdge, int partitionCount
     ) {
+        if (collectors.length == 1) {
+            return collectors[0];
+        }
         switch (outboundEdge.forwardingPattern()) {
             case VARIABLE_UNICAST:
             case ONE_TO_MANY:
