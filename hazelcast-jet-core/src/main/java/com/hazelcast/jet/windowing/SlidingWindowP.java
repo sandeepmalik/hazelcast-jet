@@ -60,7 +60,7 @@ public class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
         this.windowLength = wdef.windowLength();
         this.createF = windowMaker.createAccumulatorF();
         this.combineF = windowMaker.combineAccumulatorsF();
-        this.deductF = windowMaker.combineAccumulatorsF();
+        this.deductF = windowMaker.deductAccumulatorF();
         this.finishF = windowMaker.finishAccumulationF();
         this.flatMapper = flatMapper(deductF != null ? this::slideByDiffing : this::slideByRecomputing);
         this.emptyAcc = createF.get();
