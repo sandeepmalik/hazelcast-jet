@@ -29,7 +29,6 @@ import com.hazelcast.jet.stream.IStreamMap;
 import com.hazelcast.jet.windowing.Frame;
 import com.hazelcast.jet.windowing.FrameSerializer;
 import com.hazelcast.jet.windowing.WindowDefinition;
-import com.hazelcast.jet.windowing.WindowMaker;
 import com.hazelcast.logging.ILogger;
 import com.hazelcast.logging.Logger;
 
@@ -45,7 +44,7 @@ import static com.hazelcast.jet.Partitioner.HASH_CODE;
 import static com.hazelcast.jet.Processors.readMap;
 import static com.hazelcast.jet.stream.DistributedCollectors.counting;
 import static com.hazelcast.jet.windowing.PunctuationKeepers.cappingEventSeqLagAndLull;
-import static com.hazelcast.jet.windowing.WindowMaker.fromCollector;
+import static com.hazelcast.jet.windowing.WindowToolkit.fromCollector;
 import static com.hazelcast.jet.windowing.WindowingProcessors.groupByFrame;
 import static com.hazelcast.jet.windowing.WindowingProcessors.insertPunctuation;
 import static com.hazelcast.jet.windowing.WindowingProcessors.slidingWindow;

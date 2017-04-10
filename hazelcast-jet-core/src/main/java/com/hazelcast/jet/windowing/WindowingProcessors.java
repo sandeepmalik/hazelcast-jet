@@ -108,8 +108,8 @@ public final class WindowingProcessors {
      * @param <R> type of the result derived from a frame
      */
     public static <K, F, R> Distributed.Supplier<SlidingWindowP<K, F, R>> slidingWindow(
-            WindowDefinition windowDef, WindowMaker<K, F, R> windowMaker) {
-        return () -> new SlidingWindowP<>(windowDef, windowMaker);
+            WindowDefinition windowDef, WindowToolkit<K, F, R> windowToolkit) {
+        return () -> new SlidingWindowP<>(windowDef, windowToolkit);
     }
 
     /**

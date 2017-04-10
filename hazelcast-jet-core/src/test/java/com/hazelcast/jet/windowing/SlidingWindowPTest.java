@@ -17,8 +17,6 @@
 package com.hazelcast.jet.windowing;
 
 import com.hazelcast.jet.Processor.Context;
-import com.hazelcast.jet.Punctuation;
-import com.hazelcast.jet.stream.DistributedCollector;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -40,7 +38,7 @@ public class SlidingWindowPTest extends StreamingTestSupport {
     @Before
     public void before() {
         WindowDefinition windowDef = new WindowDefinition(1, 0, 4);
-        processor = slidingWindow(windowDef, WindowMaker.of(
+        processor = slidingWindow(windowDef, WindowToolkit.of(
                 () -> 0L,
                 (acc, val) -> { throw new UnsupportedOperationException(); },
                 (acc1, acc2) -> acc1 + acc2,

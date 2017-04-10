@@ -38,7 +38,7 @@ import static java.util.function.Function.identity;
 
 /**
  * Sliding window processor. See {@link
- * WindowingProcessors#slidingWindow(WindowDefinition, WindowMaker)
+ * WindowingProcessors#slidingWindow(WindowDefinition, WindowToolkit)
  * slidingWindow(frameLength, framesPerWindow, windowMaker)} for
  * documentation.
  */
@@ -55,12 +55,12 @@ public class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
 
     private long nextFrameSeqToEmit = Long.MIN_VALUE;
 
-    SlidingWindowP(WindowDefinition wDef, @Nonnull WindowMaker<K, F, R> windowMaker) {
+    SlidingWindowP(WindowDefinition wDef, @Nonnull WindowToolkit<K, F, R> windowToolkit) {
         this.wDef = wDef;
-        this.createF = windowMaker.createAccumulatorF();
-        this.combineF = windowMaker.combineAccumulatorsF();
-        this.deductF = windowMaker.deductAccumulatorF();
-        this.finishF = windowMaker.finishAccumulationF();
+        this.createF = windowToolkit.createAccumulatorF();
+        this.combineF = windowToolkit.combineAccumulatorsF();
+        this.deductF = windowToolkit.deductAccumulatorF();
+        this.finishF = windowToolkit.finishAccumulationF();
         this.flatMapper = flatMapper(this::slidingWindowTraverser);
         this.emptyAcc = createF.get();
     }

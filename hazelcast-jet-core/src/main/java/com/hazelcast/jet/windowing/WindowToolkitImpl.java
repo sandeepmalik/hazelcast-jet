@@ -22,18 +22,18 @@ import com.hazelcast.jet.Distributed.BinaryOperator;
 import com.hazelcast.jet.Distributed.Function;
 import com.hazelcast.jet.Distributed.Supplier;
 
-class WindowMakerImpl<T, A, R> implements WindowMaker<T, A, R> {
+class WindowToolkitImpl<T, A, R> implements WindowToolkit<T, A, R> {
     private final Distributed.Supplier<A> createAccumulatorF;
     private final Distributed.BiConsumer<A, T> accumulateItemF;
     private final Distributed.BinaryOperator<A> combineAccumulatorsF;
     private final Distributed.BinaryOperator<A> deductAccumulatorF;
     private final Distributed.Function<A, R> finishAccumulationF;
 
-    WindowMakerImpl(Supplier<A> createAccumulatorF,
-                    BiConsumer<A, T> accumulateItemF,
-                    BinaryOperator<A> combineAccumulatorsF,
-                    BinaryOperator<A> deductAccumulatorF,
-                    Function<A, R> finishAccumulationF
+    WindowToolkitImpl(Supplier<A> createAccumulatorF,
+                      BiConsumer<A, T> accumulateItemF,
+                      BinaryOperator<A> combineAccumulatorsF,
+                      BinaryOperator<A> deductAccumulatorF,
+                      Function<A, R> finishAccumulationF
     ) {
         this.createAccumulatorF = createAccumulatorF;
         this.accumulateItemF = accumulateItemF;

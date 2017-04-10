@@ -47,7 +47,7 @@ import java.util.Objects;
  * @param <A> the type of the accumulator
  * @param <R> the type of the final result
  */
-public interface WindowMaker<T, A, R> extends Serializable {
+public interface WindowToolkit<T, A, R> extends Serializable {
 
     /**
      * A function that creates a new accumulator and returns it. If the {@code
@@ -93,17 +93,17 @@ public interface WindowMaker<T, A, R> extends Serializable {
      * @param <A> the type of the accumulator
      * @param <R> the type of the final result
      */
-    static <T, A, R> WindowMaker<T, A, R> of(Distributed.Supplier<A> createAccumulatorF,
-                                             Distributed.BiConsumer<A, T> accumulateItemF,
-                                             Distributed.BinaryOperator<A> combineAccumulatorsF,
-                                             Distributed.BinaryOperator<A> deductAccumulatorF,
-                                             Distributed.Function<A, R> finishAccumulationF
+    static <T, A, R> WindowToolkit<T, A, R> of(Distributed.Supplier<A> createAccumulatorF,
+                                               Distributed.BiConsumer<A, T> accumulateItemF,
+                                               Distributed.BinaryOperator<A> combineAccumulatorsF,
+                                               Distributed.BinaryOperator<A> deductAccumulatorF,
+                                               Distributed.Function<A, R> finishAccumulationF
     ) {
         Objects.requireNonNull(createAccumulatorF);
         Objects.requireNonNull(accumulateItemF);
         Objects.requireNonNull(combineAccumulatorsF);
         Objects.requireNonNull(finishAccumulationF);
-        return new WindowMakerImpl<>(
+        return new WindowToolkitImpl<>(
                 createAccumulatorF, accumulateItemF, combineAccumulatorsF, deductAccumulatorF, finishAccumulationF);
     }
 
@@ -111,7 +111,7 @@ public interface WindowMaker<T, A, R> extends Serializable {
      * Returns a new {@code WindowingFunctions} object based on a
      * {@code DistributedCollector}.
      */
-    static <T, A, R> WindowMaker<T, A, R> fromCollector(DistributedCollector<T, A, R> c) {
+    static <T, A, R> WindowToolkit<T, A, R> fromCollector(DistributedCollector<T, A, R> c) {
         return of(c.supplier(), c.accumulator(), c.combiner(), null, c.finisher());
     }
 }
