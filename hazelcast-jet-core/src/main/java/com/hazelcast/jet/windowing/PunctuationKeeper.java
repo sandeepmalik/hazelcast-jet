@@ -33,8 +33,8 @@ public interface PunctuationKeeper {
      *
      * @param eventSeq event's sequence value
      * @return the punctuation sequence. May be {@code Long.MIN_VALUE} if there is
-     * insufficient information to determine any punctuation (e.g., no events
-     * observed)
+     *         insufficient information to determine any punctuation (e.g., no events
+     *         observed)
      */
     long reportEvent(long eventSeq);
 

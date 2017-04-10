@@ -17,9 +17,6 @@
 package com.hazelcast.jet.windowing;
 
 import com.hazelcast.jet.Distributed;
-import com.hazelcast.jet.Distributed.Function;
-import com.hazelcast.jet.Distributed.Supplier;
-import com.hazelcast.jet.Distributed.ToLongFunction;
 import com.hazelcast.jet.stream.DistributedCollector;
 
 import javax.annotation.Nonnull;
@@ -57,8 +54,8 @@ public final class WindowingProcessors {
      * @param <T> the type of stream item
      */
     public static <T> Distributed.Supplier<InsertPunctuationP<T>> insertPunctuation(
-            @Nonnull ToLongFunction<T> extractEventSeqF,
-            @Nonnull Supplier<PunctuationKeeper> newPuncKeeperF,
+            @Nonnull Distributed.ToLongFunction<T> extractEventSeqF,
+            @Nonnull Distributed.Supplier<PunctuationKeeper> newPuncKeeperF,
             long eventSeqThrottle,
             long timeThrottleMs
     ) {
@@ -140,8 +137,8 @@ public final class WindowingProcessors {
      */
     public static <T, K, A, R> Distributed.Supplier<SessionWindowP<T, K, A, R>> sessionWindow(
             long maxSeqGap,
-            ToLongFunction<? super T> extractEventSeqF,
-            Function<? super T, K> extractKeyF,
+            Distributed.ToLongFunction<? super T> extractEventSeqF,
+            Distributed.Function<? super T, K> extractKeyF,
             DistributedCollector<? super T, A, R> collector
     ) {
         return () -> new SessionWindowP<>(maxSeqGap, extractEventSeqF, extractKeyF, collector);
