@@ -46,7 +46,7 @@ import static com.hazelcast.jet.Traversers.traverseIterable;
  * @param <K> type of grouping key
  * @param <F> type of the accumulated result in the frame
  */
-public class GroupByFrameP<T, K, F> extends StreamingProcessorBase {
+public final class GroupByFrameP<T, K, F> extends StreamingProcessorBase {
     final NavigableMap<Long, Map<K, F>> seqToKeyToFrame = new TreeMap<>();
     private final ToLongFunction<? super T> extractEventSeqF;
     private final Function<? super T, K> extractKeyF;

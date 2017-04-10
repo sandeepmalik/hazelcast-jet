@@ -31,6 +31,8 @@ public final class PunctuationKeepers {
     }
 
     private abstract static class PunctuationKeeperBase implements PunctuationKeeper {
+        private static final long serialVersionUID = 1L;
+
         private long punc = Long.MIN_VALUE;
 
         long makePuncAtLeast(long proposedPunc) {
@@ -61,6 +63,7 @@ public final class PunctuationKeepers {
         checkNotNegative(eventSeqLag, "eventSeqLag must not be negative");
 
         return new PunctuationKeeperBase() {
+            private static final long serialVersionUID = 1L;
 
             @Override
             public long reportEvent(long eventSeq) {
@@ -93,6 +96,8 @@ public final class PunctuationKeepers {
         checkNotNegative(wallClockLag, "wallClockLag must not be negative");
 
         return new PunctuationKeeperBase() {
+            private static final long serialVersionUID = 1L;
+
             @Override
             public long reportEvent(long eventSeq) {
                 updateFromWallClock();
@@ -143,6 +148,8 @@ public final class PunctuationKeepers {
         checkNotNegative(maxLullMs, "maxLullMs must not be negative");
 
         return new PunctuationKeeperBase() {
+            private static final long serialVersionUID = 1L;
+
             private long maxLullAt = Long.MIN_VALUE;
 
             @Override

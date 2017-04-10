@@ -16,6 +16,8 @@
 
 package com.hazelcast.jet.windowing;
 
+import java.io.Serializable;
+
 /**
  * A strategy object that "keeps the event time" for a single data
  * (sub)stream. The event seq of every observed item should be reported to
@@ -24,7 +26,7 @@ package com.hazelcast.jet.windowing;
  * observed events; {@link #getCurrentPunctuation()} can be called at any
  * time to see this change.
  */
-public interface PunctuationKeeper {
+public interface PunctuationKeeper extends Serializable {
 
     /**
      * Called to report the observation of an event with the given {@code
