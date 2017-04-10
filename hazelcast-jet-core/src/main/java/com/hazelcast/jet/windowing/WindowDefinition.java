@@ -48,4 +48,18 @@ public class WindowDefinition {
     public long windowLength() {
         return windowLength;
     }
+
+    /**
+     * Returns the sequence for the highest frame ending at or below the given event sequence.
+     */
+    long floorFrameSeq(long seq) {
+        return seq -  Math.floorMod(seq - frameOffset, frameLength);
+    }
+
+    /**
+     * Returns the sequence for the first frame ending above the given sequence
+     */
+    long higherFrameSeq(long seq) {
+        return floorFrameSeq(seq) + frameLength;
+    }
 }

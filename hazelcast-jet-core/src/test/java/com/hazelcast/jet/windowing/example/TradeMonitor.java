@@ -28,6 +28,7 @@ import com.hazelcast.jet.config.JetConfig;
 import com.hazelcast.jet.stream.IStreamMap;
 import com.hazelcast.jet.windowing.Frame;
 import com.hazelcast.jet.windowing.FrameSerializer;
+import com.hazelcast.jet.windowing.WindowDefinition;
 import com.hazelcast.jet.windowing.WindowMaker;
 import com.hazelcast.logging.ILogger;
 import com.hazelcast.logging.Logger;
@@ -44,6 +45,7 @@ import static com.hazelcast.jet.Partitioner.HASH_CODE;
 import static com.hazelcast.jet.Processors.readMap;
 import static com.hazelcast.jet.stream.DistributedCollectors.counting;
 import static com.hazelcast.jet.windowing.PunctuationKeepers.cappingEventSeqLagAndLull;
+import static com.hazelcast.jet.windowing.WindowMaker.fromCollector;
 import static com.hazelcast.jet.windowing.WindowingProcessors.groupByFrame;
 import static com.hazelcast.jet.windowing.WindowingProcessors.insertPunctuation;
 import static com.hazelcast.jet.windowing.WindowingProcessors.slidingWindow;
@@ -99,11 +101,11 @@ public class TradeMonitor {
             Vertex insertPunctuation = slow(dag.newVertex("insert-punctuation",
                     insertPunctuation(Trade::getTime, cappingEventSeqLagAndLull(3000, 2000), 500L, 500L)));
 //            Vertex peek = dag.newVertex("peek", PeekP::new).localParallelism(1);
+            WindowDefinition windowDef = new WindowDefinition(1_000, 0, 3);
             Vertex groupByFrame = slow(dag.newVertex("group-by-frame",
-                    groupByFrame(Trade::getTicker, Trade::getTime, 1_000, 0, counting())
+                    groupByFrame(Trade::getTicker, Trade::getTime, windowDef, counting())
             ));
-            Vertex slidingWindow = slow(dag.newVertex("sliding-window", slidingWindow(1000, 3000,
-                    WindowMaker.fromCollector(counting()))));
+            Vertex slidingWindow = slow(dag.newVertex("sliding-window", slidingWindow(windowDef, fromCollector(counting()))));
             Vertex sink = dag.newVertex("sink", Processors.writeMap("sink")).localParallelism(1);
 
             dag.edge(between(tickerSource, generateEvents).broadcast().distributed())

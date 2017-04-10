@@ -30,18 +30,15 @@ import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 
 import static com.hazelcast.jet.Traversers.traverseIterable;
-import static com.hazelcast.util.Preconditions.checkPositive;
-import static com.hazelcast.util.Preconditions.checkTrue;
 
 /**
  * Group-by-frame processor. See {@link
  * WindowingProcessors#groupByFrame(Distributed.Function,
- * Distributed.ToLongFunction, long, long, DistributedCollector)
+ * Distributed.ToLongFunction, WindowDefinition, DistributedCollector)
  * groupByFrame(extractKeyF, extractEventSeqF, frameLength, frameOffset,
  * collector)} for documentation.
  *
@@ -53,23 +50,20 @@ public class GroupByFrameP<T, K, F> extends StreamingProcessorBase {
     final NavigableMap<Long, Map<K, F>> seqToKeyToFrame = new TreeMap<>();
     private final ToLongFunction<? super T> extractEventSeqF;
     private final Function<? super T, K> extractKeyF;
-    private final LongUnaryOperator toFrameSeqF;
     private final Supplier<F> supplier;
     private final BiConsumer<F, ? super T> accumulator;
     private final FlatMapper<Punctuation, Object> puncFlatMapper;
+    private final WindowDefinition windowDefinition;
 
     GroupByFrameP(
             Function<? super T, K> extractKeyF,
             ToLongFunction<? super T> extractEventSeqF,
-            long frameLength,
-            long frameOffset,
+            WindowDefinition windowDefinition,
             DistributedCollector<? super T, F, ?> collector
     ) {
-        checkPositive(frameLength, "frameLength must be positive");
-        checkTrue(frameOffset >= 0 && frameOffset < frameLength, "frameOffset must be 0..frameLength-1");
+        this.windowDefinition = windowDefinition;
         this.extractKeyF = extractKeyF;
         this.extractEventSeqF = extractEventSeqF;
-        this.toFrameSeqF = time -> time - Math.floorMod(time - frameOffset, frameLength) + frameLength;
         this.supplier = collector.supplier();
         this.accumulator = collector.accumulator();
         this.puncFlatMapper = flatMapper(this::closedFrameTraverser);
@@ -79,7 +73,7 @@ public class GroupByFrameP<T, K, F> extends StreamingProcessorBase {
     protected boolean tryProcess0(@Nonnull Object item) {
         T t = (T) item;
         long eventSeq = extractEventSeqF.applyAsLong(t);
-        long frameSeq = toFrameSeqF.applyAsLong(eventSeq);
+        long frameSeq = windowDefinition.higherFrameSeq(eventSeq);
         K key = extractKeyF.apply(t);
         F frame = seqToKeyToFrame.computeIfAbsent(frameSeq, x -> new HashMap<>())
                                  .computeIfAbsent(key, x -> supplier.get());

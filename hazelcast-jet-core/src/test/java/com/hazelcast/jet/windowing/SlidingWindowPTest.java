@@ -39,7 +39,8 @@ public class SlidingWindowPTest extends StreamingTestSupport {
 
     @Before
     public void before() {
-        processor = slidingWindow(1, 4, WindowMaker.of(
+        WindowDefinition windowDef = new WindowDefinition(1, 0, 4);
+        processor = slidingWindow(windowDef, WindowMaker.of(
                 () -> 0L,
                 (acc, val) -> { throw new UnsupportedOperationException(); },
                 (acc1, acc2) -> acc1 + acc2,
@@ -200,6 +201,44 @@ public class SlidingWindowPTest extends StreamingTestSupport {
                 punc(50),
                 frame(51, 3),
                 punc(51),
+                null
+        ));
+    }
+
+    @Test
+    public void when_receiveWithGaps_then_doNotSkipFrames() {
+        // Given
+        inbox.addAll(asList(
+                frame(10, 1),
+                frame(11, 1),
+                frame(12, 1),
+                new Punctuation(1),
+                frame(2, 1),
+                frame(3, 1),
+                frame(4, 1),
+                new Punctuation(4),
+                new Punctuation(12)
+        ));
+
+        // When
+        processor.process(0, inbox);
+        assertTrue(inbox.isEmpty());
+
+        // Then
+        assertOutbox(asList(
+                punc(1),
+                frame(2, 1),
+                frame(3, 2),
+                frame(4, 3),
+                punc(4),
+                frame(5, 3),
+                frame(6, 2),
+                frame(7, 1),
+                frame(10, 1),
+
+                frame(11, 2),
+                frame(12, 3),
+                punc(12),
                 null
         ));
     }

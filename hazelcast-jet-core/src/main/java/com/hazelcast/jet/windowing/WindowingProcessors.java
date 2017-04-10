@@ -79,26 +79,24 @@ public final class WindowingProcessors {
     public static <T, K, F> Distributed.Supplier<GroupByFrameP<T, K, F>> groupByFrame(
             Distributed.Function<? super T, K> extractKeyF,
             Distributed.ToLongFunction<? super T> extractTimestampF,
-            long frameLength,
-            long frameOffset,
+            WindowDefinition windowDef,
             DistributedCollector<T, F, ?> collector
     ) {
-        return () -> new GroupByFrameP<>(extractKeyF, extractTimestampF, frameLength, frameOffset, collector);
+        return () -> new GroupByFrameP<>(extractKeyF, extractTimestampF, windowDef, collector);
     }
 
     /**
      * Convenience for {@link #groupByFrame(
-     * Distributed.Function, Distributed.ToLongFunction, long, long, DistributedCollector)
+     * Distributed.Function, Distributed.ToLongFunction, WindowDefinition, DistributedCollector)
      * groupByFrame(extractKeyF, extractTimeStampF, frameLength, frameOffset, collector)}
      * which doesn't group by key.
      */
     public static <T, F> Distributed.Supplier<GroupByFrameP<T, String, F>> groupByFrame(
             Distributed.ToLongFunction<? super T> extractTimestampF,
-            long frameLength,
-            long frameOffset,
+            WindowDefinition windowDef,
             DistributedCollector<T, F, ?> collector
     ) {
-        return groupByFrame(t -> "global", extractTimestampF, frameLength, frameOffset, collector);
+        return groupByFrame(t -> "global", extractTimestampF, windowDef, collector);
     }
 
     /**
@@ -112,8 +110,8 @@ public final class WindowingProcessors {
      * @param <R> type of the result derived from a frame
      */
     public static <K, F, R> Distributed.Supplier<SlidingWindowP<K, F, R>> slidingWindow(
-            long frameLength, long framesPerWindow, WindowMaker<K, F, R> windowMaker) {
-        return () -> new SlidingWindowP<>(new WindowDefinition(frameLength, 0, framesPerWindow), windowMaker);
+            WindowDefinition windowDef, WindowMaker<K, F, R> windowMaker) {
+        return () -> new SlidingWindowP<>(windowDef, windowMaker);
     }
 
     /**

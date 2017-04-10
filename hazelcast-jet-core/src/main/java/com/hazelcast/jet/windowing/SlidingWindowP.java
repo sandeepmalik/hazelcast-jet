@@ -38,13 +38,12 @@ import static java.util.function.Function.identity;
 
 /**
  * Sliding window processor. See {@link
- * WindowingProcessors#slidingWindow(long, long, WindowMaker)
+ * WindowingProcessors#slidingWindow(WindowDefinition, WindowMaker)
  * slidingWindow(frameLength, framesPerWindow, windowMaker)} for
  * documentation.
  */
 public class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
-    private final long frameLength;
-    private final long windowLength;
+    private final WindowDefinition wDef;
     private final Supplier<F> createF;
     private final BinaryOperator<F> combineF;
     private final Distributed.BinaryOperator<F> deductF;
@@ -56,9 +55,8 @@ public class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
 
     private long nextFrameSeqToEmit = Long.MIN_VALUE;
 
-    SlidingWindowP(WindowDefinition wdef, @Nonnull WindowMaker<K, F, R> windowMaker) {
-        this.frameLength = wdef.frameLength();
-        this.windowLength = wdef.windowLength();
+    SlidingWindowP(WindowDefinition wDef, @Nonnull WindowMaker<K, F, R> windowMaker) {
+        this.wDef = wDef;
         this.createF = windowMaker.createAccumulatorF();
         this.combineF = windowMaker.combineAccumulatorsF();
         this.deductF = windowMaker.deductAccumulatorF();
@@ -93,9 +91,9 @@ public class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
 
     private Traverser<Object> slidingWindowTraverser(Punctuation punc) {
         return Traversers.<Object>traverseStream(
-            range(nextFrameSeqToEmit, updateAndGetNextFrameSeq(punc.seq()), frameLength)
+            range(nextFrameSeqToEmit, nextFrameSeqToEmit = wDef.higherFrameSeq(punc.seq()), wDef.frameLength())
                 .mapToObj(frameSeq -> {
-                    Map<K, F> trailingFrame = seqToKeyToFrame.remove(frameSeq - windowLength);
+                    Map<K, F> trailingFrame = seqToKeyToFrame.remove(frameSeq - wDef.windowLength());
                     Map<K, F> window;
                     if (deductF != null) {
                         window = slidingWindow;
@@ -108,16 +106,6 @@ public class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
                                  .map(e -> new Frame<>(frameSeq, e.getKey(), finishF.apply(e.getValue())));
                 }).flatMap(identity()))
             .append(punc);
-    }
-
-    private long updateAndGetNextFrameSeq(long puncSeq) {
-        long deltaToPunc = puncSeq - nextFrameSeqToEmit;
-        if (deltaToPunc < 0) {
-            return nextFrameSeqToEmit;
-        }
-        long frameSeqDelta = deltaToPunc - deltaToPunc % frameLength;
-        nextFrameSeqToEmit += frameSeqDelta + frameLength;
-        return nextFrameSeqToEmit;
     }
 
     private void applyPatch(BinaryOperator<F> patchOp, Map<K, F> patchingFrame, Map<K, F> patchTarget) {
@@ -134,7 +122,7 @@ public class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
 
     private Map<K, F> computeWindow(long frameSeq) {
         Map<K, F> window = new HashMap<>();
-        Map<Long, Map<K, F>> frames = seqToKeyToFrame.subMap(frameSeq - windowLength, false, frameSeq, true);
+        Map<Long, Map<K, F>> frames = seqToKeyToFrame.subMap(frameSeq - wDef.windowLength(), false, frameSeq, true);
         for (Map<K, F> keyToFrame : frames.values()) {
             keyToFrame.forEach((key, currAcc) ->
                     window.compute(key, (x, acc) -> combineF.apply(acc != null ? acc : createF.get(), currAcc)));

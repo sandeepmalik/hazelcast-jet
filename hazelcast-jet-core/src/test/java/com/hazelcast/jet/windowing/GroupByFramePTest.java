@@ -40,10 +40,10 @@ public class GroupByFramePTest extends StreamingTestSupport {
 
     @Before
     public void before() {
-        processor = WindowingProcessors.<Entry<Long, Long>, Long, MutableLong>groupByFrame(
+        processor = WindowingProcessors.groupByFrame(
                 (Entry<Long, Long> x) -> KEY,
-                Entry<Long, Long>::getKey,
-                4, 0,
+                Entry::getKey,
+                new WindowDefinition(4, 0, 4),
                 DistributedCollector.of(
                         MutableLong::new,
                         (acc, e) -> acc.value += e.getValue(),
