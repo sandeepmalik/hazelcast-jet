@@ -33,6 +33,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.LongStream;
 
+import static java.lang.Math.min;
 import static java.util.function.Function.identity;
 
 /**
@@ -62,7 +63,7 @@ public class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
         this.combineF = windowMaker.combineAccumulatorsF();
         this.deductF = windowMaker.deductAccumulatorF();
         this.finishF = windowMaker.finishAccumulationF();
-        this.flatMapper = flatMapper(deductF != null ? this::slideByDiffing : this::slideByRecomputing);
+        this.flatMapper = flatMapper(this::slidingWindowTraverser);
         this.emptyAcc = createF.get();
     }
 
@@ -79,43 +80,34 @@ public class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
     @Override
     protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
         if (nextFrameSeqToEmit == Long.MIN_VALUE) {
-            // This is the first punctuation we are observing. Use the lowest frame of
-            // the window that ends at punc seq as the first frame to be emitted and
-            // delete all frames that precede it. The rest of the frames will be
-            // gradually evicted as the window slides along. The above guarantees that
-            // the sliding window can be correctly initialized using the "accumulate
-            // highest/deduct lowest" approach because we start from a window that
-            // covers at most one existing frame -- the lowest one that can remain
-            // after the deletion happening here.
-            nextFrameSeqToEmit = punc.seq() - windowLength;
-            seqToKeyToFrame.headMap(nextFrameSeqToEmit).clear();
+            // This is the first punctuation we are observing. Find the lowest frameSeq
+            // that can be emitted: at most the top less than punc seq, but even lower
+            // than that if there are older frames on record. The above guarantees that
+            // the sliding window can be correctly initialized using the
+            // "add highest/deduct lowest" approach because we start from a window that
+            // covers at most one existing frame -- the lowest one on record.
+            nextFrameSeqToEmit = min(seqToKeyToFrame.firstKey(), punc.seq());
         }
         return flatMapper.tryProcess(punc);
     }
 
-    private Traverser<Object> slideByRecomputing(Punctuation punc) {
+    private Traverser<Object> slidingWindowTraverser(Punctuation punc) {
         return Traversers.<Object>traverseStream(
             range(nextFrameSeqToEmit, updateAndGetNextFrameSeq(punc.seq()), frameLength)
                 .mapToObj(frameSeq -> {
-                    Map<K, F> window = computeWindow(frameSeq);
-                    seqToKeyToFrame.remove(frameSeq - windowLength);
+                    Map<K, F> trailingFrame = seqToKeyToFrame.remove(frameSeq - windowLength);
+                    Map<K, F> window;
+                    if (deductF != null) {
+                        window = slidingWindow;
+                        applyPatch(combineF, seqToKeyToFrame.get(frameSeq), window);
+                        applyPatch(deductF, trailingFrame, window);
+                    } else {
+                        window = computeWindow(frameSeq);
+                    }
                     return window.entrySet().stream()
                                  .map(e -> new Frame<>(frameSeq, e.getKey(), finishF.apply(e.getValue())));
                 }).flatMap(identity()))
             .append(punc);
-    }
-
-    private Traverser<Object> slideByDiffing(Punctuation punc) {
-        return Traversers.<Object>traverseStream(
-                range(nextFrameSeqToEmit, updateAndGetNextFrameSeq(punc.seq()), frameLength)
-                        .mapToObj(frameSeq -> {
-                            applyPatch(combineF, seqToKeyToFrame.get(frameSeq), slidingWindow);
-                            applyPatch(deductF, seqToKeyToFrame.remove(frameSeq - windowLength), slidingWindow);
-                            return slidingWindow
-                                    .entrySet().stream()
-                                    .map(e -> new Frame<>(frameSeq, e.getKey(), finishF.apply(e.getValue())));
-                        }).flatMap(identity()))
-                .append(punc);
     }
 
     private long updateAndGetNextFrameSeq(long puncSeq) {
