@@ -78,6 +78,10 @@ public class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
     @Override
     protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
         if (nextFrameSeqToEmit == Long.MIN_VALUE) {
+            if (seqToKeyToFrame.isEmpty()) {
+                // we've got punctuation before any events
+                return true;
+            }
             // This is the first punctuation we are observing. Find the lowest frameSeq
             // that can be emitted: at most the top less than punc seq, but even lower
             // than that if there are older frames on record. The above guarantees that

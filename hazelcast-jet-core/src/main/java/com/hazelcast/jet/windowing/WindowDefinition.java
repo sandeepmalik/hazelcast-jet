@@ -16,6 +16,8 @@
 
 package com.hazelcast.jet.windowing;
 
+import java.io.Serializable;
+
 import static com.hazelcast.util.Preconditions.checkNotNegative;
 import static com.hazelcast.util.Preconditions.checkPositive;
 
@@ -23,7 +25,9 @@ import static com.hazelcast.util.Preconditions.checkPositive;
  * Contains parameters that define the window that should be
  * computed from the infinite data stream.
  */
-public class WindowDefinition {
+public class WindowDefinition implements Serializable {
+    private static final long serialVersionUID = 1L;
+
     private final long frameLength;
     private final long frameOffset;
     private final long windowLength;
