@@ -39,10 +39,11 @@ public class SlidingWindowPTest extends StreamingTestSupport {
 
     @Before
     public void before() {
-        processor = slidingWindow(1, 4, DistributedCollector.of(
+        processor = slidingWindow(1, 4, WindowMaker.of(
                 () -> 0L,
                 (acc, val) -> { throw new UnsupportedOperationException(); },
                 (acc1, acc2) -> acc1 + acc2,
+                null,
                 acc -> acc)
         ).get();
         processor.init(outbox, mock(Context.class));

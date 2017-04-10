@@ -28,7 +28,7 @@ import com.hazelcast.jet.config.JetConfig;
 import com.hazelcast.jet.stream.IStreamMap;
 import com.hazelcast.jet.windowing.Frame;
 import com.hazelcast.jet.windowing.FrameSerializer;
-import com.hazelcast.jet.windowing.PunctuationKeepers;
+import com.hazelcast.jet.windowing.WindowMaker;
 import com.hazelcast.logging.ILogger;
 import com.hazelcast.logging.Logger;
 
@@ -102,7 +102,8 @@ public class TradeMonitor {
             Vertex groupByFrame = slow(dag.newVertex("group-by-frame",
                     groupByFrame(Trade::getTicker, Trade::getTime, 1_000, 0, counting())
             ));
-            Vertex slidingWindow = slow(dag.newVertex("sliding-window", slidingWindow(1000, 3000, counting())));
+            Vertex slidingWindow = slow(dag.newVertex("sliding-window", slidingWindow(1000, 3000,
+                    WindowMaker.fromCollector(counting()))));
             Vertex sink = dag.newVertex("sink", Processors.writeMap("sink")).localParallelism(1);
 
             dag.edge(between(tickerSource, generateEvents).broadcast().distributed())

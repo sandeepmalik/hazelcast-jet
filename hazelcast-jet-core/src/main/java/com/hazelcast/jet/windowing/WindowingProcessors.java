@@ -112,8 +112,8 @@ public final class WindowingProcessors {
      * @param <R> type of the result derived from a frame
      */
     public static <K, F, R> Distributed.Supplier<SlidingWindowP<K, F, R>> slidingWindow(
-            long frameLength, long framesPerWindow, DistributedCollector<?, F, R> collector) {
-        return () -> new SlidingWindowP<>(frameLength, framesPerWindow, collector);
+            long frameLength, long framesPerWindow, WindowMaker<K, F, R> windowMaker) {
+        return () -> new SlidingWindowP<>(new WindowDefinition(frameLength, 0, framesPerWindow), windowMaker);
     }
 
     /**
