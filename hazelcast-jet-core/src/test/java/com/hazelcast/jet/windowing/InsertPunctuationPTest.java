@@ -44,7 +44,7 @@ public class InsertPunctuationPTest {
         p = new InsertPunctuationP<>(Item::getTime, PunctuationKeepers.cappingEventSeqLag(LAG).get(),
                 3, 5, clock::time);
 
-        outbox = new ArrayDequeOutbox(128, new int[]{128}, new ProgressTracker());
+        outbox = new ArrayDequeOutbox(1, new int[]{128}, new ProgressTracker());
         Context context = mock(Context.class);
 
         p.init(outbox, context);

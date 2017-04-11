@@ -17,6 +17,7 @@
 package com.hazelcast.jet.windowing;
 
 import com.hazelcast.jet.AbstractProcessor;
+import com.hazelcast.jet.Distributed.Supplier;
 import com.hazelcast.jet.Distributed.ToLongFunction;
 import com.hazelcast.jet.Punctuation;
 
@@ -27,12 +28,9 @@ import static com.hazelcast.util.Preconditions.checkNotNegative;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
- * A processor that inserts punctuation into a data stream. See
- * {@link WindowingProcessors#insertPunctuation(ToLongFunction,
- * PunctuationKeeper, long, long) insertPunctuation(extractEventSeqF,
- * puncKeeper, eventSeqThrottle, timeThrottle)} for documentation.
- *
- * @param <T> the type of stream item
+ * Use
+ * {@link WindowingProcessors#insertPunctuation(ToLongFunction, Supplier, long, long)
+ * WindowingProcessors.insertPunctuation()}.
  */
 public class InsertPunctuationP<T> extends AbstractProcessor {
 
@@ -90,14 +88,14 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
             return true;
         }
 
-        // if we have newest item so far, maybe emit punctuation
+        // if we see newest item so far, maybe emit punctuation
         if (eventSeq > topObservedSeq) {
+            if (!maybeEmitPunctuation(punctuationKeeper.reportEvent(eventSeq))) {
+                return false;
+            }
             topObservedSeq = eventSeq;
-            maybeEmitPunctuation(punctuationKeeper.reportEvent(topObservedSeq));
         }
-        tryEmit(item);
-
-        return true;
+        return tryEmit(item);
     }
 
     @Override
@@ -105,7 +103,7 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
         maybeEmitPunctuation(punctuationKeeper.getCurrentPunctuation());
     }
 
-    private void maybeEmitPunctuation(long newIdealPunct) {
+    private boolean maybeEmitPunctuation(long newIdealPunct) {
         idealPunct = Math.max(newIdealPunct, idealPunct);
 
         long now = clock.getAsLong();
@@ -114,8 +112,10 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
         ) {
             nextEmissionAtSeq = idealPunct + eventSeqThrottle;
             nextEmissionAtSystemTime = now + timeThrottle;
-            tryEmit(new Punctuation(idealPunct));
             lastEmittedPunc = idealPunct;
+            return tryEmit(new Punctuation(idealPunct));
         }
+
+        return true;
     }
 }
