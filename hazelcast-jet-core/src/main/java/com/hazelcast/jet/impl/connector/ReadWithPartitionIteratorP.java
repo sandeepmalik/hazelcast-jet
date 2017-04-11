@@ -120,7 +120,7 @@ public final class ReadWithPartitionIteratorP<T> extends AbstractProcessor {
 
     @Override
     public boolean complete() {
-        return emitCooperatively(outputTraverser);
+        return emitFromTraverser(outputTraverser);
     }
 
     @Override

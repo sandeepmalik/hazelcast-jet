@@ -23,8 +23,6 @@ import com.hazelcast.jet.Jet;
 import com.hazelcast.jet.ProcessorMetaSupplier;
 import com.hazelcast.jet.Vertex;
 import com.hazelcast.jet.stream.DistributedCollector;
-import com.hazelcast.jet.windowing.InsertPunctuationP;
-import com.hazelcast.jet.windowing.SessionWindowP;
 import com.hazelcast.util.MutableLong;
 
 import javax.annotation.Nonnull;
@@ -112,7 +110,7 @@ public class SessionWindows {
             long start = System.currentTimeMillis();
             long localCount = 0;
             while (System.currentTimeMillis() - start < runLength) {
-                emit(entry(key, eventSeq++ + rnd.nextInt(SEQ_SPREAD)));
+                tryEmit(entry(key, eventSeq++ + rnd.nextInt(SEQ_SPREAD)));
                 localCount++;
                 if (rnd.nextInt(seqJumpProbability) == 0) {
                     eventSeq += seqJump;

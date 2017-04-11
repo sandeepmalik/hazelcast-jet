@@ -672,7 +672,7 @@ public final class Processors {
 
         @Override
         public boolean complete() {
-            return emitCooperatively(resultTraverser);
+            return emitFromTraverser(resultTraverser);
         }
     }
 
@@ -754,7 +754,7 @@ public final class Processors {
 
         @Override
         public boolean complete() {
-            emit((long) seenItems.size());
+            tryEmit((long) seenItems.size());
             return true;
         }
     }

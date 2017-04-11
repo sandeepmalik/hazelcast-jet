@@ -95,7 +95,7 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
             topObservedSeq = eventSeq;
             maybeEmitPunctuation(punctuationKeeper.reportEvent(topObservedSeq));
         }
-        emit(item);
+        tryEmit(item);
 
         return true;
     }
@@ -114,7 +114,7 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
         ) {
             nextEmissionAtSeq = idealPunct + eventSeqThrottle;
             nextEmissionAtSystemTime = now + timeThrottle;
-            emit(new Punctuation(idealPunct));
+            tryEmit(new Punctuation(idealPunct));
             lastEmittedPunc = idealPunct;
         }
     }

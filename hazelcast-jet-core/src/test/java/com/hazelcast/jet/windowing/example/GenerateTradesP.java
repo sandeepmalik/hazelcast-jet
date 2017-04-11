@@ -77,7 +77,7 @@ public class GenerateTradesP extends AbstractProcessor {
         if (tickerToPrice.isEmpty()) {
             return true;
         }
-        emitCooperatively(traverser);
+        emitFromTraverser(traverser);
         return false;
     }
 

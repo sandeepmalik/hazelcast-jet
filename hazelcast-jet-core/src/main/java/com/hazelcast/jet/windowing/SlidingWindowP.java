@@ -80,7 +80,7 @@ public class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
         if (nextFrameSeqToEmit == Long.MIN_VALUE) {
             if (seqToKeyToFrame.isEmpty()) {
                 // We have no data, just forward the punctuation.
-                emit(punc);
+                tryEmit(punc);
                 return true;
             }
             // This is the first punctuation we are acting upon. Find the lowest

@@ -33,7 +33,7 @@ public class SkipP extends AbstractProcessor {
     @Override
     protected boolean tryProcess(int ordinal, @Nonnull Object item) throws Exception {
         if (index >= skip) {
-            emit(item);
+            tryEmit(item);
         } else {
             index++;
         }
