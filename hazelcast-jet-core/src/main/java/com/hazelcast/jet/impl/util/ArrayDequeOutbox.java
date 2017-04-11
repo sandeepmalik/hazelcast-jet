@@ -94,4 +94,10 @@ public final class ArrayDequeOutbox implements Outbox {
     public Queue<Object> queueWithOrdinal(int ordinal) {
         return buckets[ordinal];
     }
+
+    public void addIgnoringCapacity(Object item) {
+        for (Queue<Object> bucket : buckets) {
+            bucket.add(item);
+        }
+    }
 }
