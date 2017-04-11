@@ -20,16 +20,17 @@ import com.hazelcast.jet.AbstractProcessor;
 import com.hazelcast.jet.Distributed.Supplier;
 import com.hazelcast.jet.Distributed.ToLongFunction;
 import com.hazelcast.jet.Punctuation;
+import com.hazelcast.jet.Traverser;
+import com.hazelcast.jet.Traversers;
+import com.hazelcast.jet.Traversers.ResettableSingletonTraverser;
 
 import javax.annotation.Nonnull;
-import java.util.function.LongSupplier;
 
 import static com.hazelcast.util.Preconditions.checkNotNegative;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
  * Use
- * {@link WindowingProcessors#insertPunctuation(ToLongFunction, Supplier, long, long)
+ * {@link WindowingProcessors#insertPunctuation(ToLongFunction, Supplier)
  * WindowingProcessors.insertPunctuation()}.
  *
  * @param <T> input event type
@@ -38,96 +39,54 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
 
     private final ToLongFunction<T> extractEventSeqF;
     private final PunctuationKeeper punctuationKeeper;
-    private final long eventSeqThrottle;
-    private final long timeThrottle;
-    private final LongSupplier clock;
+    private final ResettableSingletonTraverser<Object> singletonTraverser;
+    private final Traverser<Object> nullTraverser;
+    private final FlatMapper<Object, Object> flatMapper;
 
-    private long topObservedSeq = Long.MIN_VALUE;
-    private long idealPunct = Long.MIN_VALUE;
-    private long nextEmissionAtSystemTime = Long.MIN_VALUE;
-    private long nextEmissionAtSeq = Long.MIN_VALUE;
-    private long lastEmittedPunc = Long.MIN_VALUE;
+    private long currPunc = Long.MIN_VALUE;
 
     /**
      * @param extractEventSeqF function that extracts the {@code eventSeq} from an input item
      * @param punctuationKeeper the punctuation keeper
-     * @param eventSeqThrottle the difference between the ideal and the last emitted punctuation
-     *                         that triggers the emission of a new punctuation
-     * @param timeThrottleMs maximum system time that can pass between emitting successive
-     *                       punctuations
      */
     InsertPunctuationP(@Nonnull ToLongFunction<T> extractEventSeqF,
-                       @Nonnull PunctuationKeeper punctuationKeeper,
-                       long eventSeqThrottle,
-                       long timeThrottleMs
+                       @Nonnull PunctuationKeeper punctuationKeeper
     ) {
-        this(extractEventSeqF, punctuationKeeper, eventSeqThrottle, MILLISECONDS.toNanos(timeThrottleMs),
-                System::nanoTime);
-    }
-
-    InsertPunctuationP(@Nonnull ToLongFunction<T> extractEventSeqF,
-            @Nonnull PunctuationKeeper punctuationKeeper,
-            long eventSeqThrottle,
-            long timeThrottle,
-            LongSupplier clock
-    ) {
-        checkNotNegative(eventSeqThrottle, "eventSeqThrottle must be >= 0");
-        checkNotNegative(timeThrottle, "timeThrottle must be >= 0");
         this.extractEventSeqF = extractEventSeqF;
         this.punctuationKeeper = punctuationKeeper;
-        this.eventSeqThrottle = eventSeqThrottle;
-        this.timeThrottle = timeThrottle;
-        this.clock = clock;
+        this.flatMapper = flatMapper(this::traverser);
+        this.singletonTraverser = new ResettableSingletonTraverser<>();
+        this.nullTraverser = Traversers.newNullTraverser();
+    }
+
+    protected Traverser<Object> traverser(Object item) {
+        long eventSeq = extractEventSeqF.applyAsLong((T)item);
+        if (eventSeq < currPunc) {
+            // drop late event
+            return nullTraverser;
+        }
+        long newPunc = punctuationKeeper.reportEvent(eventSeq);
+        if (newPunc > currPunc) {
+            currPunc = newPunc;
+            singletonTraverser.accept(new Punctuation(currPunc));
+            return singletonTraverser.append(item);
+        }
+        singletonTraverser.accept(item);
+        return singletonTraverser;
     }
 
     @Override
     protected boolean tryProcess(int ordinal, @Nonnull Object item) throws Exception {
-        T event = (T) item;
-        long eventSeq = extractEventSeqF.applyAsLong(event);
-
-        if (eventSeq < idealPunct) {
-            // drop late event
-            return true;
-        }
-
-        // if we see newest item so far, maybe emit punctuation
-        if (eventSeq > topObservedSeq) {
-            if (!maybeEmitPunctuation(punctuationKeeper.reportEvent(eventSeq))) {
-                return false;
-            }
-            topObservedSeq = eventSeq;
-        }
-        return tryEmit(item);
+        return flatMapper.tryProcess(item);
     }
 
     @Override
     public void process() {
-        maybeEmitPunctuation(punctuationKeeper.getCurrentPunctuation());
-    }
-
-    private boolean maybeEmitPunctuation(long newIdealPunct) {
-        // newIdealPunc should be monotonic, but to be sure...
-        idealPunct = Math.max(newIdealPunct, idealPunct);
-
-        if (idealPunct <= lastEmittedPunc) {
-            return true;
+        long newPunc = punctuationKeeper.getCurrentPunctuation();
+        if (newPunc > currPunc) {
+            if (tryEmit(new Punctuation(newPunc))) {
+                currPunc = newPunc;
+            }
         }
-
-        long now = clock.getAsLong();
-
-        // apply throttling
-        if (idealPunct < nextEmissionAtSeq && now < nextEmissionAtSystemTime) {
-            return true;
-        }
-
-        if (!tryEmit(new Punctuation(idealPunct))) {
-            return false;
-        }
-
-        // punctuation emitted, let's plan for next emission
-        nextEmissionAtSeq = idealPunct + eventSeqThrottle;
-        nextEmissionAtSystemTime = now + timeThrottle;
-        lastEmittedPunc = idealPunct;
-        return true;
     }
 }

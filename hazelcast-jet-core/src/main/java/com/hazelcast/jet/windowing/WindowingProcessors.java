@@ -55,11 +55,9 @@ public final class WindowingProcessors {
      */
     public static <T> Distributed.Supplier<InsertPunctuationP<T>> insertPunctuation(
             @Nonnull Distributed.ToLongFunction<T> extractEventSeqF,
-            @Nonnull Distributed.Supplier<PunctuationKeeper> newPuncKeeperF,
-            long eventSeqThrottle,
-            long timeThrottleMs
+            @Nonnull Distributed.Supplier<PunctuationKeeper> newPuncKeeperF
     ) {
-        return () -> new InsertPunctuationP<>(extractEventSeqF, newPuncKeeperF.get(), eventSeqThrottle, timeThrottleMs);
+        return () -> new InsertPunctuationP<>(extractEventSeqF, newPuncKeeperF.get());
     }
 
     /**
