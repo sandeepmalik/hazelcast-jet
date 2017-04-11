@@ -18,14 +18,12 @@ package com.hazelcast.jet.windowing;
 
 import org.junit.Test;
 
-import java.util.concurrent.TimeUnit;
-
 import static com.hazelcast.jet.windowing.PunctuationKeepers.cappingEventSeqLagAndLull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.junit.Assert.assertEquals;
 
-public class CappingEventSeqAndLagTest {
+public class CappingEventSeqLagAndLullTest {
 
     private static final int MAX_LULL_MS = 3;
     private long currTime;

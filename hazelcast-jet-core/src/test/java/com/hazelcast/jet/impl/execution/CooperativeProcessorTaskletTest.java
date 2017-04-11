@@ -173,7 +173,40 @@ public class CooperativeProcessorTaskletTest {
         }
     }
 
-    private Tasklet createTasklet() {
+    @Test
+    public void when_hasEvents_then_processMethodCalled() throws Exception {
+        // Given
+        MockInboundStream instream1 = new MockInboundStream(0, mockInput, 4);
+        MockOutboundStream outstream1 = new MockOutboundStream(0, mockInput.size());
+        instreams.add(instream1);
+        outstreams.add(outstream1);
+        CooperativeProcessorTasklet tasklet = createTasklet();
+
+        // When
+        callUntil(tasklet, NO_PROGRESS);
+
+        // Then
+        assertEquals(new HashSet<>(mockInput), new HashSet<>(outstream1.getBuffer()));
+        assertEquals(1, processor.processCallCount);
+    }
+
+    @Test
+    public void when_doesNotHaveEvents_then_processMethodCalled() throws Exception {
+        // Given
+        MockInboundStream instream1 = new MockInboundStream(0, mockInput, 4);
+        MockOutboundStream outstream1 = new MockOutboundStream(0, 4);
+        instreams.add(instream1);
+        outstreams.add(outstream1);
+        CooperativeProcessorTasklet tasklet = createTasklet();
+
+        // When
+        callUntil(tasklet, NO_PROGRESS);
+
+        // Then
+        assertEquals(1, processor.processCallCount);
+    }
+
+    private CooperativeProcessorTasklet createTasklet() {
         final CooperativeProcessorTasklet t = new CooperativeProcessorTasklet(
                 "mock", context, processor, instreams, outstreams);
         t.init(new CompletableFuture<>());
@@ -182,6 +215,7 @@ public class CooperativeProcessorTaskletTest {
 
     private static class PassThroughProcessor implements Processor {
         private Outbox outbox;
+        int processCallCount;
 
         @Override
         public void init(@Nonnull Outbox outbox, @Nonnull Context context) {
@@ -195,6 +229,11 @@ public class CooperativeProcessorTaskletTest {
                     return;
                 }
             }
+        }
+
+        @Override
+        public void process() {
+            processCallCount++;
         }
     }
 
