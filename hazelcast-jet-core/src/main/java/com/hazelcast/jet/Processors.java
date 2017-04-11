@@ -19,15 +19,22 @@ package com.hazelcast.jet;
 import com.hazelcast.client.config.ClientConfig;
 import com.hazelcast.jet.Traversers.ResettableSingletonTraverser;
 import com.hazelcast.jet.impl.connector.HazelcastWriters;
+import com.hazelcast.jet.impl.connector.ReadFilesP;
+import com.hazelcast.jet.impl.connector.StreamFilesP;
 import com.hazelcast.jet.impl.connector.ReadIListP;
+import com.hazelcast.jet.impl.connector.StreamTextSocketP;
 import com.hazelcast.jet.impl.connector.ReadWithPartitionIteratorP;
 import com.hazelcast.jet.impl.connector.WriteBufferedP;
-import com.hazelcast.jet.impl.connector.ReadSocketTextStreamP;
+import com.hazelcast.jet.impl.connector.WriteFileP;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.BufferedWriter;
+import java.io.File;
 import java.io.OutputStreamWriter;
 import java.net.Socket;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -38,9 +45,9 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static com.hazelcast.jet.DistributedFunctions.noopConsumer;
 import static com.hazelcast.jet.Traversers.lazy;
 import static com.hazelcast.jet.Traversers.traverseStream;
-import static com.hazelcast.jet.DistributedFunctions.noopConsumer;
 import static com.hazelcast.jet.impl.util.Util.uncheckCall;
 import static com.hazelcast.jet.impl.util.Util.uncheckRun;
 
@@ -138,7 +145,7 @@ public final class Processors {
     }
 
     /**
-     * Returns a meta-supplier of processors that will put data into a Hazelcast {@code ICache}.
+     * Returns a supplier of processors that will put data into a Hazelcast {@code ICache}.
      * Processors expect items of type {@code Map.Entry}
      */
     @Nonnull
@@ -158,6 +165,9 @@ public final class Processors {
 
     /**
      * Returns a meta-supplier of processors that emit items retrieved from an IMDG IList.
+     * <p>
+     * Note, that all elements from the list are emitted on single member, as the IMDG's list
+     * structure isn't distributed.
      */
     @Nonnull
     public static ProcessorMetaSupplier readList(@Nonnull String listName) {
@@ -167,6 +177,9 @@ public final class Processors {
     /**
      * Returns a meta-supplier of processors that emit items retrieved from an IMDG IList
      * in a remote cluster.
+     * <p>
+     * Note, that all elements from the list are emitted on single member, as the IMDG's list
+     * structure isn't distributed.
      */
     @Nonnull
     public static ProcessorMetaSupplier readList(@Nonnull String listName, @Nonnull ClientConfig clientConfig) {
@@ -174,7 +187,7 @@ public final class Processors {
     }
 
     /**
-     * Returns a meta-supplier of processors that write received items to an IMDG IList.
+     * Returns a supplier of processors that write received items to an IMDG IList.
      */
     @Nonnull
     public static ProcessorSupplier writeList(@Nonnull String listName) {
@@ -182,7 +195,7 @@ public final class Processors {
     }
 
     /**
-     * Returns a meta-supplier of processors that write received items to an IMDG IList in
+     * Returns a supplier of processors that write received items to an IMDG IList in
      * a remote cluster.
      */
     @Nonnull
@@ -253,11 +266,152 @@ public final class Processors {
     }
 
     /**
-     * Returns a supplier of processors that connect to the specified socket and read and emit text line by line.
+     * Create processor with UTF-8 character set.
+     * @see #streamTextSocket(String, int, Charset)
      */
     @Nonnull
-    public static ProcessorSupplier readSocket(@Nonnull String host, int port) {
-        return ReadSocketTextStreamP.supplier(host, port);
+    public static Distributed.Supplier<Processor> streamTextSocket(@Nonnull String host, int port) {
+        return streamTextSocket(host, port, null);
+    }
+
+    /**
+     * A reader that connects to a specified socket and reads and emits text line by line.
+     * This processor expects a server-side socket to be available to connect to.
+     * <p>
+     * Each processor instance will create a socket connection to the configured [host:port],
+     * so there will be {@code clusterSize * localParallelism} connections. The server
+     * should do the load-balancing.
+     * <p>
+     * The processor will complete, when the socket is closed by the server. No reconnection
+     * is attempted.
+     *
+     * @param host The host name to connect to
+     * @param port The port number to connect to
+     * @param charset Character set used to decode the stream
+     */
+    @Nonnull
+    public static Distributed.Supplier<Processor> streamTextSocket(@Nonnull String host, int port, Charset charset) {
+        return StreamTextSocketP.supplier(host, port, charset != null ? charset.name() : null);
+    }
+
+    /**
+     * Returns a supplier of processors, that read all files in a directory and emit them
+     * line by line. Files should be in UTF-8 encoding.
+     *
+     * @param directory Parent directory of the files.
+     *
+     * @see #readFiles(String, Charset, String)
+     */
+    @Nonnull
+    public static ProcessorSupplier readFiles(@Nonnull String directory) {
+        return readFiles(directory, StandardCharsets.UTF_8, null);
+    }
+
+    /**
+     * Returns a supplier of source processor designed to process files in a directory
+     * in a batch. It processes all files in a directory (optionally filtering with a
+     * {@code glob}). Contents of the files are emitted line by line. There is no
+     * indication, which file a particular line comes from. Contents of subdirectories
+     * are not processed.
+     * <p>
+     * The same directory must be available on all members, but it should not
+     * contain the same files (i.e. it should not be a network shared directory, but
+     * files local to the machine).
+     * <p>
+     * If directory contents are changed while processing, the behavior is
+     * undefined: the changed contents might or might not be processed.
+     *
+     * @param directory Parent directory of the files.
+     * @param charset Character set used when reading the files. If null, utf-8 is used.
+     * @param glob The filtering pattern, see
+     *          {@link java.nio.file.FileSystem#getPathMatcher(String) getPathMatcher()}
+     */
+    @Nonnull
+    public static ProcessorSupplier readFiles(@Nonnull String directory, @Nullable Charset charset,
+            @Nullable String glob) {
+        return ReadFilesP.supplier(directory, charset == null ? "utf-8" : charset.name(), glob);
+    }
+
+    /**
+     * @see #streamFiles(String, Charset)
+     */
+    public static ProcessorSupplier streamFiles(@Nonnull String watchedDirectory) {
+        return streamFiles(watchedDirectory, null);
+    }
+
+    /**
+     * A source processor designed to handle log files in a directory in a streaming
+     * way. It processes files, as they are created/appended to. It ignores files in
+     * subdirectories. Contents of the files are emitted line by line. There is no
+     * indication, which file a particular line comes from.
+     * <p>
+     * Only content appended to the files is read.
+     * Pre-existing files will be scanned for file sizes on startup, and will be
+     * processed from that position, ignoring possibly incomplete first line, if the
+     * file is being written to during startup.
+     * <p>
+     * Only lines terminated with a newline character are emitted. This is to avoid
+     * emitting single line in two chunks, if the file is being actively written to.
+     * <p>
+     * The same directory should be available on all members, but it should not
+     * contain the same files (i.e. it should not a network shared directory, but logs
+     * local to the machine).
+     * <p>
+     * It completes, when the directory is deleted. However, in order to delete
+     * the directory all files in it must be deleted, and if you delete a file, that is
+     * currently being read from, the job will encounter an IOException. Directory
+     * must be deleted on all nodes.
+     *
+     * @param watchedDirectory The directory where we watch files
+     * @param charset Charset used to read files. If null, UTF-8 is used
+     */
+    public static ProcessorSupplier streamFiles(@Nonnull String watchedDirectory,
+            @Nullable Charset charset) {
+        return StreamFilesP.supplier(watchedDirectory, charset == null ? null : charset.toString());
+    }
+
+    /**
+     * Convenience for {@link #writeFile(String, Charset, boolean, boolean)}, with
+     * UTF-8 charset, overwriting the target file and no early file buffer flush.
+     */
+    @Nonnull
+    public static ProcessorMetaSupplier writeFile(@Nonnull String file) {
+        return writeFile(file, null, false, false);
+    }
+
+    /**
+     * Returns a meta-supplier of processor, that writes all items to a local file on
+     * each member. {@code item.toString()} is written to the file, followed by
+     * {@code '\n'} (both on linux and Windows).
+     * <p>
+     * The same file must be available for writing on all nodes. The file on
+     * each node will contain part of the data processed on that member.
+     * <p>
+     *  The vertex should have {@link Vertex#localParallelism(int) local parallelism} of 1.
+     *
+     * @param file The path to the file
+     * @param charset Character set used when reading the files. If null, utf-8 is used.
+     * @param append Whether to append or overwrite the file
+     * @param flushEarly Whether to flush the file after adding data.
+     *                   {@code true} might decrease performance, with {@code false}
+     *                   you see the changes in file earlier.
+     */
+    @Nonnull
+    public static ProcessorMetaSupplier writeFile(@Nonnull String file, @Nullable Charset charset,
+            boolean append, boolean flushEarly) {
+        String fileNamePrefix = file;
+        String fileNameSuffix = "";
+
+        // if the file name has an extension, use it as a suffix
+        String fileNameWithoutPath = new File(file).getName();
+        int lastDot = fileNameWithoutPath.lastIndexOf('.');
+        if (lastDot > 0) {
+            // non-zero is intentional, to not consider files starting with '.' as extension
+            fileNameSuffix = fileNameWithoutPath.substring(lastDot);
+            fileNamePrefix = fileNamePrefix.substring(0, fileNamePrefix.length() - fileNameSuffix.length());
+        }
+
+        return WriteFileP.supplier(fileNamePrefix, fileNameSuffix, charset == null ? null : charset.name(), append, flushEarly);
     }
 
     /**
@@ -754,8 +908,7 @@ public final class Processors {
 
         @Override
         public boolean complete() {
-            tryEmit((long) seenItems.size());
-            return true;
+            return tryEmit((long) seenItems.size());
         }
     }
 }

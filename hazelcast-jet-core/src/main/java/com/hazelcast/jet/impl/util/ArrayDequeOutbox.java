@@ -24,18 +24,18 @@ import java.util.Arrays;
 import java.util.Queue;
 
 /**
- * Implements {@code Outbox} with an {@link ArrayDeque}.
+ * Implements {@code Outbox} with an array of {@link ArrayDeque}s.
  */
 public final class ArrayDequeOutbox implements Outbox {
 
-    private final ArrayDeque<Object>[] buckets;
-    private final int[] outboxLimits;
+    private final Queue<Object>[] buckets;
+    private final int[] capacities;
+    private final ProgressTracker progTracker;
 
-    private boolean didAdd;
-
-    public ArrayDequeOutbox(int size, int[] outboxLimits) {
-        this.outboxLimits = outboxLimits.clone();
-        this.buckets = new ArrayDeque[size];
+    public ArrayDequeOutbox(int size, int[] capacities, ProgressTracker progTracker) {
+        this.capacities = capacities.clone();
+        this.buckets = new Queue[size];
+        this.progTracker = progTracker;
         Arrays.setAll(buckets, i -> new ArrayDeque());
     }
 
@@ -45,28 +45,43 @@ public final class ArrayDequeOutbox implements Outbox {
     }
 
     @Override
-    public void add(int ordinal, @Nonnull Object item) {
-        didAdd = true;
+    public boolean offer(int ordinal, @Nonnull Object item) {
         if (ordinal != -1) {
+            if (isBucketFull(ordinal)) {
+                return false;
+            }
             buckets[ordinal].add(item);
-        } else {
-            for (ArrayDeque<Object> queue : buckets) {
-                queue.add(item);
+            progTracker.madeProgress();
+            return true;
+        }
+        for (int i = 0; i < buckets.length; i++) {
+            if (isBucketFull(i)) {
+                return false;
             }
         }
+        for (Queue<Object> bucket : buckets) {
+            bucket.add(item);
+        }
+        progTracker.madeProgress();
+        return true;
     }
 
     @Override
-    public boolean hasReachedLimit(int ordinal) {
-        if (ordinal != -1) {
-            return buckets[ordinal].size() >= outboxLimits[ordinal];
-        }
-        for (int i = 0; i < buckets.length; i++) {
-            if (buckets[i].size() >= outboxLimits[i]) {
-                return true;
+    public boolean offer(int[] ordinals, @Nonnull Object item) {
+        for (int ord : ordinals) {
+            if (isBucketFull(ord)) {
+                return false;
             }
         }
-        return false;
+        for (int ord : ordinals) {
+            buckets[ord].add(item);
+        }
+        progTracker.madeProgress();
+        return true;
+    }
+
+    private boolean isBucketFull(int ordinal) {
+        return buckets[ordinal].size() >= capacities[ordinal];
     }
 
     @Override
@@ -74,17 +89,9 @@ public final class ArrayDequeOutbox implements Outbox {
         return Arrays.toString(buckets);
     }
 
-    // Private API
+    // Private API for tasklets
 
     public Queue<Object> queueWithOrdinal(int ordinal) {
         return buckets[ordinal];
-    }
-
-    public void resetDidAdd() {
-        didAdd = false;
-    }
-
-    public boolean didAdd() {
-        return didAdd;
     }
 }

@@ -181,6 +181,7 @@ public class ForwardingTest extends JetTestSupport {
                 .localParallelism(lists.length);
     }
 
+    @SafeVarargs
     private static <T> Set<T> setOf(Collection<T>... collections) {
         HashSet<T> set = new HashSet<>();
         for (Collection<T> collection : collections) {
@@ -208,7 +209,7 @@ public class ForwardingTest extends JetTestSupport {
 
         @Nonnull @Override
         public Collection<? extends Processor> get(int count) {
-            return Arrays.stream(lists).map(l -> new ListProducer(l, batchSize)).collect(
+            return Arrays.stream(lists).map(ListSource::new).collect(
                     Collectors.toList());
         }
     }
@@ -219,7 +220,7 @@ public class ForwardingTest extends JetTestSupport {
 
         @Override
         public void init(@Nonnull Context context) {
-            processors = Stream.generate(ListConsumer::new).limit(context.localParallelism()).collect(toList());
+            processors = Stream.generate(ListSink::new).limit(context.localParallelism()).collect(toList());
         }
 
         @Override @Nonnull
@@ -229,7 +230,7 @@ public class ForwardingTest extends JetTestSupport {
         }
 
         List<Object> getListAt(int i) {
-            return ((ListConsumer) processors.get(i)).getList();
+            return ((ListSink) processors.get(i)).getList();
         }
     }
 }

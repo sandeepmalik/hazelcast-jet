@@ -53,7 +53,9 @@ public class DecoratorTest {
                     "removeIf",
                     "sort",
                     "spliterator",
-                    "stream")
+                    "stream",
+                    "listIterator"
+                    )
     );
 
     @Test

@@ -17,11 +17,47 @@
 package com.hazelcast.jet.impl.util;
 
 import com.hazelcast.jet.Inbox;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.util.ArrayDeque;
 
 /**
- * {@link Inbox} in terms of {@link ArrayDeque}.
+ * Extends {@link ArrayDeque} to implement {@link Inbox}.
  */
+// The correctness of this class depends on the fact that the
+// implementations of batch draining methods in Inbox delegate
+// to poll(). Therefore the class is final.
+@SuppressFBWarnings(value = "SE_BAD_FIELD", justification = "Inbox is not intended to be serializable")
 public final class ArrayDequeInbox extends ArrayDeque<Object> implements Inbox {
+
+    private final ProgressTracker progTracker;
+
+    /**
+     * Constructor to be used just for testing. Uses a private progress
+     * tracker.
+     */
+    public ArrayDequeInbox() {
+        this.progTracker = new ProgressTracker();
+    }
+
+    /**
+     * Constructs the inbox with the provided progress tracker.
+     */
+    public ArrayDequeInbox(ProgressTracker progTracker) {
+        this.progTracker = progTracker;
+    }
+
+    @Override
+    public Object poll() {
+        Object result = super.poll();
+        progTracker.madeProgress(result != null);
+        return result;
+    }
+
+    @Override
+    public Object remove() {
+        Object result = super.remove();
+        progTracker.madeProgress();
+        return result;
+    }
 }

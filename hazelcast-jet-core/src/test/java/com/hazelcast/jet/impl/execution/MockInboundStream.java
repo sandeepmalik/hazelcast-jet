@@ -28,6 +28,7 @@ import static com.hazelcast.jet.impl.util.ProgressState.DONE;
 import static com.hazelcast.jet.impl.util.ProgressState.MADE_PROGRESS;
 import static com.hazelcast.jet.impl.util.ProgressState.NO_PROGRESS;
 import static com.hazelcast.jet.impl.util.ProgressState.WAS_ALREADY_DONE;
+import static java.util.Collections.emptyList;
 
 public class MockInboundStream implements InboundEdgeStream {
     private final int chunkSize;
@@ -36,14 +37,18 @@ public class MockInboundStream implements InboundEdgeStream {
     private int dataIndex;
     private boolean done;
 
-    public MockInboundStream(int ordinal, List<?> mockData, int chunkSize) {
+    MockInboundStream(int ordinal, List<?> mockData, int chunkSize) {
         this.ordinal = ordinal;
         this.chunkSize = chunkSize;
-        this.mockData = new ArrayList<>(mockData);
-        this.dataIndex = 0;
+        if (mockData.isEmpty()) {
+            done = true;
+            this.mockData = emptyList();
+        } else {
+            this.mockData = new ArrayList<>(mockData);
+        }
     }
 
-    public void push(Object... items) {
+    void push(Object... items) {
         mockData.addAll(Arrays.asList(items));
     }
 

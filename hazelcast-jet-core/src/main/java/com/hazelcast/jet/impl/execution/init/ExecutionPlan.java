@@ -271,7 +271,7 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
     ) {
         final int totalPtionCount = nodeEngine.getPartitionService().getPartitionCount();
         OutboundCollector[] outboundCollectors = createOutboundCollectors(edge, processorIndex, senderConveyorMap);
-        int outboxLimit = edge.isBuffered() ? Integer.MAX_VALUE : edge.getConfig().getOutboxLimit();
+        int outboxLimit = edge.isBuffered() ? Integer.MAX_VALUE : edge.getConfig().getOutboxCapacity();
         OutboundCollector compositeCollector = compositeCollector(outboundCollectors, edge, totalPtionCount);
         return new OutboundEdgeStream(edge.sourceOrdinal(), outboxLimit, compositeCollector);
     }
@@ -291,10 +291,10 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
             if (downstreamParallelism < upstreamParallelism) {
                 throw new IllegalArgumentException("Downstream parallelism (" + downstreamParallelism
                         + ") should be greater than or equal to upstream parallelism (" + upstreamParallelism
-                        + ") for a ONE_TO_MANY edge " + edge.toString());
+                        + ") for a ONE_TO_MANY edge " + edge);
             }
             if (edge.isDistributed()) {
-                throw new IllegalArgumentException("One to many edges must be local: " + edge.toString());
+                throw new IllegalArgumentException("One to many edges must be local: " + edge);
             }
 
             // there is only one producer per consumer for a one to many edge, so queueCount is always 1
