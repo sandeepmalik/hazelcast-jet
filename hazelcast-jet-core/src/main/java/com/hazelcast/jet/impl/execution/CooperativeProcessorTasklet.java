@@ -58,21 +58,22 @@ public class CooperativeProcessorTasklet extends ProcessorTaskletBase {
     @Override @Nonnull
     public ProgressState call() {
         progTracker.reset();
-        tryFillInbox();
+        if (!inbox().isEmpty()) {
+            progTracker.notDone();
+        } else {
+            if (!processor.process()) {
+                tryFlushOutbox();
+                return progTracker.toProgressState();
+            }
+            tryFillInbox();
+        }
         if (progTracker.isDone()) {
             completeIfNeeded();
         } else if (!inbox().isEmpty()) {
-            tryProcessInbox();
+            processor.process(currInstream.ordinal(), inbox());
         }
         tryFlushOutbox();
         return progTracker.toProgressState();
-    }
-
-    private void tryProcessInbox() {
-        processor.process(currInstream.ordinal(), inbox());
-        if (!inbox().isEmpty()) {
-            progTracker.notDone();
-        }
     }
 
     private void completeIfNeeded() {

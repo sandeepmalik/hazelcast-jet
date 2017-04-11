@@ -26,12 +26,10 @@ import com.hazelcast.jet.Traversers.ResettableSingletonTraverser;
 
 import javax.annotation.Nonnull;
 
-import static com.hazelcast.util.Preconditions.checkNotNegative;
-
 /**
- * Use
+ * A processor that inserts punctuation into a data stream. See
  * {@link WindowingProcessors#insertPunctuation(ToLongFunction, Supplier)
- * WindowingProcessors.insertPunctuation()}.
+ * WindowingProcessors.insertPunctuation()} for documentation.
  *
  * @param <T> input event type
  */
@@ -40,7 +38,7 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
     private final ToLongFunction<T> extractEventSeqF;
     private final PunctuationKeeper punctuationKeeper;
     private final ResettableSingletonTraverser<Object> singletonTraverser;
-    private final Traverser<Object> nullTraverser;
+    private final Traverser<Object> nullTraverser = Traversers.newNullTraverser();
     private final FlatMapper<Object, Object> flatMapper;
 
     private long currPunc = Long.MIN_VALUE;
@@ -56,11 +54,28 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
         this.punctuationKeeper = punctuationKeeper;
         this.flatMapper = flatMapper(this::traverser);
         this.singletonTraverser = new ResettableSingletonTraverser<>();
-        this.nullTraverser = Traversers.newNullTraverser();
     }
 
-    protected Traverser<Object> traverser(Object item) {
-        long eventSeq = extractEventSeqF.applyAsLong((T)item);
+    @Override
+    public boolean process() {
+        long newPunc = punctuationKeeper.getCurrentPunctuation();
+        if (newPunc > currPunc) {
+            boolean emitted = tryEmit(new Punctuation(newPunc));
+            if (emitted) {
+                currPunc = newPunc;
+            }
+            return emitted;
+        }
+        return true;
+    }
+
+    @Override
+    protected boolean tryProcess(int ordinal, @Nonnull Object item) throws Exception {
+        return flatMapper.tryProcess(item);
+    }
+
+    private Traverser<Object> traverser(Object item) {
+        long eventSeq = extractEventSeqF.applyAsLong((T) item);
         if (eventSeq < currPunc) {
             // drop late event
             return nullTraverser;
@@ -73,20 +88,5 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
         }
         singletonTraverser.accept(item);
         return singletonTraverser;
-    }
-
-    @Override
-    protected boolean tryProcess(int ordinal, @Nonnull Object item) throws Exception {
-        return flatMapper.tryProcess(item);
-    }
-
-    @Override
-    public void process() {
-        long newPunc = punctuationKeeper.getCurrentPunctuation();
-        if (newPunc > currPunc) {
-            if (tryEmit(new Punctuation(newPunc))) {
-                currPunc = newPunc;
-            }
-        }
     }
 }

@@ -90,7 +90,8 @@ public interface Processor {
      * Called when there is no pending data to process. Allows the processor to
      * perform non-input-driven work.
      */
-    default void process() {
+    default boolean process() {
+        return true;
     }
 
     /**

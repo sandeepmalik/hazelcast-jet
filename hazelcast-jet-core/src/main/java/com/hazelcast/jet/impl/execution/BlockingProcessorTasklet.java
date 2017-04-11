@@ -62,7 +62,12 @@ public class BlockingProcessorTasklet extends ProcessorTaskletBase {
     public ProgressState call() {
         try {
             progTracker.reset();
-            tryFillInbox();
+            if (inbox().isEmpty()) {
+                callNullaryProcess();
+                tryFillInbox();
+            } else {
+                progTracker.notDone();
+            }
             if (progTracker.isDone()) {
                 complete();
             } else if (!inbox().isEmpty()) {
@@ -72,6 +77,11 @@ public class BlockingProcessorTasklet extends ProcessorTaskletBase {
         } catch (JobFutureCompletedExceptionally e) {
             return ProgressState.DONE;
         }
+    }
+
+    private void callNullaryProcess() {
+        boolean processDone = processor.process();
+        assert processDone : "Blocking processor's process() returned false";
     }
 
     private void complete() {

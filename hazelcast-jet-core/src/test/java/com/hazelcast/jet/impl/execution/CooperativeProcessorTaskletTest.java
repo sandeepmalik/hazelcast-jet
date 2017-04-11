@@ -36,6 +36,7 @@ import java.util.stream.IntStream;
 import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
 import static com.hazelcast.jet.impl.util.ProgressState.DONE;
 import static com.hazelcast.jet.impl.util.ProgressState.NO_PROGRESS;
+import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 import static org.junit.Assert.assertEquals;
@@ -56,7 +57,7 @@ public class CooperativeProcessorTaskletTest {
 
 
     @Before
-    public void setUp() throws Exception {
+    public void setUp() {
         this.mockInput = IntStream.range(0, MOCK_INPUT_LENGTH).boxed().collect(toList());
         this.processor = new PassThroughProcessor();
         this.context = mock(Context.class);
@@ -65,7 +66,7 @@ public class CooperativeProcessorTaskletTest {
     }
 
     @Test
-    public void when_singleInstreamAndOutstream_then_outstreamGetsAll() throws Exception {
+    public void when_singleInstreamAndOutstream_then_outstreamGetsAll() {
         // Given
         mockInput.add(DONE_ITEM);
         MockInboundStream instream1 = new MockInboundStream(0, mockInput, mockInput.size());
@@ -82,7 +83,7 @@ public class CooperativeProcessorTaskletTest {
     }
 
     @Test
-    public void when_oneInstreamAndTwoOutstreams_then_allOutstreamsGetAllItems() throws Exception {
+    public void when_oneInstreamAndTwoOutstreams_then_allOutstreamsGetAllItems() {
         // Given
         mockInput.add(DONE_ITEM);
         MockInboundStream instream1 = new MockInboundStream(0, mockInput, mockInput.size());
@@ -102,7 +103,7 @@ public class CooperativeProcessorTaskletTest {
     }
 
     @Test
-    public void when_instreamChunked_then_processAllEventually() throws Exception {
+    public void when_instreamChunked_then_processAllEventually() {
         // Given
         mockInput.add(DONE_ITEM);
         MockInboundStream instream1 = new MockInboundStream(0, mockInput, 4);
@@ -119,7 +120,7 @@ public class CooperativeProcessorTaskletTest {
     }
 
     @Test
-    public void when_3instreams_then_pushAllIntoOutstream() throws Exception {
+    public void when_3instreams_then_pushAllIntoOutstream() {
         // Given
         MockInboundStream instream1 = new MockInboundStream(0, mockInput.subList(0, 4), 4);
         MockInboundStream instream2 = new MockInboundStream(1, mockInput.subList(4, 8), 4);
@@ -127,10 +128,8 @@ public class CooperativeProcessorTaskletTest {
         instream1.push(DONE_ITEM);
         instream2.push(DONE_ITEM);
         instream3.push(DONE_ITEM);
+        instreams.addAll(asList(instream1, instream2, instream3));
         MockOutboundStream outstream1 = new MockOutboundStream(0, 20);
-        instreams.add(instream1);
-        instreams.add(instream2);
-        instreams.add(instream3);
         outstreams.add(outstream1);
         Tasklet tasklet = createTasklet();
 
@@ -143,7 +142,7 @@ public class CooperativeProcessorTaskletTest {
     }
 
     @Test
-    public void when_outstreamRefusesItem_then_noProgress() throws Exception {
+    public void when_outstreamRefusesItem_then_noProgress() {
         // Given
         MockInboundStream instream1 = new MockInboundStream(0, mockInput, 4);
         MockOutboundStream outstream1 = new MockOutboundStream(0, 4);
@@ -159,7 +158,7 @@ public class CooperativeProcessorTaskletTest {
     }
 
     @Test
-    public void when_outboxRefusesDoneItem_then_notDone() throws Exception {
+    public void when_outboxRefusesDoneItem_then_notDone() {
         // Given
         MockInboundStream instream1 = new MockInboundStream(0, emptyList(), 0);
         MockOutboundStream outstream1 = new MockOutboundStream(0, 0, 0);
@@ -174,7 +173,7 @@ public class CooperativeProcessorTaskletTest {
     }
 
     @Test
-    public void when_hasEvents_then_processMethodCalled() throws Exception {
+    public void when_hasItems_then_nullaryProcessCalled() {
         // Given
         MockInboundStream instream1 = new MockInboundStream(0, mockInput, 4);
         MockOutboundStream outstream1 = new MockOutboundStream(0, mockInput.size());
@@ -187,13 +186,13 @@ public class CooperativeProcessorTaskletTest {
 
         // Then
         assertEquals(new HashSet<>(mockInput), new HashSet<>(outstream1.getBuffer()));
-        assertEquals(1, processor.processCallCount);
+        assertTrue(processor.nullaryProcessCallCount > 0);
     }
 
     @Test
-    public void when_doesNotHaveEvents_then_processMethodCalled() throws Exception {
+    public void when_noItems_then_nullaryProcessCalled() {
         // Given
-        MockInboundStream instream1 = new MockInboundStream(0, mockInput, 4);
+        MockInboundStream instream1 = new MockInboundStream(0, emptyList(), 4);
         MockOutboundStream outstream1 = new MockOutboundStream(0, 4);
         instreams.add(instream1);
         outstreams.add(outstream1);
@@ -203,7 +202,7 @@ public class CooperativeProcessorTaskletTest {
         callUntil(tasklet, NO_PROGRESS);
 
         // Then
-        assertEquals(1, processor.processCallCount);
+        assertTrue(processor.nullaryProcessCallCount > 0);
     }
 
     private CooperativeProcessorTasklet createTasklet() {
@@ -215,7 +214,7 @@ public class CooperativeProcessorTaskletTest {
 
     private static class PassThroughProcessor implements Processor {
         private Outbox outbox;
-        int processCallCount;
+        int nullaryProcessCallCount;
 
         @Override
         public void init(@Nonnull Outbox outbox, @Nonnull Context context) {
@@ -232,12 +231,13 @@ public class CooperativeProcessorTaskletTest {
         }
 
         @Override
-        public void process() {
-            processCallCount++;
+        public boolean process() {
+            nullaryProcessCallCount++;
+            return true;
         }
     }
 
-    private static void callUntil(Tasklet tasklet, ProgressState expectedState) throws Exception {
+    private static void callUntil(Tasklet tasklet, ProgressState expectedState) {
         int iterCount = 0;
         for (ProgressState r; (r = tasklet.call()) != expectedState; ) {
             assertTrue("Failed to make progress: " + r, r.isMadeProgress());
