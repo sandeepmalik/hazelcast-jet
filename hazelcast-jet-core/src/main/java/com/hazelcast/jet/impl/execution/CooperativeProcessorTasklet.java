@@ -61,7 +61,7 @@ public class CooperativeProcessorTasklet extends ProcessorTaskletBase {
         if (!inbox().isEmpty()) {
             progTracker.notDone();
         } else {
-            if (!processor.process()) {
+            if (!processor.tryProcess()) {
                 tryFlushOutbox();
                 return progTracker.toProgressState();
             }

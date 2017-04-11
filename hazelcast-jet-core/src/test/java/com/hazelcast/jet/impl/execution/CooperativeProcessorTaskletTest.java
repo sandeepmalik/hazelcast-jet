@@ -231,7 +231,7 @@ public class CooperativeProcessorTaskletTest {
         }
 
         @Override
-        public boolean process() {
+        public boolean tryProcess() {
             nullaryProcessCallCount++;
             return true;
         }

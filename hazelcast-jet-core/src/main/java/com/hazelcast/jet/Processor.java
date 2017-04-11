@@ -87,10 +87,11 @@ public interface Processor {
     }
 
     /**
-     * Called when there is no pending data to process. Allows the processor to
-     * perform non-input-driven work.
+     * Called when there is no pending data in the inbox. Allows the processor
+     * to perform non-input-driven work. If it returns {@code false}, it will
+     * be called again before proceeding to call any other method.
      */
-    default boolean process() {
+    default boolean tryProcess() {
         return true;
     }
 

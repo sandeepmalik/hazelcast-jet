@@ -57,7 +57,7 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
     }
 
     @Override
-    public boolean process() {
+    public boolean tryProcess() {
         long newPunc = punctuationKeeper.getCurrentPunctuation();
         if (newPunc > currPunc) {
             boolean emitted = tryEmit(new Punctuation(newPunc));

@@ -80,7 +80,7 @@ public class BlockingProcessorTasklet extends ProcessorTaskletBase {
     }
 
     private void callNullaryProcess() {
-        boolean processDone = processor.process();
+        boolean processDone = processor.tryProcess();
         assert processDone : "Blocking processor's process() returned false";
     }
 
