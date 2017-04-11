@@ -27,7 +27,6 @@ import com.hazelcast.jet.config.InstanceConfig;
 import com.hazelcast.jet.config.JetConfig;
 import com.hazelcast.jet.stream.IStreamMap;
 import com.hazelcast.jet.windowing.Frame;
-import com.hazelcast.jet.windowing.FrameSerializer;
 import com.hazelcast.jet.windowing.WindowDefinition;
 import com.hazelcast.logging.ILogger;
 import com.hazelcast.logging.Logger;
@@ -75,8 +74,6 @@ public class TradeMonitor {
 
         try {
             JetConfig cfg = new JetConfig();
-            cfg.getHazelcastConfig().getSerializationConfig().addSerializerConfig(new SerializerConfig()
-                    .setImplementation(new FrameSerializer()).setTypeClass(Frame.class));
 
             final int defaultLocalParallelism = Math.max(1, getRuntime().availableProcessors() / 2);
             cfg.setInstanceConfig(new InstanceConfig().setCooperativeThreadCount(defaultLocalParallelism));

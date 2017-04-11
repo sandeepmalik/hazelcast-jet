@@ -23,31 +23,4 @@ import com.hazelcast.nio.serialization.StreamSerializer;
 
 import java.io.IOException;
 
-/**
- * Hazelcast serializer of {@link Frame}.
- */
-public final class FrameSerializer implements StreamSerializer<Frame> {
-    @Override
-    public void write(ObjectDataOutput out, Frame object) throws IOException {
-        out.writeLong(object.getSeq());
-        out.writeObject(object.getKey());
-        out.writeObject(object.getValue());
-    }
 
-    @Override
-    public Frame read(ObjectDataInput in) throws IOException {
-        long seq = in.readLong();
-        Object key = in.readObject();
-        Object value = in.readObject();
-        return new Frame<>(seq, key, value);
-    }
-
-    @Override
-    public int getTypeId() {
-        return JetSerializerHook.KEYED_FRAME;
-    }
-
-    @Override
-    public void destroy() {
-    }
-}

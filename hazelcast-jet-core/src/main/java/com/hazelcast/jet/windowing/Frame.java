@@ -16,7 +16,6 @@
 
 package com.hazelcast.jet.windowing;
 
-import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Map;
 
@@ -28,7 +27,7 @@ import java.util.Map;
  * @param <K> type of grouping key
  * @param <V> type of the stream item
  */
-public final class Frame<K, V> implements Serializable, Map.Entry<K, V> {
+public final class Frame<K, V> implements Map.Entry<K, V> {
     private final long seq;
     private final K key;
     private final V value;
