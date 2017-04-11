@@ -45,11 +45,14 @@ public class ThrottlingTest {
     }
 
     @Test
-    public void when_puncIncreasing_then_throttle() {
+    public void when_puncIncreasing_then_throttleByMinStep() {
         assertPunc(2, 2);
         assertPunc(3, 2);
         assertPunc(4, 4);
         assertPunc(6, 6);
+        assertPunc(9, 9);
+        assertPunc(10, 9);
+        assertPunc(11, 11);
     }
 
     private void assertPunc(long actualPunc, long throttledPunc) {
