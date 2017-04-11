@@ -33,7 +33,7 @@ public final class Frame<K, V> implements Serializable, Map.Entry<K, V> {
     private final K key;
     private final V value;
 
-    Frame(long seq, K key, V value) {
+    public Frame(long seq, K key, V value) {
         this.seq = seq;
         this.key = key;
         this.value = value;
