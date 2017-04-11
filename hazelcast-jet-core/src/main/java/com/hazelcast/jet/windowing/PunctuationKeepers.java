@@ -142,12 +142,15 @@ public final class PunctuationKeepers {
     }
 
     /**
-     * Throttles a given punctuation keeper's output by a minimum step in the event sequence.
-     * The punctuation can't advance by less than the given step a time.
+     * Throttles the supplied punctuation keeper's output by ensuring that the
+     * punctuation advances by at least the supplied {@code minStep}.
+     * Punctuation returned from the wrapped keeper that is less than {@code
+     * minStep} ahead of the top punctuation returned from this keeper is
+     * ignored.
      */
     public static Supplier<PunctuationKeeper> throttle(Supplier<PunctuationKeeper> newKeeperF, long minStep) {
         return () -> {
-            PunctuationKeeper pk = newKeeperF.get();
+            PunctuationKeeper wrapped = newKeeperF.get();
             return new PunctuationKeeper() {
 
                 private long nextPunc = Long.MIN_VALUE;
@@ -155,24 +158,23 @@ public final class PunctuationKeepers {
 
                 @Override
                 public long reportEvent(long eventSeq) {
-                    long newPunc = pk.reportEvent(eventSeq);
-                    return tryUpdatePunc(newPunc);
+                    long newPunc = wrapped.reportEvent(eventSeq);
+                    return throttledAdvance(newPunc);
                 }
 
                 @Override
                 public long getCurrentPunctuation() {
-                    long newPunc = pk.getCurrentPunctuation();
-                    return tryUpdatePunc(newPunc);
+                    long newPunc = wrapped.getCurrentPunctuation();
+                    return throttledAdvance(newPunc);
                 }
 
-                private long tryUpdatePunc(long newPunc) {
-                    if (newPunc >= nextPunc) {
-                        nextPunc = newPunc + minStep;
-                        currPunc = newPunc;
-                        return newPunc;
-                    } else {
+                private long throttledAdvance(long newPunc) {
+                    if (newPunc < nextPunc) {
                         return currPunc;
                     }
+                    nextPunc = newPunc + minStep;
+                    currPunc = newPunc;
+                    return newPunc;
                 }
             };
         };

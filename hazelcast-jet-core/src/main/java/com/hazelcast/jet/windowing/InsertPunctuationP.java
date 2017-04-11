@@ -60,11 +60,11 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
     public boolean tryProcess() {
         long newPunc = punctuationKeeper.getCurrentPunctuation();
         if (newPunc > currPunc) {
-            boolean emitted = tryEmit(new Punctuation(newPunc));
-            if (emitted) {
+            boolean didEmit = tryEmit(new Punctuation(newPunc));
+            if (didEmit) {
                 currPunc = newPunc;
             }
-            return emitted;
+            return didEmit;
         }
         return true;
     }
@@ -81,12 +81,12 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
             return nullTraverser;
         }
         long newPunc = punctuationKeeper.reportEvent(eventSeq);
+        singletonTraverser.accept(item);
         if (newPunc > currPunc) {
             currPunc = newPunc;
-            singletonTraverser.accept(new Punctuation(currPunc));
-            return singletonTraverser.append(item);
+            System.out.println("new punc " + currPunc);
+            return singletonTraverser.prepend(new Punctuation(currPunc));
         }
-        singletonTraverser.accept(item);
         return singletonTraverser;
     }
 }

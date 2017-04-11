@@ -34,13 +34,13 @@ public class InsertPunctuationPTest {
 
     private static final long LAG = 3;
 
-    private MyClock clock;
+    private MockClock clock;
     private InsertPunctuationP<Item> p;
     private ArrayDequeOutbox outbox;
     private List<String> resultToCheck = new ArrayList<>();
 
     public void setUp(int outboxCapacity) {
-        clock = new MyClock(100);
+        clock = new MockClock(100);
         p = new InsertPunctuationP<>(Item::getTime, PunctuationKeepers.cappingEventSeqLag(LAG).get());
 
         outbox = new ArrayDequeOutbox(new int[]{outboxCapacity}, new ProgressTracker());
@@ -63,11 +63,11 @@ public class InsertPunctuationPTest {
         setUp(outboxCapacity);
 
         // this is to make the capacity-one outbox initially full
-        assertTrue(outbox.offer("garbage"));
+        assertTrue(outbox.offer("initialItem"));
 
         String[] expected = {
                 "-- at 100",
-                "garbage",
+                "initialItem",
                 "Punctuation{seq=7}",
                 "Item{time=10}",
                 "Item{time=8}",
@@ -114,10 +114,10 @@ public class InsertPunctuationPTest {
                 tryProcessAndDrain(oldItem);
             }
 
-            p.process();
+            p.tryProcess();
             drainOutbox(resultToCheck);
 
-            clock.advance(1);
+            clock.advance();
         }
 
         assertEquals(toString(Arrays.asList(expected)), toString(resultToCheck));
@@ -165,10 +165,10 @@ public class InsertPunctuationPTest {
         }
     }
 
-    private static class MyClock {
+    private static class MockClock {
         long time;
 
-        public MyClock(long time) {
+        MockClock(long time) {
             this.time = time;
         }
 
@@ -176,8 +176,8 @@ public class InsertPunctuationPTest {
             return time;
         }
 
-        void advance(long by) {
-            time += by;
+        void advance() {
+            time++;
         }
     }
 }

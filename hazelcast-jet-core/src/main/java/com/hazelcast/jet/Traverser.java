@@ -57,8 +57,8 @@ public interface Traverser<T> {
 
     /**
      * Adds a filtering layer to this traverser. The returned traverser will
-     * emit the same items as this traverser, but only those that pass the given
-     * predicate.
+     * emit the same items as this traverser, but only those that pass the
+     * given predicate.
      */
     @Nonnull
     default Traverser<T> filter(@Nonnull Predicate<? super T> pred) {
@@ -73,8 +73,8 @@ public interface Traverser<T> {
     }
 
     /**
-     * Returns a traverser which appends an additional item to the
-     * original traverser after it returns first {@code null} value.
+     * Returns a traverser which appends an additional item to this traverser
+     * after it returns the first {@code null} value.
      */
     @Nonnull
     default Traverser<T> append(T item) {
@@ -91,6 +91,25 @@ public interface Traverser<T> {
                     }
                 }
                 return t;
+            }
+        };
+    }
+
+    /**
+     * Returns a traverser which prepends an additional item in front of
+     * all the items of this traverser.
+     */
+    @Nonnull
+    default Traverser<T> prepend(T item) {
+        return new Traverser<T>() {
+            private boolean itemReturned;
+            @Override
+            public T next() {
+                if (itemReturned) {
+                    return Traverser.this.next();
+                }
+                itemReturned = true;
+                return item;
             }
         };
     }
