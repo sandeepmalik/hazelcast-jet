@@ -40,7 +40,6 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
@@ -155,21 +154,6 @@ public class CooperativeProcessorTaskletTest {
 
         // Then
         assertTrue(outstream1.getBuffer().equals(mockInput.subList(0, 4)));
-    }
-
-    @Test
-    public void when_outboxRefusesDoneItem_then_notDone() {
-        // Given
-        MockInboundStream instream1 = new MockInboundStream(0, emptyList(), 0);
-        MockOutboundStream outstream1 = new MockOutboundStream(0, 0, 0);
-        instreams.add(instream1);
-        outstreams.add(outstream1);
-        Tasklet tasklet = createTasklet();
-
-        // When - then
-        for (int i = 0; i < CALL_COUNT_LIMIT; i++) {
-            assertFalse(tasklet.call().isDone());
-        }
     }
 
     @Test
