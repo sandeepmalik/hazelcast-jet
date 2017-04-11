@@ -19,7 +19,6 @@ package com.hazelcast.jet.windowing;
 import com.hazelcast.jet.Processor.Context;
 import com.hazelcast.jet.impl.util.ArrayDequeOutbox;
 import com.hazelcast.jet.impl.util.ProgressTracker;
-import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -38,22 +37,38 @@ public class InsertPunctuationPTest {
     private MyClock clock;
     private InsertPunctuationP<Item> p;
     private ArrayDequeOutbox outbox;
+    private List<String> resultToCheck = new ArrayList<>();
 
-    @Before
-    public void setUp() {
+    public void setUp(int outboxCapacity) {
         clock = new MyClock(100);
         p = new InsertPunctuationP<>(Item::getTime, PunctuationKeepers.cappingEventSeqLag(LAG).get(),
                 3, 5, clock::time);
-        outbox = new ArrayDequeOutbox(new int[] {128}, new ProgressTracker());
+
+        outbox = new ArrayDequeOutbox(1, new int[]{outboxCapacity}, new ProgressTracker());
         Context context = mock(Context.class);
 
         p.init(outbox, context);
     }
 
     @Test
-    public void test_throttling_smokeTest() throws Exception {
+    public void smokeTest_oneItemOutbox() throws Exception {
+        smokeTest(1);
+    }
+
+    @Test
+    public void smoteTest_outboxLargeEnough() throws Exception {
+        smokeTest(1024);
+    }
+
+    public void smokeTest(int outboxCapacity) throws Exception {
+        setUp(outboxCapacity);
+
+        // this is to make the capacity-one outbox initially full
+        assertTrue(outbox.offer("garbage"));
+
         String[] expected = {
                 "-- at 100",
+                "garbage",
                 "Punctuation{seq=7}",
                 "Item{time=10}",
                 "Item{time=8}",
@@ -91,23 +106,28 @@ public class InsertPunctuationPTest {
                 "-- at 119",
         };
 
-        List<String> actual = new ArrayList<>();
         for (int eventTime = 10; eventTime < 30; eventTime++) {
-            actual.add("-- at " + clock.time());
+            resultToCheck.add("-- at " + clock.time());
             if (eventTime < 14 || eventTime >= 20 && eventTime <= 21) {
                 Item item = new Item(eventTime);
                 Item oldItem = new Item(eventTime - 2);
-                assertTrue(p.tryProcess(0, item));
-                assertTrue(p.tryProcess(0, oldItem));
+                tryProcessAndDrain(item);
+                tryProcessAndDrain(oldItem);
             }
 
             p.process();
+            drainOutbox(resultToCheck);
 
-            drainOutbox(actual);
             clock.advance(1);
         }
 
-        assertEquals(toString(Arrays.asList(expected)), toString(actual));
+        assertEquals(toString(Arrays.asList(expected)), toString(resultToCheck));
+    }
+
+    private void tryProcessAndDrain(Item item) throws Exception {
+        while (!p.tryProcess(0, item)) {
+            drainOutbox(resultToCheck);
+        }
     }
 
     private void drainOutbox(List<String> actual) {

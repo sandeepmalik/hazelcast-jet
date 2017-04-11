@@ -31,6 +31,8 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  * Use
  * {@link WindowingProcessors#insertPunctuation(ToLongFunction, Supplier, long, long)
  * WindowingProcessors.insertPunctuation()}.
+ *
+ * @param <T> input event type
  */
 public class InsertPunctuationP<T> extends AbstractProcessor {
 
@@ -104,18 +106,28 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
     }
 
     private boolean maybeEmitPunctuation(long newIdealPunct) {
+        // newIdealPunc should be monotonic, but to be sure...
         idealPunct = Math.max(newIdealPunct, idealPunct);
 
-        long now = clock.getAsLong();
-        if (idealPunct > lastEmittedPunc
-                && (idealPunct >= nextEmissionAtSeq || now >= nextEmissionAtSystemTime)
-        ) {
-            nextEmissionAtSeq = idealPunct + eventSeqThrottle;
-            nextEmissionAtSystemTime = now + timeThrottle;
-            lastEmittedPunc = idealPunct;
-            return tryEmit(new Punctuation(idealPunct));
+        if (idealPunct <= lastEmittedPunc) {
+            return true;
         }
 
+        long now = clock.getAsLong();
+
+        // apply throttling
+        if (idealPunct < nextEmissionAtSeq && now < nextEmissionAtSystemTime) {
+            return true;
+        }
+
+        if (!tryEmit(new Punctuation(idealPunct))) {
+            return false;
+        }
+
+        // punctuation emitted, let's plan for next emission
+        nextEmissionAtSeq = idealPunct + eventSeqThrottle;
+        nextEmissionAtSystemTime = now + timeThrottle;
+        lastEmittedPunc = idealPunct;
         return true;
     }
 }

@@ -15,6 +15,6 @@
  */
 
 /**
- * Code to perform grouping items by window in an infinite stream.
+ * Code to perform grouping of items into windows in an infinite stream.
  */
 package com.hazelcast.jet.windowing;
