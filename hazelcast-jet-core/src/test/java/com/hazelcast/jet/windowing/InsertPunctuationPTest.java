@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
 public class InsertPunctuationPTest {
@@ -43,8 +44,7 @@ public class InsertPunctuationPTest {
         clock = new MyClock(100);
         p = new InsertPunctuationP<>(Item::getTime, PunctuationKeepers.cappingEventSeqLag(LAG).get(),
                 3, 5, clock::time);
-
-        outbox = new ArrayDequeOutbox(1, new int[]{128}, new ProgressTracker());
+        outbox = new ArrayDequeOutbox(new int[] {128}, new ProgressTracker());
         Context context = mock(Context.class);
 
         p.init(outbox, context);
@@ -97,8 +97,8 @@ public class InsertPunctuationPTest {
             if (eventTime < 14 || eventTime >= 20 && eventTime <= 21) {
                 Item item = new Item(eventTime);
                 Item oldItem = new Item(eventTime - 2);
-                p.tryProcess(0, item);
-                p.tryProcess(0, oldItem);
+                assertTrue(p.tryProcess(0, item));
+                assertTrue(p.tryProcess(0, oldItem));
             }
 
             p.process();

@@ -52,7 +52,7 @@ public class ProcessorsTest {
     @Before
     public void before() {
         inbox = new ArrayDequeInbox();
-        outbox = new ArrayDequeOutbox(1, new int[]{1}, new ProgressTracker());
+        outbox = new ArrayDequeOutbox(new int[]{1}, new ProgressTracker());
         context = mock(Context.class);
         bucket = outbox.queueWithOrdinal(0);
     }

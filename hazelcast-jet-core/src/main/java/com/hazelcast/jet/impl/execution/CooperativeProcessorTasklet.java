@@ -42,7 +42,7 @@ public class CooperativeProcessorTasklet extends ProcessorTaskletBase {
         super(vertexName, context, processor, instreams, outstreams);
         Preconditions.checkTrue(processor.isCooperative(), "Processor is non-cooperative");
         int[] bucketCapacities = Stream.of(this.outstreams).mapToInt(OutboundEdgeStream::getOutboxCapacity).toArray();
-        this.outbox = new ArrayDequeOutbox(outstreams.size(), bucketCapacities, progTracker);
+        this.outbox = new ArrayDequeOutbox(bucketCapacities, progTracker);
     }
 
     @Override

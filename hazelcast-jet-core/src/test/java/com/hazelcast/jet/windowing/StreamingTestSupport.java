@@ -20,7 +20,6 @@ import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.impl.util.ArrayDequeInbox;
 import com.hazelcast.jet.impl.util.ArrayDequeOutbox;
 import com.hazelcast.jet.impl.util.ProgressTracker;
-import org.junit.Before;
 
 import java.util.List;
 
@@ -28,7 +27,7 @@ import static org.junit.Assert.assertEquals;
 
 class StreamingTestSupport {
     ArrayDequeInbox inbox = new ArrayDequeInbox();
-    ArrayDequeOutbox outbox = new ArrayDequeOutbox(1, new int[] {1024}, new ProgressTracker());
+    ArrayDequeOutbox outbox = new ArrayDequeOutbox(new int[] {1024}, new ProgressTracker());
 
     static Punctuation punc(long seq) {
         return new Punctuation(seq);
