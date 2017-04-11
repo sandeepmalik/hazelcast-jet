@@ -141,6 +141,43 @@ public final class PunctuationKeepers {
         return cappingEventSeqLagAndLull(eventSeqLag, maxLullMs, System::nanoTime);
     }
 
+    /**
+     * Throttles a given punctuation keeper's output by a minimum step in the event sequence.
+     * The punctuation can't advance by less than the given step a time.
+     */
+    public static Supplier<PunctuationKeeper> throttle(Supplier<PunctuationKeeper> newKeeperF, long minStep) {
+        return () -> {
+            PunctuationKeeper pk = newKeeperF.get();
+            return new PunctuationKeeper() {
+
+                private long nextPunc = Long.MIN_VALUE;
+                private long currPunc = Long.MIN_VALUE;
+
+                @Override
+                public long reportEvent(long eventSeq) {
+                    long newPunc = pk.reportEvent(eventSeq);
+                    return tryUpdatePunc(newPunc);
+                }
+
+                @Override
+                public long getCurrentPunctuation() {
+                    long newPunc = pk.getCurrentPunctuation();
+                    return tryUpdatePunc(newPunc);
+                }
+
+                private long tryUpdatePunc(long newPunc) {
+                    if (newPunc >= nextPunc) {
+                        nextPunc = newPunc + minStep;
+                        currPunc = newPunc;
+                        return newPunc;
+                    } else {
+                        return currPunc;
+                    }
+                }
+            };
+        };
+    }
+
     static Supplier<PunctuationKeeper> cappingEventSeqLagAndLull(long eventSeqLag, long maxLullMs, LongSupplier nanoClock) {
         checkNotNegative(eventSeqLag, "eventSeqLag must not be negative");
         checkNotNegative(maxLullMs, "maxLullMs must not be negative");
