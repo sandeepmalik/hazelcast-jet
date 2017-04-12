@@ -84,7 +84,6 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
         singletonTraverser.accept(item);
         if (newPunc > currPunc) {
             currPunc = newPunc;
-            System.out.println("new punc " + currPunc);
             return singletonTraverser.prepend(new Punctuation(currPunc));
         }
         return singletonTraverser;
