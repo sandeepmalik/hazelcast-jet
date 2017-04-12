@@ -44,16 +44,16 @@ import static com.hazelcast.util.Preconditions.checkPositive;
  * <strong>NOTE:</strong> this class is implemented in terms of some
  * assumptions on the mode of usage:
  * <ol><li>
- *     {@code maxRetain} is expected to be much larger than {@code numStoredSamples}
- *     and uses an integer size of the sample interval. Therefore the supplied
- *     {@code maxRetain} is rounded down to the nearest multiple of
- *     {@code numStoredSamples}.
+ *     {@code maxRetain} is expected to be much larger than {@code
+ *     numStoredSamples} and uses an integer size of the sample interval.
+ *     Therefore the supplied {@code maxRetain} is rounded down to the nearest
+ *     multiple of {@code numStoredSamples}.
  * </li><li>
- *     {@link #sample(long, long) sample()} method is expected to be called with
- *     monotonically increasing timestamps and samples and therefore
- *     {@code sample()} always updates the "tail" slot, corresponding to the most
- *     recent time interval. If called with a timestamp less than the highest
- *     timestamp used so far, it will still update the tail slot.
+ *     {@link #sample(long, long) sample()} method is expected to be called
+ *     with monotonically increasing timestamps and samples and therefore
+ *     {@code sample()} always updates the "tail" slot, corresponding to the
+ *     most recent time interval. If called with a timestamp less than the
+ *     highest timestamp used so far, it will still update the tail slot.
  * </li></ol>
  */
 public class EventSeqHistory {
@@ -72,7 +72,7 @@ public class EventSeqHistory {
         checkPositive(numStoredSamples, "numStoredSamples must be at least one");
         samples = new long[numStoredSamples + 1];
         sampleInterval = maxRetain / numStoredSamples;
-        checkPositive(sampleInterval, "maxRetain must be at least equal to numStoredSamples");
+        checkPositive(sampleInterval, "maxRetain must be at least as much as numStoredSamples");
         Arrays.fill(samples, Long.MIN_VALUE);
     }
 
@@ -82,7 +82,8 @@ public class EventSeqHistory {
      * units ago, or {@link Long#MIN_VALUE} if sampling started less than
      * {@code maxRetain} time units ago.
      *
-     * @param now current system time; must not be less than the time used in the previous call
+     * @param now current system time; must not be less than the time used in the previous
+     *            call
      * @param value the current value of the tracked quantity
      */
     public long sample(long now, long value) {
