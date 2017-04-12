@@ -19,6 +19,8 @@ package com.hazelcast.jet.windowing;
 import com.hazelcast.jet.Distributed.LongSupplier;
 import com.hazelcast.jet.impl.util.EventSeqHistory;
 
+import javax.annotation.Nonnull;
+
 import static com.hazelcast.util.Preconditions.checkNotNegative;
 import static java.lang.Math.max;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -28,6 +30,8 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
  * Utility class with several punctuation keepers.
  */
 public final class PunctuationKeepers {
+
+    private static final int DEFAULT_NUM_STORED_SAMPLES = 16;
 
     private PunctuationKeepers() {
     }
@@ -60,6 +64,7 @@ public final class PunctuationKeepers {
      * @param eventSeqLag the desired difference between the top observed event seq
      *                    and the punctuation
      */
+    @Nonnull
     public static PunctuationKeeper cappingEventSeqLag(long eventSeqLag) {
         checkNotNegative(eventSeqLag, "eventSeqLag must not be negative");
 
@@ -74,38 +79,43 @@ public final class PunctuationKeepers {
 
     /**
      * Maintains punctuation that lags behind the top observed event seq by the
-     * given amount. Additionally, the punctuation will eventually
-     * advance to the top observed sequence within a maximum of {@code maxRetainMs} milliseconds.
+     * given amount and is additionally guaranteed to reach the {@code
+     * eventSeq} of any given event within {@code maxRetainMs} after observing
+     * it.
      *
      * @param eventSeqLag the desired difference between the top observed event seq
      *                    and the punctuation
-     * @param maxRetainMs upper bound on how long system time it will take for the punctuation to eventually
-     *                    reach the highest observed sequence.
-     *
+     * @param maxRetainMs upper bound (in milliseconds) on how long it can take for the
+     *                    punctuation to reach any observed event's {@code eventSeq}
      */
+    @Nonnull
     public static PunctuationKeeper cappingEventSeqLagAndRetention(long eventSeqLag, long maxRetainMs) {
-        return cappingEventSeqLagAndRetention(eventSeqLag, MILLISECONDS.toNanos(maxRetainMs), 16, System::nanoTime);
+        return cappingEventSeqLagAndRetention(
+                eventSeqLag, MILLISECONDS.toNanos(maxRetainMs), DEFAULT_NUM_STORED_SAMPLES, System::nanoTime);
     }
 
-
-    static PunctuationKeeper cappingEventSeqLagAndRetention(long eventSeqLag, long maxRetainNanos, int numStoredSamples,
-                                                            LongSupplier nanoClock) {
+    @Nonnull
+    static PunctuationKeeper cappingEventSeqLagAndRetention(
+            long eventSeqLag, long maxRetainNanos, int numStoredSamples, LongSupplier nanoClock
+    ) {
         return new PunctuationKeeperBase() {
 
             private long topSeq = Long.MIN_VALUE;
-            private EventSeqHistory history = new EventSeqHistory(maxRetainNanos, numStoredSamples);
+            private final EventSeqHistory history = new EventSeqHistory(maxRetainNanos, numStoredSamples);
 
             @Override
             public long reportEvent(long eventSeq) {
                 topSeq = Math.max(eventSeq, topSeq);
-                long proposedPunc = Math.max(history.sample(nanoClock.getAsLong(), topSeq), eventSeq - eventSeqLag);
-                return makePuncAtLeast(proposedPunc);
+                return applyMaxRetain(eventSeq - eventSeqLag);
             }
 
             @Override
             public long getCurrentPunctuation() {
-                long proposedPunc = Math.max(history.sample(nanoClock.getAsLong(), topSeq), super.getCurrentPunctuation());
-                return makePuncAtLeast(proposedPunc);
+                return applyMaxRetain(super.getCurrentPunctuation());
+            }
+
+            private long applyMaxRetain(long punc) {
+                return makePuncAtLeast(Math.max(punc, history.sample(nanoClock.getAsLong(), topSeq)));
             }
         };
     }
@@ -129,6 +139,7 @@ public final class PunctuationKeepers {
      * @param wallClockLag maximum difference between the current value of
      *                     {@code System.currentTimeMillis} and the punctuation
      */
+    @Nonnull
     public static PunctuationKeeper cappingEventSeqAndWallClockLag(long eventSeqLag, long wallClockLag) {
         checkNotNegative(eventSeqLag, "eventSeqLag must not be negative");
         checkNotNegative(wallClockLag, "wallClockLag must not be negative");
@@ -158,7 +169,8 @@ public final class PunctuationKeepers {
      * to the timestamp of the event given in milliseconds and will use that
      * fact to correlate the event seq with the passage of system time. There
      * is no requirement on any specific point of origin for the event time,
-     * i.e., the zero value can denote any point in time as long as it is fixed.
+     * i.e., the zero value can denote any point in time as long as it is
+     * fixed.
      * <p>
      * When the defined {@code maxLullMs} period elapses without observing more
      * events, punctuation will start advancing in lockstep with system time
@@ -176,13 +188,14 @@ public final class PunctuationKeepers {
      * @param maxLullMs maximum duration of a lull period before starting to
      *                  advance punctuation with system time
      */
+    @Nonnull
     public static PunctuationKeeper cappingEventSeqLagAndLull(long eventSeqLag, long maxLullMs) {
         return cappingEventSeqLagAndLull(eventSeqLag, maxLullMs, System::nanoTime);
     }
 
 
-    static PunctuationKeeper cappingEventSeqLagAndLull(long eventSeqLag, long maxLullMs, LongSupplier
-            nanoClock) {
+    @Nonnull
+    static PunctuationKeeper cappingEventSeqLagAndLull(long eventSeqLag, long maxLullMs, LongSupplier nanoClock) {
         checkNotNegative(eventSeqLag, "eventSeqLag must not be negative");
         checkNotNegative(maxLullMs, "maxLullMs must not be negative");
 
