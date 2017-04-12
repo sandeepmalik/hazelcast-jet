@@ -41,7 +41,7 @@ public class ThrottlingPunctuationTest {
                 return punc;
             }
         };
-        p = PunctuationKeepers.throttle(() -> mockKeeper, MIN_STEP).get();
+        p = mockKeeper.throttle(MIN_STEP);
     }
 
     @Test

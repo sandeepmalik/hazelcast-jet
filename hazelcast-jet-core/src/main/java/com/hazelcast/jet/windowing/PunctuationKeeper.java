@@ -43,4 +43,40 @@ public interface PunctuationKeeper {
      * The punctuation may advance just based on the passage of time.
      */
     long getCurrentPunctuation();
+
+    /**
+     * Returns a new punctuation keeper which throttles the output by ensuring that the
+     * punctuation advances by at least the supplied {@code minStep}.
+     * Punctuation returned from the wrapped keeper that is less than {@code
+     * minStep} ahead of the top punctuation returned from this keeper is
+     * ignored.
+     */
+    default PunctuationKeeper throttle(long minStep) {
+        return new PunctuationKeeper() {
+
+            private long nextPunc = Long.MIN_VALUE;
+            private long currPunc = Long.MIN_VALUE;
+
+            @Override
+            public long reportEvent(long eventSeq) {
+                long newPunc = PunctuationKeeper.this.reportEvent(eventSeq);
+                return throttledAdvance(newPunc);
+            }
+
+            @Override
+            public long getCurrentPunctuation() {
+                long newPunc = PunctuationKeeper.this.getCurrentPunctuation();
+                return throttledAdvance(newPunc);
+            }
+
+            private long throttledAdvance(long newPunc) {
+                if (newPunc < nextPunc) {
+                    return currPunc;
+                }
+                nextPunc = newPunc + minStep;
+                currPunc = newPunc;
+                return newPunc;
+            }
+        };
+    }
 }

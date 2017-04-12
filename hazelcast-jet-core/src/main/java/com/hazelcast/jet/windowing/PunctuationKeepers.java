@@ -59,10 +59,10 @@ public final class PunctuationKeepers {
      * @param eventSeqLag the desired difference between the top observed event seq
      *                    and the punctuation
      */
-    public static Supplier<PunctuationKeeper> cappingEventSeqLag(long eventSeqLag) {
+    public static PunctuationKeeper cappingEventSeqLag(long eventSeqLag) {
         checkNotNegative(eventSeqLag, "eventSeqLag must not be negative");
 
-        return () -> new PunctuationKeeperBase() {
+        return new PunctuationKeeperBase() {
 
             @Override
             public long reportEvent(long eventSeq) {
@@ -90,11 +90,11 @@ public final class PunctuationKeepers {
      * @param wallClockLag maximum difference between the current value of
      *                     {@code System.currentTimeMillis} and the punctuation
      */
-    public static Supplier<PunctuationKeeper> cappingEventSeqAndWallClockLag(long eventSeqLag, long wallClockLag) {
+    public static PunctuationKeeper cappingEventSeqAndWallClockLag(long eventSeqLag, long wallClockLag) {
         checkNotNegative(eventSeqLag, "eventSeqLag must not be negative");
         checkNotNegative(wallClockLag, "wallClockLag must not be negative");
 
-        return () -> new PunctuationKeeperBase() {
+        return new PunctuationKeeperBase() {
 
             @Override
             public long reportEvent(long eventSeq) {
@@ -137,54 +137,17 @@ public final class PunctuationKeepers {
      * @param maxLullMs maximum duration of a lull period before starting to
      *                  advance punctuation with system time
      */
-    public static Supplier<PunctuationKeeper> cappingEventSeqLagAndLull(long eventSeqLag, long maxLullMs) {
+    public static PunctuationKeeper cappingEventSeqLagAndLull(long eventSeqLag, long maxLullMs) {
         return cappingEventSeqLagAndLull(eventSeqLag, maxLullMs, System::nanoTime);
     }
 
-    /**
-     * Throttles the supplied punctuation keeper's output by ensuring that the
-     * punctuation advances by at least the supplied {@code minStep}.
-     * Punctuation returned from the wrapped keeper that is less than {@code
-     * minStep} ahead of the top punctuation returned from this keeper is
-     * ignored.
-     */
-    public static Supplier<PunctuationKeeper> throttle(Supplier<PunctuationKeeper> newKeeperF, long minStep) {
-        return () -> {
-            PunctuationKeeper wrapped = newKeeperF.get();
-            return new PunctuationKeeper() {
 
-                private long nextPunc = Long.MIN_VALUE;
-                private long currPunc = Long.MIN_VALUE;
-
-                @Override
-                public long reportEvent(long eventSeq) {
-                    long newPunc = wrapped.reportEvent(eventSeq);
-                    return throttledAdvance(newPunc);
-                }
-
-                @Override
-                public long getCurrentPunctuation() {
-                    long newPunc = wrapped.getCurrentPunctuation();
-                    return throttledAdvance(newPunc);
-                }
-
-                private long throttledAdvance(long newPunc) {
-                    if (newPunc < nextPunc) {
-                        return currPunc;
-                    }
-                    nextPunc = newPunc + minStep;
-                    currPunc = newPunc;
-                    return newPunc;
-                }
-            };
-        };
-    }
-
-    static Supplier<PunctuationKeeper> cappingEventSeqLagAndLull(long eventSeqLag, long maxLullMs, LongSupplier nanoClock) {
+    static PunctuationKeeper cappingEventSeqLagAndLull(long eventSeqLag, long maxLullMs, LongSupplier
+            nanoClock) {
         checkNotNegative(eventSeqLag, "eventSeqLag must not be negative");
         checkNotNegative(maxLullMs, "maxLullMs must not be negative");
 
-        return () -> new PunctuationKeeperBase() {
+        return new PunctuationKeeperBase() {
 
             private long maxLullAt = Long.MIN_VALUE;
 

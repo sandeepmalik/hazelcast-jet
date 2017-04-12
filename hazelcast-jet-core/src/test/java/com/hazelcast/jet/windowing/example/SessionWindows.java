@@ -54,7 +54,7 @@ public class SessionWindows {
         DAG dag = new DAG();
         Vertex source = dag.newVertex("source", SourceP.metaSupplier());
         Vertex punctuation = dag.newVertex("punctuation",
-                insertPunctuation(eventSeqF, cappingEventSeqLag(MAX_SEQ_GAP)));
+                insertPunctuation(eventSeqF, () -> cappingEventSeqLag(MAX_SEQ_GAP)));
         Vertex session = dag.newVertex("session", sessionWindow(
                 MAX_SEQ_GAP,
                 eventSeqF,
