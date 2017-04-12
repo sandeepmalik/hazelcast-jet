@@ -17,10 +17,11 @@
 package com.hazelcast.jet.windowing;
 
 import com.hazelcast.jet.Distributed.LongSupplier;
-import com.hazelcast.jet.Distributed.Supplier;
+import com.hazelcast.jet.impl.util.EventSeqHistory;
 
 import static com.hazelcast.util.Preconditions.checkNotNegative;
 import static java.lang.Math.max;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 /**
@@ -33,7 +34,7 @@ public final class PunctuationKeepers {
 
     private abstract static class PunctuationKeeperBase implements PunctuationKeeper {
 
-        private transient long punc = Long.MIN_VALUE;
+        private long punc = Long.MIN_VALUE;
 
         long makePuncAtLeast(long proposedPunc) {
             punc = max(punc, proposedPunc);
@@ -67,6 +68,44 @@ public final class PunctuationKeepers {
             @Override
             public long reportEvent(long eventSeq) {
                 return makePuncAtLeast(eventSeq - eventSeqLag);
+            }
+        };
+    }
+
+    /**
+     * Maintains punctuation that lags behind the top observed event seq by the
+     * given amount. Additionally, the punctuation will eventually
+     * advance to the top observed sequence within a maximum of {@code maxRetainMs} milliseconds.
+     *
+     * @param eventSeqLag the desired difference between the top observed event seq
+     *                    and the punctuation
+     * @param maxRetainMs upper bound on how long system time it will take for the punctuation to eventually
+     *                    reach the highest observed sequence.
+     *
+     */
+    public static PunctuationKeeper cappingEventSeqLagAndRetention(long eventSeqLag, long maxRetainMs) {
+        return cappingEventSeqLagAndRetention(eventSeqLag, MILLISECONDS.toNanos(maxRetainMs), 16, System::nanoTime);
+    }
+
+
+    static PunctuationKeeper cappingEventSeqLagAndRetention(long eventSeqLag, long maxRetainNanos, int numStoredSamples,
+                                                            LongSupplier nanoClock) {
+        return new PunctuationKeeperBase() {
+
+            private long topSeq = Long.MIN_VALUE;
+            private EventSeqHistory history = new EventSeqHistory(maxRetainNanos, numStoredSamples);
+
+            @Override
+            public long reportEvent(long eventSeq) {
+                topSeq = Math.max(eventSeq, topSeq);
+                long proposedPunc = Math.max(history.sample(nanoClock.getAsLong(), topSeq), eventSeq - eventSeqLag);
+                return makePuncAtLeast(proposedPunc);
+            }
+
+            @Override
+            public long getCurrentPunctuation() {
+                long proposedPunc = Math.max(history.sample(nanoClock.getAsLong(), topSeq), super.getCurrentPunctuation());
+                return makePuncAtLeast(proposedPunc);
             }
         };
     }

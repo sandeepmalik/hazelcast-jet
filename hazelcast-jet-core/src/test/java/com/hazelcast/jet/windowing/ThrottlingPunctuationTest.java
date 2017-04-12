@@ -16,7 +16,6 @@
 
 package com.hazelcast.jet.windowing;
 
-import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -24,25 +23,19 @@ import static org.junit.Assert.assertEquals;
 public class ThrottlingPunctuationTest {
 
     private static final int MIN_STEP = 2;
-    private PunctuationKeeper p;
     private long punc;
+    private PunctuationKeeper p = new PunctuationKeeper() {
 
-    @Before
-    public void setup() {
-        PunctuationKeeper mockKeeper = new PunctuationKeeper() {
+        @Override
+        public long reportEvent(long eventSeq) {
+            return punc;
+        }
 
-            @Override
-            public long reportEvent(long eventSeq) {
-                return punc;
-            }
-
-            @Override
-            public long getCurrentPunctuation() {
-                return punc;
-            }
-        };
-        p = mockKeeper.throttle(MIN_STEP);
-    }
+        @Override
+        public long getCurrentPunctuation() {
+            return punc;
+        }
+    }.throttle(MIN_STEP);
 
     @Test
     public void when_puncIncreasing_then_throttleByMinStep() {
