@@ -487,10 +487,14 @@ public abstract class AbstractProcessor implements Processor {
 
     // The processN methods contain repeated looping code in order to give an
     // easier job to the JIT compiler to optimize each case independently, and
-    // to ensure that ordinal is dispatched on just once per
-    // process(ordinal, inbox) call.
+    // to ensure that ordinal is dispatched on just once per process(ordinal,
+    // inbox) call.
+    // An implementation with a very low-cost tryProcessN() method can choose
+    // to override processN() with an identical method, but which the JIT
+    // compiler will be able to independently optimize and avoid the cost
+    // of the megamorphic call site of tryProcessN here.
 
-    void process0(@Nonnull Inbox inbox) throws Exception {
+    protected void process0(@Nonnull Inbox inbox) throws Exception {
         for (Object item; (item = inbox.peek()) != null; ) {
             if (!tryProcess0(item)) {
                 return;
@@ -499,7 +503,7 @@ public abstract class AbstractProcessor implements Processor {
         }
     }
 
-    void process1(@Nonnull Inbox inbox) throws Exception {
+    protected void process1(@Nonnull Inbox inbox) throws Exception {
         for (Object item; (item = inbox.peek()) != null; ) {
             if (!tryProcess1(item)) {
                 return;
@@ -508,7 +512,7 @@ public abstract class AbstractProcessor implements Processor {
         }
     }
 
-    void process2(@Nonnull Inbox inbox) throws Exception {
+    protected void process2(@Nonnull Inbox inbox) throws Exception {
         for (Object item; (item = inbox.peek()) != null; ) {
             if (!tryProcess2(item)) {
                 return;
@@ -517,7 +521,7 @@ public abstract class AbstractProcessor implements Processor {
         }
     }
 
-    void process3(@Nonnull Inbox inbox) throws Exception {
+    protected void process3(@Nonnull Inbox inbox) throws Exception {
         for (Object item; (item = inbox.peek()) != null; ) {
             if (!tryProcess3(item)) {
                 return;
@@ -526,7 +530,7 @@ public abstract class AbstractProcessor implements Processor {
         }
     }
 
-    void process4(@Nonnull Inbox inbox) throws Exception {
+    protected void process4(@Nonnull Inbox inbox) throws Exception {
         for (Object item; (item = inbox.peek()) != null; ) {
             if (!tryProcess4(item)) {
                 return;
@@ -535,7 +539,7 @@ public abstract class AbstractProcessor implements Processor {
         }
     }
 
-    void processAny(int ordinal, @Nonnull Inbox inbox) throws Exception {
+    protected void processAny(int ordinal, @Nonnull Inbox inbox) throws Exception {
         for (Object item; (item = inbox.peek()) != null; ) {
             if (!tryProcess(ordinal, item)) {
                 return;

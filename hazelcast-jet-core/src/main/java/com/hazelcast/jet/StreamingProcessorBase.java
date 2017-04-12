@@ -51,7 +51,7 @@ public class StreamingProcessorBase extends AbstractProcessor {
 
 
     @Override
-    void process0(@Nonnull Inbox inbox) throws Exception {
+    protected void process0(@Nonnull Inbox inbox) throws Exception {
         for (Object item; (item = inbox.peek()) != null; ) {
             final boolean doneWithItem = item instanceof Punctuation
                     ? tryProcessPunc0((Punctuation) item)
@@ -64,7 +64,7 @@ public class StreamingProcessorBase extends AbstractProcessor {
     }
 
     @Override
-    void process1(@Nonnull Inbox inbox) throws Exception {
+    protected void process1(@Nonnull Inbox inbox) throws Exception {
         for (Object item; (item = inbox.peek()) != null; ) {
             final boolean doneWithItem = item instanceof Punctuation
                     ? tryProcessPunc1((Punctuation) item)
@@ -77,7 +77,7 @@ public class StreamingProcessorBase extends AbstractProcessor {
     }
 
     @Override
-    void process2(@Nonnull Inbox inbox) throws Exception {
+    protected void process2(@Nonnull Inbox inbox) throws Exception {
         for (Object item; (item = inbox.peek()) != null; ) {
             final boolean doneWithItem = item instanceof Punctuation
                     ? tryProcessPunc2((Punctuation) item)
@@ -90,7 +90,7 @@ public class StreamingProcessorBase extends AbstractProcessor {
     }
 
     @Override
-    void process3(@Nonnull Inbox inbox) throws Exception {
+    protected void process3(@Nonnull Inbox inbox) throws Exception {
         for (Object item; (item = inbox.peek()) != null; ) {
             final boolean doneWithItem = item instanceof Punctuation
                     ? tryProcessPunc3((Punctuation) item)
@@ -103,7 +103,7 @@ public class StreamingProcessorBase extends AbstractProcessor {
     }
 
     @Override
-    void process4(@Nonnull Inbox inbox) throws Exception {
+    protected void process4(@Nonnull Inbox inbox) throws Exception {
         for (Object item; (item = inbox.peek()) != null; ) {
             final boolean doneWithItem = item instanceof Punctuation
                     ? tryProcessPunc4((Punctuation) item)
@@ -116,7 +116,7 @@ public class StreamingProcessorBase extends AbstractProcessor {
     }
 
     @Override
-    void processAny(int ordinal, @Nonnull Inbox inbox) throws Exception {
+    protected void processAny(int ordinal, @Nonnull Inbox inbox) throws Exception {
         for (Object item; (item = inbox.peek()) != null; ) {
             final boolean doneWithItem = item instanceof Punctuation
                     ? tryProcessPunc(ordinal, (Punctuation) item)
