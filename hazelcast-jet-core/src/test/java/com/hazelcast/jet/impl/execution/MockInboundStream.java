@@ -26,7 +26,6 @@ import java.util.List;
 import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
 import static com.hazelcast.jet.impl.util.ProgressState.DONE;
 import static com.hazelcast.jet.impl.util.ProgressState.MADE_PROGRESS;
-import static com.hazelcast.jet.impl.util.ProgressState.NO_PROGRESS;
 import static com.hazelcast.jet.impl.util.ProgressState.WAS_ALREADY_DONE;
 import static java.util.Collections.emptyList;
 
@@ -54,13 +53,10 @@ public class MockInboundStream implements InboundEdgeStream {
 
     @Override
     public ProgressState drainTo(Collection<Object> dest) {
-        if (done) {
+        if (done || dataIndex == mockData.size()) {
             return WAS_ALREADY_DONE;
         }
         final int limit = Math.min(mockData.size(), dataIndex + chunkSize);
-        if (limit == dataIndex) {
-            return NO_PROGRESS;
-        }
         for (; dataIndex < limit; dataIndex++) {
             final Object item = mockData.get(dataIndex);
             if (item == DONE_ITEM) {

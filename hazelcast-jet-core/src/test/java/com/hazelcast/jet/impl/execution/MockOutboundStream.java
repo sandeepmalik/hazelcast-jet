@@ -20,6 +20,10 @@ import java.util.List;
 
 class MockOutboundStream extends OutboundEdgeStream {
 
+    MockOutboundStream(int ordinal) {
+        this(ordinal, 1024, 1024);
+    }
+
     MockOutboundStream(int ordinal, int capacity) {
         this(ordinal, capacity, 1024);
     }
@@ -30,6 +34,10 @@ class MockOutboundStream extends OutboundEdgeStream {
 
     List<Object> getBuffer() {
         return ((MockOutboundCollector) getCollector()).getBuffer();
+    }
+
+    void flush() {
+        getBuffer().clear();
     }
 }
 
