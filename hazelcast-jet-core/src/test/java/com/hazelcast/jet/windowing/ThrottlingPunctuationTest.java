@@ -21,9 +21,9 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
-public class ThrottlingTest {
+public class ThrottlingPunctuationTest {
 
-    public static final int MIN_STEP = 2;
+    private static final int MIN_STEP = 2;
     private PunctuationKeeper p;
     private long punc;
 
