@@ -16,6 +16,7 @@
 
 package com.hazelcast.jet.impl.execution;
 
+import com.hazelcast.jet.JetException;
 import com.hazelcast.jet.Outbox;
 import com.hazelcast.jet.Processor;
 import com.hazelcast.jet.Processor.Context;
@@ -80,8 +81,9 @@ public class BlockingProcessorTasklet extends ProcessorTaskletBase {
     }
 
     private void callNullaryProcess() {
-        boolean processDone = processor.tryProcess();
-        assert processDone : "Blocking processor's process() returned false";
+        if (!processor.tryProcess()) {
+            throw new JetException("Non-cooperative processor's tryProcess() returned false: " + processor);
+        }
     }
 
     private void complete() {

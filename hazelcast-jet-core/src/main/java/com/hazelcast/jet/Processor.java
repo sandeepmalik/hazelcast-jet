@@ -88,8 +88,12 @@ public interface Processor {
 
     /**
      * Called when there is no pending data in the inbox. Allows the processor
-     * to perform non-input-driven work. If it returns {@code false}, it will
-     * be called again before proceeding to call any other method.
+     * to produce output in the absence of input. If it returns {@code false},
+     * it will be called again before proceeding to call any other method.
+     * <p>
+     * <strong>NOTE:</strong> a processor that declares itself {@link
+     * #isCooperative() non-cooperative} must strictly return {@code true} from
+     * this method.
      */
     default boolean tryProcess() {
         return true;
