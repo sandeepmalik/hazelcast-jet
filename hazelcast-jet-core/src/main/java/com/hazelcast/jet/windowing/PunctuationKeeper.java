@@ -16,6 +16,9 @@
 
 package com.hazelcast.jet.windowing;
 
+import com.hazelcast.jet.Distributed.ToLongFunction;
+import com.hazelcast.jet.stream.DistributedCollector;
+
 import java.util.function.LongSupplier;
 
 /**
@@ -86,6 +89,44 @@ public interface PunctuationKeeper {
                 nextPunc = newPunc + minStep;
                 currPunc = newPunc;
                 return newPunc;
+            }
+        };
+    }
+
+    /**
+     * Returns a new punctuation keeper, which only advances the punctuations,
+     * when it will actually cause a frame to close.
+     *
+     * @param winDef The same window definition as for
+     *               {@link WindowingProcessors#groupByFrame(ToLongFunction,
+     *               WindowDefinition, DistributedCollector)}
+     */
+    default PunctuationKeeper throttleForWindow(WindowDefinition winDef) {
+        return new PunctuationKeeper() {
+            private long lastFrameSeq = Long.MIN_VALUE;
+            private long lastPunc = Long.MIN_VALUE;
+
+            @Override
+            public long reportEvent(long eventSeq) {
+                long newPunc = PunctuationKeeper.this.reportEvent(eventSeq);
+                return throttledAdvance(newPunc);
+            }
+
+            @Override
+            public long getCurrentPunctuation() {
+                long newPunc = PunctuationKeeper.this.getCurrentPunctuation();
+                return throttledAdvance(newPunc);
+            }
+
+            private long throttledAdvance(long newPunc) {
+                long frameSeq = winDef.floorFrameSeq(newPunc);
+                // if this punc causes new frameSeq, let's forward it
+                if (frameSeq > lastFrameSeq) {
+                    lastFrameSeq = frameSeq;
+                    lastPunc = newPunc;
+                    return newPunc;
+                }
+                return lastPunc;
             }
         };
     }

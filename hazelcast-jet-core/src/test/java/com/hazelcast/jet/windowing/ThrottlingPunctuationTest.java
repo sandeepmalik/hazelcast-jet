@@ -35,10 +35,11 @@ public class ThrottlingPunctuationTest {
         public long getCurrentPunctuation() {
             return punc;
         }
-    }.throttle(MIN_STEP);
+    };
 
     @Test
     public void when_puncIncreasing_then_throttleByMinStep() {
+        p = p.throttle(MIN_STEP);
         assertPunc(2, 2);
         assertPunc(3, 2);
         assertPunc(4, 4);
@@ -48,11 +49,23 @@ public class ThrottlingPunctuationTest {
         assertPunc(11, 11);
     }
 
+    @Test
+    public void when_puncIncreasing_then_throttleForWindow() {
+        WindowDefinition winDef = new WindowDefinition(3, 1);
+        p = p.throttleForWindow(winDef);
+        assertPunc(2, 2);
+        assertPunc(3, 3);
+        assertPunc(4, 3);
+        assertPunc(5, 3);
+        assertPunc(6, 6);
+        assertPunc(13, 13);
+        assertPunc(14, 13);
+        assertPunc(15, 15);
+    }
+
     private void assertPunc(long actualPunc, long throttledPunc) {
         punc = actualPunc;
         assertEquals(throttledPunc, p.reportEvent(0));
         assertEquals(throttledPunc, p.getCurrentPunctuation());
-
     }
-
 }
