@@ -20,6 +20,7 @@ import com.hazelcast.logging.ILogger;
 
 import javax.annotation.Nonnull;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.LongSupplier;
 
 /**
  * Does the computation needed to transform zero or more input data streams
@@ -162,22 +163,22 @@ public interface Processor {
         String vertexName();
 
         /**
-         * Returns the future to check for cancellation status.
-         * <p>
-         * This is necessary, if the {@link #complete()} or
-         * {@link #process(int, Inbox) process()} methods do not return promptly
-         * after each blocking call (note, that blocking calls are allowed only
-         * in {@link #isCooperative() non-cooperative} processors). In this case,
-         * the methods should regularly check the {@code jobFuture}'s
-         * {@link CompletableFuture#isDone() isDone()} and return, when it returns
-         * {@code true}:
-         *
+         * Returns the future that can be checked to see whether the Jet job was
+         * cancelled or otherwise ended prematurely. In a cooperative processor
+         * this is not necessary since it's done by the engine, but it may be
+         * needed in a non-cooperative processor if it doesn't regularly return
+         * from {@link #complete()} or {@link #process(int, Inbox) process()}.
+         * The implementation should either make no more than one blocking
+         * operation per call, or it should check the {@code jobFuture}'s {@link
+         * CompletableFuture#isDone() isDone()} between blocking operations and
+         * return when it returns {@code true}. This is a simple example of the
+         * required idiom:
          * <pre>
          * public boolean complete() {
          *     while (!jobFuture.isDone()) {
-         *         // we should not block indefinitely, but rather with a timeout
-         *         Collection data = blockingRead(timeout);
-         *         for (Object item : data) {
+         *         // block with a timeout, not indefinitely:
+         *         Collection items = blockForMoreItems(timeout);
+         *         for (Object item : items) {
          *             emit(item);
          *         }
          *     }
@@ -186,5 +187,14 @@ public interface Processor {
          */
         @Nonnull
         CompletableFuture<Void> jobFuture();
+
+        /**
+         * Returns a {@code LongSupplier} that can be used instead of direct calls
+         * to {@link System.nanoTime()} and is expected to perform better than it.
+         * On many systems a {@code System.nanoTime()} call costs more than 30 ns
+         * so it's ill-advised to call it in a hot loop.
+         */
+        @Nonnull
+        LongSupplier nanoClock();
     }
 }

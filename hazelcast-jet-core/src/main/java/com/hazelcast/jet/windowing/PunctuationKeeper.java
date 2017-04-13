@@ -16,6 +16,8 @@
 
 package com.hazelcast.jet.windowing;
 
+import java.util.function.LongSupplier;
+
 /**
  * A strategy object that "keeps the event time" for a single data
  * (sub)stream. The event seq of every observed item should be reported to
@@ -25,6 +27,14 @@ package com.hazelcast.jet.windowing;
  * time to see this change.
  */
 public interface PunctuationKeeper {
+
+    /**
+     * Initializes this punctuation keeper with a timekeeping object that
+     * should be used instead of a direct call to {@code
+     * System.nanoTime()}.
+     */
+    default void init(LongSupplier nanoClock) {
+    }
 
     /**
      * Called to report the observation of an event with the given {@code
@@ -45,8 +55,8 @@ public interface PunctuationKeeper {
     long getCurrentPunctuation();
 
     /**
-     * Returns a new punctuation keeper which throttles the output by ensuring that the
-     * punctuation advances by at least the supplied {@code minStep}.
+     * Returns a new punctuation keeper which throttles the output by ensuring
+     * that the punctuation advances by at least the supplied {@code minStep}.
      * Punctuation returned from the wrapped keeper that is less than {@code
      * minStep} ahead of the top punctuation returned from this keeper is
      * ignored.

@@ -206,7 +206,7 @@ public class CooperativeProcessorTaskletTest {
     private CooperativeProcessorTasklet createTasklet() {
         final CooperativeProcessorTasklet t = new CooperativeProcessorTasklet(
                 context, processor, instreams, outstreams);
-        t.init(new CompletableFuture<>());
+        t.init(new CompletableFuture<>(), System::nanoTime);
         return t;
     }
 

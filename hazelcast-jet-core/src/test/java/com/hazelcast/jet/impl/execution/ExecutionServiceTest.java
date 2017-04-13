@@ -40,12 +40,13 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 
+import static com.hazelcast.jet.impl.util.ExceptionUtil.sneakyThrow;
 import static com.hazelcast.jet.impl.util.ProgressState.DONE;
 import static com.hazelcast.jet.impl.util.ProgressState.MADE_PROGRESS;
 import static com.hazelcast.jet.impl.util.ProgressState.NO_PROGRESS;
-import static com.hazelcast.jet.impl.util.ExceptionUtil.sneakyThrow;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
@@ -308,7 +309,7 @@ public class ExecutionServiceTest extends JetTestSupport {
         }
 
         @Override
-        public void init(CompletableFuture<Void> jobFuture) {
+        public void init(CompletableFuture<Void> jobFuture, LongSupplier nanoTimeSource) {
             if (initFails) {
                 throw new RuntimeException("mock init failure");
             }

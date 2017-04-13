@@ -21,10 +21,11 @@ import com.hazelcast.jet.impl.util.ProgressState;
 import javax.annotation.Nonnull;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.LongSupplier;
 
 public interface Tasklet extends Callable<ProgressState> {
 
-    default void init(CompletableFuture<Void> jobFuture) {
+    default void init(CompletableFuture<Void> jobFuture, LongSupplier nanoTimeSource) {
     }
 
     @Override @Nonnull
