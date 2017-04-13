@@ -41,7 +41,6 @@ import com.hazelcast.jet.impl.execution.init.Contexts.ProcCtx;
 import com.hazelcast.jet.impl.execution.init.Contexts.ProcSupplierCtx;
 import com.hazelcast.jet.impl.util.SkewReductionPolicy.SkewExceededAction;
 import com.hazelcast.logging.ILogger;
-import com.hazelcast.logging.Logger;
 import com.hazelcast.nio.Address;
 import com.hazelcast.nio.ObjectDataInput;
 import com.hazelcast.nio.ObjectDataOutput;
@@ -69,8 +68,6 @@ import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 
 public class ExecutionPlan implements IdentifiedDataSerializable {
-
-    private static final ILogger LOGGER = Logger.getLogger(ExecutionPlan.class);
 
     private final List<Tasklet> tasklets = new ArrayList<>();
     // dest vertex id --> dest ordinal --> sender addr -> receiver tasklet
@@ -115,8 +112,8 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
                 ProcCtx context =
                         new ProcCtx(instance, logger, srcVertex.name(), processorIdx + srcVertex.getProcIdxOffset());
                 tasklets.add(p.isCooperative()
-                        ? new CooperativeProcessorTasklet(srcVertex.name(), context, p, inboundStreams, outboundStreams)
-                        : new BlockingProcessorTasklet(srcVertex.name(), context, p, inboundStreams, outboundStreams)
+                        ? new CooperativeProcessorTasklet(context, p, inboundStreams, outboundStreams)
+                        : new BlockingProcessorTasklet(context, p, inboundStreams, outboundStreams)
                 );
                 processorIdx++;
             }

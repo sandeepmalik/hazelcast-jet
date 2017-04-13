@@ -18,6 +18,7 @@ package com.hazelcast.jet.impl.execution;
 
 import com.hazelcast.jet.Processor;
 import com.hazelcast.jet.Punctuation;
+import com.hazelcast.jet.impl.execution.init.Contexts.ProcCtx;
 import com.hazelcast.jet.impl.util.ArrayDequeOutbox;
 import com.hazelcast.jet.impl.util.ProgressState;
 import com.hazelcast.util.Preconditions;
@@ -37,9 +38,9 @@ public class CooperativeProcessorTasklet extends ProcessorTaskletBase {
     private final ArrayDequeOutbox outbox;
     private boolean processorCompleted;
 
-    public CooperativeProcessorTasklet(String vertexName, Processor.Context context, Processor processor,
+    public CooperativeProcessorTasklet(ProcCtx context, Processor processor,
                                        List<InboundEdgeStream> instreams, List<OutboundEdgeStream> outstreams) {
-        super(vertexName, context, processor, instreams, outstreams);
+        super(context, processor, instreams, outstreams);
         Preconditions.checkTrue(processor.isCooperative(), "Processor is non-cooperative");
         int[] bucketCapacities = Stream.of(this.outstreams).mapToInt(OutboundEdgeStream::getOutboxCapacity).toArray();
         this.outbox = new ArrayDequeOutbox(bucketCapacities, progTracker);
@@ -51,8 +52,8 @@ public class CooperativeProcessorTasklet extends ProcessorTaskletBase {
     }
 
     @Override
-    public void init(CompletableFuture<?> jobFuture) {
-        initProcessor(outbox);
+    public void init(CompletableFuture<Void> jobFuture) {
+        initProcessor(outbox, jobFuture);
     }
 
     @Override @Nonnull
