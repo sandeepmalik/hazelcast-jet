@@ -319,7 +319,7 @@ public class ExecutionService {
                 value.set(System.nanoTime());
                 LockSupport.parkNanos(MICROSECONDS.toNanos(100));
             }
-        });
+        }, FastNanoTime.class.getSimpleName() + "-updater");
 
         void dispose() {
             updater.interrupt();
