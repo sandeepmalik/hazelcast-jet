@@ -40,7 +40,6 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
-import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 
 import static com.hazelcast.jet.impl.util.ExceptionUtil.sneakyThrow;
@@ -309,7 +308,7 @@ public class ExecutionServiceTest extends JetTestSupport {
         }
 
         @Override
-        public void init(CompletableFuture<Void> jobFuture, LongSupplier nanoTimeSource) {
+        public void init(CompletableFuture<Void> jobFuture) {
             if (initFails) {
                 throw new RuntimeException("mock init failure");
             }

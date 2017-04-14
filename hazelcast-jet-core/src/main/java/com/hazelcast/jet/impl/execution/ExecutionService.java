@@ -36,12 +36,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
 
-import static java.lang.Thread.interrupted;
 import static java.util.concurrent.Executors.newCachedThreadPool;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -56,7 +54,6 @@ public class ExecutionService {
     private final ExecutorService blockingTaskletExecutor = newCachedThreadPool(new BlockingTaskThreadFactory());
     private final CooperativeWorker[] coopWorkers;
     private final Thread[] coopThreads;
-    private final FastNanoTime fastNanoTime = new FastNanoTime();
     private final String hzInstanceName;
     private final ILogger logger;
 
@@ -87,7 +84,6 @@ public class ExecutionService {
     }
 
     public void shutdown() {
-        fastNanoTime.dispose();
         blockingTaskletExecutor.shutdown();
         synchronized (this) {
             for (CooperativeWorker worker : coopWorkers) {
@@ -106,7 +102,7 @@ public class ExecutionService {
 
     private void submitBlockingTasklets(JobFuture jobFuture, List<Tasklet> tasklets) {
         jobFuture.blockingFutures = tasklets.stream()
-                                            .peek(t -> t.init(jobFuture, fastNanoTime.value::get))
+                                            .peek(t -> t.init(jobFuture))
                                             .map(t -> new BlockingWorker(new TaskletTracker(t, jobFuture)))
                                             .map(blockingTaskletExecutor::submit)
                                             .collect(toList());
@@ -118,7 +114,7 @@ public class ExecutionService {
         Arrays.setAll(trackersByThread, i -> new ArrayList());
         int i = 0;
         for (Tasklet t : tasklets) {
-            t.init(jobFuture, fastNanoTime.value::get);
+            t.init(jobFuture);
             trackersByThread[i++ % trackersByThread.length].add(new TaskletTracker(t, jobFuture));
         }
         for (i = 0; i < trackersByThread.length; i++) {
@@ -308,21 +304,6 @@ public class ExecutionService {
                     doneCallback.accept(this);
                 }
             }
-        }
-    }
-
-    private static class FastNanoTime {
-        final AtomicLong value = new AtomicLong(System.nanoTime());
-
-        private final Thread updater = new Thread(() -> {
-            while (!interrupted()) {
-                value.set(System.nanoTime());
-                LockSupport.parkNanos(MICROSECONDS.toNanos(100));
-            }
-        }, FastNanoTime.class.getSimpleName() + "-updater");
-
-        void dispose() {
-            updater.interrupt();
         }
     }
 }
