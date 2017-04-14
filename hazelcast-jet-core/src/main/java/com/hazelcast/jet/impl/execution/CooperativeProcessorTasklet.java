@@ -21,13 +21,13 @@ import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.impl.execution.init.Contexts.ProcCtx;
 import com.hazelcast.jet.impl.util.ArrayDequeOutbox;
 import com.hazelcast.jet.impl.util.ProgressState;
-import com.hazelcast.util.MutableLong;
 import com.hazelcast.util.Preconditions;
 
 import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 
 import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
@@ -37,7 +37,6 @@ import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
  */
 public class CooperativeProcessorTasklet extends ProcessorTaskletBase {
     private final ArrayDequeOutbox outbox;
-    private final MutableLong nanoTime = MutableLong.valueOf(System.nanoTime());
     private boolean processorCompleted;
 
     public CooperativeProcessorTasklet(ProcCtx context, Processor processor,
@@ -54,10 +53,8 @@ public class CooperativeProcessorTasklet extends ProcessorTaskletBase {
     }
 
     @Override
-    public void init(CompletableFuture<Void> jobFuture) {
-        // Avoid capturing this
-        MutableLong nanoTime = this.nanoTime;
-        initProcessor(outbox, jobFuture, () -> nanoTime.value);
+    public void init(CompletableFuture<Void> jobFuture, LongSupplier nanoClock) {
+        initProcessor(outbox, jobFuture, nanoClock);
     }
 
     @Override @Nonnull
@@ -66,7 +63,6 @@ public class CooperativeProcessorTasklet extends ProcessorTaskletBase {
         if (!inbox().isEmpty()) {
             progTracker.notDone();
         } else {
-            updateNanoTime();
             if (!processor.tryProcess()) {
                 tryFlushOutbox();
                 progTracker.notDone();
@@ -77,22 +73,16 @@ public class CooperativeProcessorTasklet extends ProcessorTaskletBase {
         if (progTracker.isDone()) {
             completeIfNeeded();
         } else if (!inbox().isEmpty()) {
-            updateNanoTime();
             processor.process(currInstream.ordinal(), inbox());
         }
         tryFlushOutbox();
         return progTracker.toProgressState();
     }
 
-    private void updateNanoTime() {
-        nanoTime.value = System.nanoTime();
-    }
-
     private void completeIfNeeded() {
         if (processorCompleted) {
             return;
         }
-        updateNanoTime();
         processorCompleted = processor.complete();
         if (processorCompleted) {
             outbox.addIgnoringCapacity(DONE_ITEM);

@@ -308,7 +308,7 @@ public class BlockingProcessorTaskletTest {
     private BlockingProcessorTasklet createTasklet() {
         final BlockingProcessorTasklet t = new BlockingProcessorTasklet(
                 context, processor, instreams, outstreams);
-        t.init(jobFuture);
+        t.init(jobFuture, System::nanoTime);
         return t;
     }
 

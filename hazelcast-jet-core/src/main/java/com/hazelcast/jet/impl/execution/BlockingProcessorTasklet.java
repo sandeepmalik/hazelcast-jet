@@ -27,6 +27,7 @@ import com.hazelcast.util.Preconditions;
 import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.LongSupplier;
 
 import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
 import static com.hazelcast.jet.impl.execution.ExecutionService.IDLER;
@@ -54,10 +55,10 @@ public class BlockingProcessorTasklet extends ProcessorTaskletBase {
     }
 
     @Override
-    public void init(CompletableFuture<Void> jobFuture) {
-        super.init(jobFuture);
+    public void init(CompletableFuture<Void> jobFuture, LongSupplier nanoClock) {
+        super.init(jobFuture, nanoClock);
         this.jobFuture = jobFuture;
-        initProcessor(outbox, jobFuture, System::nanoTime);
+        initProcessor(outbox, jobFuture, nanoClock);
     }
 
     @Override @Nonnull
