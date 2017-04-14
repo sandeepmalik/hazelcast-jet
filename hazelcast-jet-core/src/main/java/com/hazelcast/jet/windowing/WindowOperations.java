@@ -18,9 +18,9 @@ package com.hazelcast.jet.windowing;
 
 import com.hazelcast.jet.Distributed;
 
-public final class WindowToolkits {
+public final class WindowOperations {
 
-    private WindowToolkits() {
+    private WindowOperations() {
 
     }
 
