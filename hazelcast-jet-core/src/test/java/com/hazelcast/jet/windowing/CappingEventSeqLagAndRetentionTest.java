@@ -16,10 +16,8 @@
 
 package com.hazelcast.jet.windowing;
 
-import org.junit.Before;
 import org.junit.Test;
 
-import static com.hazelcast.jet.windowing.PunctuationKeepers.cappingEventSeqLagAndRetention;
 import static org.junit.Assert.assertEquals;
 
 public class CappingEventSeqLagAndRetentionTest {
@@ -28,13 +26,8 @@ public class CappingEventSeqLagAndRetentionTest {
     private static final int EVENT_SEQ_LAG = 8;
 
     private long time;
-    private PunctuationKeeper p;
-
-    @Before
-    public void before() {
-        p = cappingEventSeqLagAndRetention(EVENT_SEQ_LAG, MAX_RETAIN_MS, 8);
-        p.init(() -> time);
-    }
+    private PunctuationKeeper p = PunctuationKeepers.cappingEventSeqLagAndRetention(EVENT_SEQ_LAG,
+            MAX_RETAIN_MS, 8, () -> time);
 
     @Test
     public void when_outOfOrderEvents_then_monotonicPunct() {

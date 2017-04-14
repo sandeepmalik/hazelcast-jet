@@ -16,10 +16,7 @@
 
 package com.hazelcast.jet.windowing;
 
-import com.hazelcast.jet.Distributed.ToLongFunction;
 import com.hazelcast.jet.stream.DistributedCollector;
-
-import java.util.function.LongSupplier;
 
 /**
  * A strategy object that "keeps the event time" for a single data
@@ -30,14 +27,6 @@ import java.util.function.LongSupplier;
  * time to see this change.
  */
 public interface PunctuationKeeper {
-
-    /**
-     * Initializes this punctuation keeper with a timekeeping object that
-     * should be used instead of a direct call to {@code
-     * System.nanoTime()}.
-     */
-    default void init(LongSupplier nanoClock) {
-    }
 
     /**
      * Called to report the observation of an event with the given {@code
@@ -58,8 +47,8 @@ public interface PunctuationKeeper {
     long getCurrentPunctuation();
 
     /**
-     * Returns a new punctuation keeper which throttles the output by ensuring
-     * that the punctuation advances by at least the supplied {@code minStep}.
+     * Returns a new punctuation keeper which throttles the output by ensuring that the
+     * punctuation advances by at least the supplied {@code minStep}.
      * Punctuation returned from the wrapped keeper that is less than {@code
      * minStep} ahead of the top punctuation returned from this keeper is
      * ignored.
@@ -98,7 +87,7 @@ public interface PunctuationKeeper {
      * when it will actually cause a frame to close.
      *
      * @param winDef The same window definition as for
-     *               {@link WindowingProcessors#groupByFrame(ToLongFunction,
+     *               {@link WindowingProcessors#groupByFrame(com.hazelcast.jet.Distributed.ToLongFunction,
      *               WindowDefinition, DistributedCollector)}
      */
     default PunctuationKeeper throttleForWindow(WindowDefinition winDef) {

@@ -16,11 +16,10 @@
 
 package com.hazelcast.jet.windowing;
 
+import com.hazelcast.jet.Distributed.LongSupplier;
 import com.hazelcast.jet.impl.util.EventSeqHistory;
 
 import javax.annotation.Nonnull;
-
-import java.util.function.LongSupplier;
 
 import static com.hazelcast.util.Preconditions.checkNotNegative;
 import static java.lang.Math.max;
@@ -39,7 +38,6 @@ public final class PunctuationKeepers {
 
     private abstract static class PunctuationKeeperBase implements PunctuationKeeper {
 
-        LongSupplier nanoClock = System::nanoTime;
         private long punc = Long.MIN_VALUE;
 
         long makePuncAtLeast(long proposedPunc) {
@@ -55,11 +53,6 @@ public final class PunctuationKeepers {
         @Override
         public long getCurrentPunctuation() {
             return punc;
-        }
-
-        @Override
-        public void init(LongSupplier nanoClock) {
-            this.nanoClock = nanoClock;
         }
     }
 
@@ -98,12 +91,12 @@ public final class PunctuationKeepers {
     @Nonnull
     public static PunctuationKeeper cappingEventSeqLagAndRetention(long eventSeqLag, long maxRetainMs) {
         return cappingEventSeqLagAndRetention(
-                eventSeqLag, MILLISECONDS.toNanos(maxRetainMs), DEFAULT_NUM_STORED_SAMPLES);
+                eventSeqLag, MILLISECONDS.toNanos(maxRetainMs), DEFAULT_NUM_STORED_SAMPLES, System::nanoTime);
     }
 
     @Nonnull
     static PunctuationKeeper cappingEventSeqLagAndRetention(
-            long eventSeqLag, long maxRetainNanos, int numStoredSamples
+            long eventSeqLag, long maxRetainNanos, int numStoredSamples, LongSupplier nanoClock
     ) {
         return new PunctuationKeeperBase() {
 
@@ -197,6 +190,12 @@ public final class PunctuationKeepers {
      */
     @Nonnull
     public static PunctuationKeeper cappingEventSeqLagAndLull(long eventSeqLag, long maxLullMs) {
+        return cappingEventSeqLagAndLull(eventSeqLag, maxLullMs, System::nanoTime);
+    }
+
+
+    @Nonnull
+    static PunctuationKeeper cappingEventSeqLagAndLull(long eventSeqLag, long maxLullMs, LongSupplier nanoClock) {
         checkNotNegative(eventSeqLag, "eventSeqLag must not be negative");
         checkNotNegative(maxLullMs, "maxLullMs must not be negative");
 

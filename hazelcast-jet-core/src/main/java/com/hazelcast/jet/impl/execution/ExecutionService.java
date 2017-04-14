@@ -36,12 +36,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
 
-import static java.lang.Thread.interrupted;
 import static java.util.concurrent.Executors.newCachedThreadPool;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -54,16 +52,15 @@ public class ExecutionService {
     static final IdleStrategy IDLER =
             new BackoffIdleStrategy(0, 0, MICROSECONDS.toNanos(1), MILLISECONDS.toNanos(1));
     private final ExecutorService blockingTaskletExecutor = newCachedThreadPool(new BlockingTaskThreadFactory());
-    private final CooperativeWorker[] coopWorkers;
-    private final Thread[] coopThreads;
-    private final FastNanoTime fastNanoTime = new FastNanoTime();
+    private final CooperativeWorker[] workers;
+    private final Thread[] threads;
     private final String hzInstanceName;
     private final ILogger logger;
 
     public ExecutionService(HazelcastInstance hz, int threadCount) {
         this.hzInstanceName = hz.getName();
-        this.coopWorkers = new CooperativeWorker[threadCount];
-        this.coopThreads = new Thread[threadCount];
+        this.workers = new CooperativeWorker[threadCount];
+        this.threads = new Thread[threadCount];
         this.logger = hz.getLoggingService().getLogger(ExecutionService.class);
     }
 
@@ -87,10 +84,9 @@ public class ExecutionService {
     }
 
     public void shutdown() {
-        fastNanoTime.dispose();
         blockingTaskletExecutor.shutdown();
         synchronized (this) {
-            for (CooperativeWorker worker : coopWorkers) {
+            for (CooperativeWorker worker : workers) {
                 if (worker != null) {
                     worker.isShutdown = true;
                 }
@@ -106,7 +102,6 @@ public class ExecutionService {
 
     private void submitBlockingTasklets(JobFuture jobFuture, List<Tasklet> tasklets) {
         jobFuture.blockingFutures = tasklets.stream()
-                                            .peek(t -> t.init(jobFuture, fastNanoTime.value::get))
                                             .map(t -> new BlockingWorker(new TaskletTracker(t, jobFuture)))
                                             .map(blockingTaskletExecutor::submit)
                                             .collect(toList());
@@ -114,31 +109,31 @@ public class ExecutionService {
 
     private void submitCooperativeTasklets(JobFuture jobFuture, List<Tasklet> tasklets) {
         ensureThreadsStarted();
-        final List<TaskletTracker>[] trackersByThread = new List[coopWorkers.length];
+        final List<TaskletTracker>[] trackersByThread = new List[workers.length];
         Arrays.setAll(trackersByThread, i -> new ArrayList());
         int i = 0;
         for (Tasklet t : tasklets) {
-            t.init(jobFuture, fastNanoTime.value::get);
+            t.init(jobFuture);
             trackersByThread[i++ % trackersByThread.length].add(new TaskletTracker(t, jobFuture));
         }
         for (i = 0; i < trackersByThread.length; i++) {
-            coopWorkers[i].trackers.addAll(trackersByThread[i]);
+            workers[i].trackers.addAll(trackersByThread[i]);
         }
-        Arrays.stream(coopThreads).forEach(LockSupport::unpark);
+        Arrays.stream(threads).forEach(LockSupport::unpark);
     }
 
     private synchronized void ensureThreadsStarted() {
-        if (coopWorkers[0] != null) {
+        if (workers[0] != null) {
             return;
         }
-        Arrays.setAll(coopWorkers, i -> new CooperativeWorker(coopWorkers));
-        Arrays.setAll(coopThreads, i -> new Thread(coopWorkers[i],
+        Arrays.setAll(workers, i -> new CooperativeWorker(workers));
+        Arrays.setAll(threads, i -> new Thread(workers[i],
                 String.format("hz.%s.jet.cooperative.thread-%d", hzInstanceName, i)));
-        Arrays.stream(coopThreads).forEach(Thread::start);
+        Arrays.stream(threads).forEach(Thread::start);
     }
 
     private String trackersToString() {
-        return Arrays.stream(coopWorkers)
+        return Arrays.stream(workers)
                      .flatMap(w -> w.trackers.stream())
                      .map(Object::toString)
                      .sorted()
@@ -157,6 +152,7 @@ public class ExecutionService {
         public void run() {
             final Tasklet t = tracker.tasklet;
             try {
+                t.init(tracker.jobFuture);
                 long idleCount = 0;
                 for (ProgressState result;
                      !(result = t.call()).isDone() && !tracker.jobFuture.isCompletedExceptionally();
@@ -308,21 +304,6 @@ public class ExecutionService {
                     doneCallback.accept(this);
                 }
             }
-        }
-    }
-
-    private static class FastNanoTime {
-        final AtomicLong value = new AtomicLong(System.nanoTime());
-
-        private final Thread updater = new Thread(() -> {
-            while (!interrupted()) {
-                value.set(System.nanoTime());
-                LockSupport.parkNanos(MICROSECONDS.toNanos(100));
-            }
-        }, FastNanoTime.class.getSimpleName() + "-updater");
-
-        void dispose() {
-            updater.interrupt();
         }
     }
 }

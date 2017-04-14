@@ -34,7 +34,6 @@ import java.util.Optional;
 import java.util.Queue;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.LongSupplier;
 
 import static java.util.Comparator.comparing;
 import static java.util.stream.Collectors.groupingBy;
@@ -75,8 +74,8 @@ abstract class ProcessorTaskletBase implements Tasklet {
         return inbox;
     }
 
-    void initProcessor(Outbox outbox, CompletableFuture<Void> jobFuture, LongSupplier nanoClock) {
-        context.initFromTasklet(jobFuture, nanoClock);
+    void initProcessor(Outbox outbox, CompletableFuture<Void> jobFuture) {
+        context.initJobFuture(jobFuture);
         processor.init(outbox, context);
     }
 

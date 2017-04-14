@@ -24,7 +24,6 @@ import com.hazelcast.logging.ILogger;
 
 import javax.annotation.Nonnull;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.LongSupplier;
 
 public final class Contexts {
 
@@ -38,7 +37,6 @@ public final class Contexts {
         private final String vertexName;
         private final int index;
         private CompletableFuture<Void> jobFuture;
-        private LongSupplier nanoClock;
 
         public ProcCtx(JetInstance instance, ILogger logger, String vertexName, int index) {
             this.instance = instance;
@@ -47,12 +45,14 @@ public final class Contexts {
             this.index = index;
         }
 
-        @Override @Nonnull
+        @Nonnull
+        @Override
         public JetInstance jetInstance() {
             return instance;
         }
 
-        @Override @Nonnull
+        @Nonnull
+        @Override
         public ILogger logger() {
             return logger;
         }
@@ -62,38 +62,26 @@ public final class Contexts {
             return index;
         }
 
-        @Override @Nonnull
+        @Nonnull
+        @Override
         public String vertexName() {
             return vertexName;
         }
 
         /**
-         * {@inheritDoc}
-         * This implementation may theoretically return {@code null} even though
-         * it's annotated as {@code @Nonnull}; however the client code will
-         * never observe this object in such a state.
+         * Note that method is marked sa {@link Nonnull}, however, it's only
+         * non-null after {@link #initJobFuture(CompletableFuture)} is called,
+         * which means it's <i>practically non-null</i>.
          */
-        @Override @Nonnull
+        @Nonnull
+        @Override
         public CompletableFuture<Void> jobFuture() {
             return jobFuture;
         }
 
-        /**
-         * {@inheritDoc}
-         * This implementation may theoretically return {@code null} even though
-         * it's annotated as {@code @Nonnull}; however the client code will
-         * never observe this object in such a state.
-         */
-        @Override @Nonnull
-        public LongSupplier nanoClock() {
-            return nanoClock;
-        }
-
-        public void initFromTasklet(@Nonnull CompletableFuture<Void> jobFuture, @Nonnull LongSupplier nanoClock) {
+        public void initJobFuture(CompletableFuture<Void> jobFuture) {
             assert this.jobFuture == null : "jobFuture already initialized";
-            assert this.nanoClock == null : "nanoClock already initialized";
             this.jobFuture = jobFuture;
-            this.nanoClock = nanoClock;
         }
     }
 
@@ -106,7 +94,8 @@ public final class Contexts {
             this.perNodeParallelism = perNodeParallelism;
         }
 
-        @Override @Nonnull
+        @Nonnull
+        @Override
         public JetInstance jetInstance() {
             return instance;
         }
@@ -128,7 +117,8 @@ public final class Contexts {
             this.localParallelism = localParallelism;
         }
 
-        @Override @Nonnull
+        @Nonnull
+        @Override
         public JetInstance jetInstance() {
             return jetInstance;
         }

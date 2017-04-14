@@ -57,11 +57,6 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
     }
 
     @Override
-    protected void init(@Nonnull Context context) throws Exception {
-        punctuationKeeper.init(context.nanoClock());
-    }
-
-    @Override
     public boolean tryProcess() {
         long newPunc = punctuationKeeper.getCurrentPunctuation();
         if (newPunc > currPunc) {

@@ -16,7 +16,6 @@
 
 package com.hazelcast.jet.windowing;
 
-import org.junit.Before;
 import org.junit.Test;
 
 import static com.hazelcast.jet.windowing.PunctuationKeepers.cappingEventSeqLagAndLull;
@@ -27,15 +26,8 @@ import static org.junit.Assert.assertEquals;
 public class CappingEventSeqLagAndLullTest {
 
     private static final int MAX_LULL_MS = 3;
-
     private long currTime;
-    private PunctuationKeeper p;
-
-    @Before
-    public void before() {
-        p = cappingEventSeqLagAndLull(2, MAX_LULL_MS);
-        p.init(() -> currTime);
-    }
+    private PunctuationKeeper p = cappingEventSeqLagAndLull(2, MAX_LULL_MS, () -> currTime);
 
     @Test
     public void when_outOfOrderEvents_then_monotonicPunct() {

@@ -27,7 +27,6 @@ import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 
 import static com.hazelcast.jet.impl.execution.DoneItem.DONE_ITEM;
@@ -53,8 +52,8 @@ public class CooperativeProcessorTasklet extends ProcessorTaskletBase {
     }
 
     @Override
-    public void init(CompletableFuture<Void> jobFuture, LongSupplier nanoClock) {
-        initProcessor(outbox, jobFuture, nanoClock);
+    public void init(CompletableFuture<Void> jobFuture) {
+        initProcessor(outbox, jobFuture);
     }
 
     @Override @Nonnull

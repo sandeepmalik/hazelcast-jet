@@ -20,7 +20,7 @@ import com.hazelcast.jet.Inbox;
 import com.hazelcast.jet.JetException;
 import com.hazelcast.jet.Outbox;
 import com.hazelcast.jet.Processor;
-import com.hazelcast.jet.impl.execution.init.Contexts.ProcCtx;
+import com.hazelcast.jet.Processor.Context;
 import com.hazelcast.jet.impl.util.ProgressState;
 import com.hazelcast.test.annotation.QuickTest;
 import org.junit.Before;
@@ -44,14 +44,15 @@ import static java.util.stream.Collectors.toList;
 import static junit.framework.TestCase.assertFalse;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
 @Category(QuickTest.class)
 public class BlockingProcessorTaskletTest {
 
     private static final int MOCK_INPUT_SIZE = 10;
     private static final int CALL_COUNT_LIMIT = 10;
-    private ProcCtx context;
-    private CompletableFuture<Void> jobFuture;
+    private Context context;
+    private CompletableFuture<Object> jobFuture;
     private List<Object> mockInput;
     private List<InboundEdgeStream> instreams;
     private List<OutboundEdgeStream> outstreams;
@@ -61,7 +62,7 @@ public class BlockingProcessorTaskletTest {
     @Before
     public void setUp() {
         this.processor = new PassThroughProcessor();
-        this.context = new ProcCtx(null, null, null, 0);
+        this.context = mock(Context.class);
         this.jobFuture = new CompletableFuture<>();
         this.mockInput = IntStream.range(0, MOCK_INPUT_SIZE).boxed().collect(toList());
         this.instreams = new ArrayList<>();
@@ -307,8 +308,8 @@ public class BlockingProcessorTaskletTest {
 
     private BlockingProcessorTasklet createTasklet() {
         final BlockingProcessorTasklet t = new BlockingProcessorTasklet(
-                context, processor, instreams, outstreams);
-        t.init(jobFuture, System::nanoTime);
+                "mock", context, processor, instreams, outstreams);
+        t.init(jobFuture);
         return t;
     }
 
