@@ -129,7 +129,7 @@ public class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
         }
         for (Entry<K, F> e : patchingFrame.entrySet()) {
             slidingWindow.compute(e.getKey(), (k, acc) -> {
-                F result = patchOp.apply(acc, e.getValue());
+                F result = patchOp.apply(acc != null ? acc : createF.get(), e.getValue());
                 return result.equals(emptyAcc) ? null : result;
             });
         }
