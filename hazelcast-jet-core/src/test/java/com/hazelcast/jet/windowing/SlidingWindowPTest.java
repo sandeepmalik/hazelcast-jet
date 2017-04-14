@@ -38,7 +38,7 @@ public class SlidingWindowPTest extends StreamingTestSupport {
     @Before
     public void before() {
         WindowDefinition windowDef = new WindowDefinition(1, 0, 4);
-        processor = slidingWindow(windowDef, WindowToolkit.of(
+        processor = slidingWindow(windowDef, WindowOperation.of(
                 () -> 0L,
                 (acc, val) -> { throw new UnsupportedOperationException(); },
                 (acc1, acc2) -> acc1 + acc2,

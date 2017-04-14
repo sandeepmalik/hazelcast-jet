@@ -17,7 +17,6 @@
 package com.hazelcast.jet.windowing;
 
 import com.hazelcast.jet.Distributed;
-import com.hazelcast.jet.stream.DistributedCollector;
 
 public final class WindowToolkits {
 
@@ -25,15 +24,15 @@ public final class WindowToolkits {
 
     }
 
-    public static <T> WindowToolkit<T, ?, Long> counting() {
+    public static <T> WindowOperation<T, ?, Long> counting() {
         return reducing(0L, e -> 1L, java.lang.Long::sum, (a, b) -> a - b);
     }
 
-    public static <T, U> WindowToolkit<T, ?, U> reducing(U identity,
-                                                         Distributed.Function<? super T, ? extends U> mapper,
-                                                         Distributed.BinaryOperator<U> combineOp,
-                                                         Distributed.BinaryOperator<U> deductOp) {
-        return new WindowToolkitImpl<>(
+    public static <T, U> WindowOperation<T, ?, U> reducing(U identity,
+                                                           Distributed.Function<? super T, ? extends U> mapper,
+                                                           Distributed.BinaryOperator<U> combineOp,
+                                                           Distributed.BinaryOperator<U> deductOp) {
+        return new WindowOperationImpl<>(
                 boxSupplier(identity),
                 (a, t) -> a[0] = combineOp.apply(a[0], mapper.apply(t)),
                 (a, b) -> {

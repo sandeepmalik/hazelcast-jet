@@ -16,7 +16,6 @@
 
 package com.hazelcast.jet.windowing.example;
 
-import com.hazelcast.config.SerializerConfig;
 import com.hazelcast.jet.AbstractProcessor;
 import com.hazelcast.jet.DAG;
 import com.hazelcast.jet.Jet;
@@ -43,7 +42,7 @@ import static com.hazelcast.jet.Partitioner.HASH_CODE;
 import static com.hazelcast.jet.Processors.readMap;
 import static com.hazelcast.jet.stream.DistributedCollectors.counting;
 import static com.hazelcast.jet.windowing.PunctuationKeepers.cappingEventSeqLagAndLull;
-import static com.hazelcast.jet.windowing.WindowToolkit.fromCollector;
+import static com.hazelcast.jet.windowing.WindowOperation.fromCollector;
 import static com.hazelcast.jet.windowing.WindowingProcessors.groupByFrame;
 import static com.hazelcast.jet.windowing.WindowingProcessors.insertPunctuation;
 import static com.hazelcast.jet.windowing.WindowingProcessors.slidingWindow;

@@ -38,7 +38,7 @@ import static java.util.function.Function.identity;
 
 /**
  * Sliding window processor. See {@link
- * WindowingProcessors#slidingWindow(WindowDefinition, WindowToolkit)
+ * WindowingProcessors#slidingWindow(WindowDefinition, WindowOperation)
  * slidingWindow(frameLength, framesPerWindow, windowToolkit)} for
  * documentation.
  */
@@ -55,12 +55,12 @@ public class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
 
     private long nextFrameSeqToEmit = Long.MIN_VALUE;
 
-    SlidingWindowP(WindowDefinition wDef, @Nonnull WindowToolkit<K, F, R> windowToolkit) {
-        this.wDef = wDef;
-        this.createF = windowToolkit.createAccumulatorF();
-        this.combineF = windowToolkit.combineAccumulatorsF();
-        this.deductF = windowToolkit.deductAccumulatorF();
-        this.finishF = windowToolkit.finishAccumulationF();
+    SlidingWindowP(WindowDefinition winDef, @Nonnull WindowOperation<K, F, R> winOp) {
+        this.wDef = winDef;
+        this.createF = winOp.createAccumulatorF();
+        this.combineF = winOp.combineAccumulatorsF();
+        this.deductF = winOp.deductAccumulatorF();
+        this.finishF = winOp.finishAccumulationF();
         this.flatMapper = flatMapper(this::slidingWindowTraverser);
         this.emptyAcc = createF.get();
     }
@@ -80,11 +80,10 @@ public class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
         if (nextFrameSeqToEmit == Long.MIN_VALUE) {
             if (seqToKeyToFrame.isEmpty()) {
                 // We have no data, just forward the punctuation.
-                tryEmit(punc);
-                return true;
+                return tryEmit(punc);
             }
             // This is the first punctuation we are acting upon. Find the lowest
-            // frameSeq that can be emitted: at most the top existing frameSeq lesser
+            // frameSeq that can be emitted: at most the top existing frameSeq lower
             // than punc seq, but even lower than that if there are older frames on
             // record. The above guarantees that the sliding window can be correctly
             // initialized using the "add leading/deduct trailing" approach because we
