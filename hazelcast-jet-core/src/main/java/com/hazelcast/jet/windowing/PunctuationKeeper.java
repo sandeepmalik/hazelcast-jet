@@ -47,13 +47,13 @@ public interface PunctuationKeeper {
     long getCurrentPunctuation();
 
     /**
-     * Returns a new punctuation keeper which throttles the output by ensuring that the
-     * punctuation advances by at least the supplied {@code minStep}.
+     * Returns a new punctuation keeper that throttles this keeper's output
+     * by suppressing advancement by less than the supplied {@code minStep}.
      * Punctuation returned from the wrapped keeper that is less than {@code
      * minStep} ahead of the top punctuation returned from this keeper is
      * ignored.
      */
-    default PunctuationKeeper throttle(long minStep) {
+    default PunctuationKeeper throttleByMinStep(long minStep) {
         return new PunctuationKeeper() {
 
             private long nextPunc = Long.MIN_VALUE;
@@ -62,16 +62,16 @@ public interface PunctuationKeeper {
             @Override
             public long reportEvent(long eventSeq) {
                 long newPunc = PunctuationKeeper.this.reportEvent(eventSeq);
-                return throttledAdvance(newPunc);
+                return advanceThrottled(newPunc);
             }
 
             @Override
             public long getCurrentPunctuation() {
                 long newPunc = PunctuationKeeper.this.getCurrentPunctuation();
-                return throttledAdvance(newPunc);
+                return advanceThrottled(newPunc);
             }
 
-            private long throttledAdvance(long newPunc) {
+            private long advanceThrottled(long newPunc) {
                 if (newPunc < nextPunc) {
                     return currPunc;
                 }
@@ -83,14 +83,15 @@ public interface PunctuationKeeper {
     }
 
     /**
-     * Returns a new punctuation keeper, which only advances the punctuations,
-     * when it will actually cause a frame to close.
-     *
-     * @param winDef The same window definition as for
-     *               {@link WindowingProcessors#groupByFrame(com.hazelcast.jet.Distributed.ToLongFunction,
-     *               WindowDefinition, DistributedCollector)}
+     * Returns a new punctuation keeper that throttles this keeper's output by
+     * suppressing advancement within the same frame, as defined by the {@code
+     * winDef} parameter. The window definition should match the one supplied to
+     * the downstream {@link WindowingProcessors#groupByFrame(
+     * com.hazelcast.jet.Distributed.Function,
+     * com.hazelcast.jet.Distributed.ToLongFunction, WindowDefinition,
+     * DistributedCollector) groupByFrame} processor.
      */
-    default PunctuationKeeper throttleForWindow(WindowDefinition winDef) {
+    default PunctuationKeeper throttleByFrame(WindowDefinition winDef) {
         return new PunctuationKeeper() {
             private long lastFrameSeq = Long.MIN_VALUE;
             private long lastPunc = Long.MIN_VALUE;
@@ -98,24 +99,23 @@ public interface PunctuationKeeper {
             @Override
             public long reportEvent(long eventSeq) {
                 long newPunc = PunctuationKeeper.this.reportEvent(eventSeq);
-                return throttledAdvance(newPunc);
+                return advanceThrottled(newPunc);
             }
 
             @Override
             public long getCurrentPunctuation() {
                 long newPunc = PunctuationKeeper.this.getCurrentPunctuation();
-                return throttledAdvance(newPunc);
+                return advanceThrottled(newPunc);
             }
 
-            private long throttledAdvance(long newPunc) {
+            private long advanceThrottled(long newPunc) {
                 long frameSeq = winDef.floorFrameSeq(newPunc);
-                // if this punc causes new frameSeq, let's forward it
-                if (frameSeq > lastFrameSeq) {
-                    lastFrameSeq = frameSeq;
-                    lastPunc = newPunc;
-                    return newPunc;
+                if (frameSeq <= lastFrameSeq) {
+                    return lastPunc;
                 }
-                return lastPunc;
+                lastFrameSeq = frameSeq;
+                lastPunc = newPunc;
+                return newPunc;
             }
         };
     }

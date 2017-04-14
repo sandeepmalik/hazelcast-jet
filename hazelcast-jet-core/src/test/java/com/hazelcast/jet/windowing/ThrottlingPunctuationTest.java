@@ -39,7 +39,7 @@ public class ThrottlingPunctuationTest {
 
     @Test
     public void when_puncIncreasing_then_throttleByMinStep() {
-        p = p.throttle(MIN_STEP);
+        p = p.throttleByMinStep(MIN_STEP);
         assertPunc(2, 2);
         assertPunc(3, 2);
         assertPunc(4, 4);
@@ -50,9 +50,9 @@ public class ThrottlingPunctuationTest {
     }
 
     @Test
-    public void when_puncIncreasing_then_throttleForWindow() {
+    public void when_puncIncreasing_then_throttleByFrame() {
         WindowDefinition winDef = new WindowDefinition(3, 1);
-        p = p.throttleForWindow(winDef);
+        p = p.throttleByFrame(winDef);
         assertPunc(2, 2);
         assertPunc(3, 3);
         assertPunc(4, 3);
