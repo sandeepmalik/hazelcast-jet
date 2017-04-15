@@ -26,7 +26,7 @@ public class CappingEventSeqLagAndRetentionTest {
     private static final int EVENT_SEQ_LAG = 8;
 
     private long time;
-    private PunctuationKeeper p = PunctuationKeepers.cappingEventSeqLagAndRetention(EVENT_SEQ_LAG,
+    private PunctuationPolicy p = PunctuationPolicies.cappingEventSeqLagAndRetention(EVENT_SEQ_LAG,
             MAX_RETAIN_MS, 8, () -> time);
 
     @Test

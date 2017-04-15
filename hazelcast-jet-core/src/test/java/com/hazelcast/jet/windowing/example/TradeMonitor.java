@@ -41,7 +41,7 @@ import static com.hazelcast.jet.Edge.between;
 import static com.hazelcast.jet.Partitioner.HASH_CODE;
 import static com.hazelcast.jet.Processors.readMap;
 import static com.hazelcast.jet.stream.DistributedCollectors.counting;
-import static com.hazelcast.jet.windowing.PunctuationKeepers.cappingEventSeqLagAndLull;
+import static com.hazelcast.jet.windowing.PunctuationPolicies.cappingEventSeqLagAndLull;
 import static com.hazelcast.jet.windowing.WindowOperation.fromCollector;
 import static com.hazelcast.jet.windowing.WindowingProcessors.groupByFrame;
 import static com.hazelcast.jet.windowing.WindowingProcessors.insertPunctuation;

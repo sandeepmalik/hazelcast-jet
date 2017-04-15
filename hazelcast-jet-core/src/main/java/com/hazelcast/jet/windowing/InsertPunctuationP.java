@@ -36,7 +36,7 @@ import javax.annotation.Nonnull;
 public class InsertPunctuationP<T> extends AbstractProcessor {
 
     private final ToLongFunction<T> extractEventSeqF;
-    private final PunctuationKeeper punctuationKeeper;
+    private final PunctuationPolicy punctuationPolicy;
     private final ResettableSingletonTraverser<Object> singletonTraverser;
     private final Traverser<Object> nullTraverser = Traversers.newNullTraverser();
     private final FlatMapper<Object, Object> flatMapper;
@@ -45,20 +45,20 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
 
     /**
      * @param extractEventSeqF function that extracts the {@code eventSeq} from an input item
-     * @param punctuationKeeper the punctuation keeper
+     * @param punctuationPolicy the punctuation policy
      */
     InsertPunctuationP(@Nonnull ToLongFunction<T> extractEventSeqF,
-                       @Nonnull PunctuationKeeper punctuationKeeper
+                       @Nonnull PunctuationPolicy punctuationPolicy
     ) {
         this.extractEventSeqF = extractEventSeqF;
-        this.punctuationKeeper = punctuationKeeper;
+        this.punctuationPolicy = punctuationPolicy;
         this.flatMapper = flatMapper(this::traverser);
         this.singletonTraverser = new ResettableSingletonTraverser<>();
     }
 
     @Override
     public boolean tryProcess() {
-        long newPunc = punctuationKeeper.getCurrentPunctuation();
+        long newPunc = punctuationPolicy.getCurrentPunctuation();
         if (newPunc > currPunc) {
             boolean didEmit = tryEmit(new Punctuation(newPunc));
             if (didEmit) {
@@ -80,7 +80,7 @@ public class InsertPunctuationP<T> extends AbstractProcessor {
             // drop late event
             return nullTraverser;
         }
-        long newPunc = punctuationKeeper.reportEvent(eventSeq);
+        long newPunc = punctuationPolicy.reportEvent(eventSeq);
         singletonTraverser.accept(item);
         if (newPunc > currPunc) {
             currPunc = newPunc;

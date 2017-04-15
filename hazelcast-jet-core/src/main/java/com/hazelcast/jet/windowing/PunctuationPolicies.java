@@ -36,7 +36,7 @@ public final class PunctuationKeepers {
     private PunctuationKeepers() {
     }
 
-    private abstract static class PunctuationKeeperBase implements PunctuationKeeper {
+    private abstract static class PunctuationPolicyBase implements PunctuationPolicy {
 
         private long punc = Long.MIN_VALUE;
 
@@ -65,10 +65,10 @@ public final class PunctuationKeepers {
      *                    and the punctuation
      */
     @Nonnull
-    public static PunctuationKeeper cappingEventSeqLag(long eventSeqLag) {
+    public static PunctuationPolicy cappingEventSeqLag(long eventSeqLag) {
         checkNotNegative(eventSeqLag, "eventSeqLag must not be negative");
 
-        return new PunctuationKeeperBase() {
+        return new PunctuationPolicyBase() {
 
             @Override
             public long reportEvent(long eventSeq) {
@@ -89,16 +89,16 @@ public final class PunctuationKeepers {
      *                    punctuation to reach any observed event's {@code eventSeq}
      */
     @Nonnull
-    public static PunctuationKeeper cappingEventSeqLagAndRetention(long eventSeqLag, long maxRetainMs) {
+    public static PunctuationPolicy cappingEventSeqLagAndRetention(long eventSeqLag, long maxRetainMs) {
         return cappingEventSeqLagAndRetention(
                 eventSeqLag, MILLISECONDS.toNanos(maxRetainMs), DEFAULT_NUM_STORED_SAMPLES, System::nanoTime);
     }
 
     @Nonnull
-    static PunctuationKeeper cappingEventSeqLagAndRetention(
+    static PunctuationPolicy cappingEventSeqLagAndRetention(
             long eventSeqLag, long maxRetainNanos, int numStoredSamples, LongSupplier nanoClock
     ) {
-        return new PunctuationKeeperBase() {
+        return new PunctuationPolicyBase() {
 
             private long topSeq = Long.MIN_VALUE;
             private final EventSeqHistory history = new EventSeqHistory(maxRetainNanos, numStoredSamples);
@@ -140,11 +140,11 @@ public final class PunctuationKeepers {
      *                     {@code System.currentTimeMillis} and the punctuation
      */
     @Nonnull
-    public static PunctuationKeeper cappingEventSeqAndWallClockLag(long eventSeqLag, long wallClockLag) {
+    public static PunctuationPolicy cappingEventSeqAndWallClockLag(long eventSeqLag, long wallClockLag) {
         checkNotNegative(eventSeqLag, "eventSeqLag must not be negative");
         checkNotNegative(wallClockLag, "wallClockLag must not be negative");
 
-        return new PunctuationKeeperBase() {
+        return new PunctuationPolicyBase() {
 
             @Override
             public long reportEvent(long eventSeq) {
@@ -189,17 +189,17 @@ public final class PunctuationKeepers {
      *                  advance punctuation with system time
      */
     @Nonnull
-    public static PunctuationKeeper cappingEventSeqLagAndLull(long eventSeqLag, long maxLullMs) {
+    public static PunctuationPolicy cappingEventSeqLagAndLull(long eventSeqLag, long maxLullMs) {
         return cappingEventSeqLagAndLull(eventSeqLag, maxLullMs, System::nanoTime);
     }
 
 
     @Nonnull
-    static PunctuationKeeper cappingEventSeqLagAndLull(long eventSeqLag, long maxLullMs, LongSupplier nanoClock) {
+    static PunctuationPolicy cappingEventSeqLagAndLull(long eventSeqLag, long maxLullMs, LongSupplier nanoClock) {
         checkNotNegative(eventSeqLag, "eventSeqLag must not be negative");
         checkNotNegative(maxLullMs, "maxLullMs must not be negative");
 
-        return new PunctuationKeeperBase() {
+        return new PunctuationPolicyBase() {
 
             private long maxLullAt = Long.MIN_VALUE;
 

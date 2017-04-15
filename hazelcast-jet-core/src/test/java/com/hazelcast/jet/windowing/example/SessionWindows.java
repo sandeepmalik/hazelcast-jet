@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import static com.hazelcast.jet.DistributedFunctions.entryKey;
 import static com.hazelcast.jet.Edge.between;
 import static com.hazelcast.jet.Util.entry;
-import static com.hazelcast.jet.windowing.PunctuationKeepers.cappingEventSeqLag;
+import static com.hazelcast.jet.windowing.PunctuationPolicies.cappingEventSeqLag;
 import static com.hazelcast.jet.windowing.WindowingProcessors.insertPunctuation;
 import static com.hazelcast.jet.windowing.WindowingProcessors.sessionWindow;
 import static com.hazelcast.jet.windowing.example.SessionWindows.SourceP.eventCount;

@@ -18,7 +18,7 @@ package com.hazelcast.jet.windowing;
 
 import org.junit.Test;
 
-import static com.hazelcast.jet.windowing.PunctuationKeepers.cappingEventSeqLagAndLull;
+import static com.hazelcast.jet.windowing.PunctuationPolicies.cappingEventSeqLagAndLull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.junit.Assert.assertEquals;
@@ -27,7 +27,7 @@ public class CappingEventSeqLagAndLullTest {
 
     private static final int MAX_LULL_MS = 3;
     private long currTime;
-    private PunctuationKeeper p = cappingEventSeqLagAndLull(2, MAX_LULL_MS, () -> currTime);
+    private PunctuationPolicy p = cappingEventSeqLagAndLull(2, MAX_LULL_MS, () -> currTime);
 
     @Test
     public void when_outOfOrderEvents_then_monotonicPunct() {

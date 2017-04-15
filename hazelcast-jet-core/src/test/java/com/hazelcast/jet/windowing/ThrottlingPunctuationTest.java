@@ -24,7 +24,7 @@ public class ThrottlingPunctuationTest {
 
     private static final int MIN_STEP = 2;
     private long punc;
-    private PunctuationKeeper p = new PunctuationKeeper() {
+    private PunctuationPolicy p = new PunctuationPolicy() {
 
         @Override
         public long reportEvent(long eventSeq) {
