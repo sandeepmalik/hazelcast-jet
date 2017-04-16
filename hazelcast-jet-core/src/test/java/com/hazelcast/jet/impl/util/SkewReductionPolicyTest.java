@@ -55,45 +55,28 @@ public class SkewReductionPolicyTest {
         assertQueuesOrdered();
 
         // all queues become equally ahead
-        for (int i=0; i<srd.orderedQueues.length; i++) {
+        for (int i = 0; i<srd.drainOrderToQIdx.length; i++) {
             srd.observePunc(i, 6);
             assertQueuesOrdered();
         }
     }
 
-    @Test
-    public void test_skewIsMoreThanMax() {
-        assertEquals("This test needs updating", 1000, srd.getMaxSkew());
-        assertTrue(srd.skewIsMoreThanMax(Long.MIN_VALUE, 500));
-        assertTrue(srd.skewIsMoreThanMax(Long.MIN_VALUE, 1000));
-        assertTrue(srd.skewIsMoreThanMax(Long.MIN_VALUE, 1500));
-        assertTrue(srd.skewIsMoreThanMax(Long.MIN_VALUE, -1500));
-        assertFalse(srd.skewIsMoreThanMax(Long.MIN_VALUE, Long.MIN_VALUE + 1000-1));
-        assertFalse(srd.skewIsMoreThanMax(Long.MIN_VALUE, Long.MIN_VALUE + 1000));
-        assertTrue(srd.skewIsMoreThanMax(Long.MIN_VALUE, Long.MIN_VALUE + 1000+1));
-        assertTrue(srd.skewIsMoreThanMax(Long.MIN_VALUE, Long.MAX_VALUE));
-        assertTrue(srd.skewIsMoreThanMax(10, Long.MAX_VALUE));
-        assertTrue(srd.skewIsMoreThanMax(Long.MAX_VALUE - 1001, Long.MAX_VALUE));
-        // this is the maximum supported behindPunc value with maxSkew=1000
-        assertFalse(srd.skewIsMoreThanMax(Long.MAX_VALUE - 1000, Long.MAX_VALUE));
-    }
-
     private void assertQueuesOrdered() {
         long lastValue = Long.MIN_VALUE;
-        for (int i=1; i<srd.observedPuncSeqs.length; i++) {
-            long thisValue = srd.observedPuncSeqs[srd.orderedQueues[i]];
+        for (int i = 1; i<srd.queuePuncSeqs.length; i++) {
+            long thisValue = srd.queuePuncSeqs[srd.drainOrderToQIdx[i]];
             assertTrue("Queues not ordered\nobservedPuncSeqs="
-                            + Arrays.toString(srd.observedPuncSeqs) + "\norderedQueues="
-                    + Arrays.toString(srd.orderedQueues),
+                            + Arrays.toString(srd.queuePuncSeqs) + "\norderedQueues="
+                    + Arrays.toString(srd.drainOrderToQIdx),
                     lastValue <= thisValue);
             lastValue = thisValue;
         }
 
         // assert, that each queue index is unique in orderedQueues
         Set<Integer> set = new HashSet<>();
-        for (int i : srd.orderedQueues)
+        for (int i : srd.drainOrderToQIdx)
             set.add(i);
 
-        assertEquals(srd.orderedQueues.length, set.size());
+        assertEquals(srd.drainOrderToQIdx.length, set.size());
     }
 }

@@ -64,16 +64,17 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
     }
 
     /**
-     * Drains all inbound queues into the {@code dest} collection.
+     * Drains the inbound queues into the {@code dest} collection. Some queues
+     * may be skipped, as decided by the {@link SkewReductionPolicy}.
      */
     @Override
     public ProgressState drainTo(Collection<Object> dest) {
         tracker.reset();
-        for (int orderedQueueIndex = 0; orderedQueueIndex < conveyor.queueCount(); orderedQueueIndex++) {
-            if (!skewReductionPolicy.shouldDrainQueue(orderedQueueIndex, tracker.isMadeProgress())) {
+        for (int drainOrderIdx = 0; drainOrderIdx < conveyor.queueCount(); drainOrderIdx++) {
+            if (skewReductionPolicy.shouldStopDraining(drainOrderIdx, tracker.isMadeProgress())) {
                 break;
             }
-            int queueIndex = skewReductionPolicy.realQueueIndex(orderedQueueIndex);
+            int queueIndex = skewReductionPolicy.toQueueIndex(drainOrderIdx);
             final Pipe<Object> q = conveyor.queue(queueIndex);
             if (q == null) {
                 continue;

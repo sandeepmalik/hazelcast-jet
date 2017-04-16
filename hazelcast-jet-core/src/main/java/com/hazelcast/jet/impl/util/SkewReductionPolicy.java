@@ -19,24 +19,56 @@ package com.hazelcast.jet.impl.util;
 import javax.annotation.Nonnull;
 import java.util.Arrays;
 
+import static com.hazelcast.jet.impl.util.SkewReductionPolicy.SkewExceededAction.SKIP;
+import static com.hazelcast.jet.impl.util.SkewReductionPolicy.SkewExceededAction.WAIT;
 import static com.hazelcast.util.Preconditions.checkNotNegative;
 import static com.hazelcast.util.Preconditions.checkTrue;
 
 /**
- * Helper class to implement the logic to reduce skew. Intended usage is:<ul>
- *     <li>Create an instance with number of your queues</li>
- *     <li>Drain your queues in the order as specified by {@link #realQueueIndex(int)}</li>
- *     <li>Whenever you receive a {@link com.hazelcast.jet.Punctuation} from one of the
- *     queues, call {@link #observePunc(int, long)}</li>
- *     <li>After draining single queue, check the result of {@link #shouldDrainQueue(int, boolean)}
- *     to see, whether to continue with the next queue.</li>
- * </ul>
+ * <i>Stream skew</i> is defined on a set of its substreams that are being
+ * consumed in parallel: given the set of the punctuation values on each
+ * substream, it is the difference between the top and the bottom value
+ * in that set. Stream skew has negative effects on at least one of:
+ * <ol><li>
+ *     memory consumption
+ * </li><li>
+ *     throughput
+ * </li><li>
+ *     latency
+ * </li><li>
+ *     correctness
+ * </li></ol>
+ * This class implements a policy to reduce the stream skew by managing the
+ * priority of draining individual substream queues. As soon as a queue's
+ * punctuation advances above the configured {@code
+ * priorityDrainingThreshold}, the priority of draining that queue will be
+ * lowered so that all other queues are drained before it. Since all queues
+ *
+ *
+ * The intended usage is
+ * as follows:
+ * <ol><li>
+ *     Create an instance of this class, supplying the number of queues whose
+ *     draining order must be managed.
+ * </li><li>
+ *     Use an indexed loop ranging over {@code [0..numQueues)}.
+ * </li><li>
+ *     For each {@code i} drain the queue indicated by {@link #toQueueIndex(
+ *     int)}.
+ * </li><li>
+ *     Call {@link #observePunc(int, long) observePunc(realIndex, puncSeq)} for
+ *     every punctuation item received from any queue.
+ * </li><li>
+ *     After draining one queue, check the result of {@link #shouldStopDraining(
+ *     int, boolean) shouldDrainQueue(drainIndex, madeProgress)} to see
+ *     whether to continue with the next queue.
+ * </li></ol>
  */
 public class SkewReductionPolicy {
 
     /**
-     * <i>Skew</i> is the maximum of difference between top punctuation from two queues.
-     *
+     * Enum providing a choice of actions to take when the stream skew has
+     * exceeded the configured limit.
      * <pre>
      * +-----------+------------+-----------+---------------+------------+
      * |  Method   | Drops data |  Latency  | Allowed skew* | Throughput |
@@ -46,150 +78,160 @@ public class SkewReductionPolicy {
      * | SKIP      | Yes        | Bounded   | Bounded       | High       |
      * +-----------+------------+-----------+---------------+------------+
      * </pre>
-     * (*) Higher allowed skew causes higher memory usage due to more window frames that
-     * need to be kept open.
+     * (*) Higher allowed skew causes higher memory usage by causing more data
+     * to be retained in a vertex that performs a windowing operation.
      */
     public enum SkewExceededAction {
 
         /**
-         * If skew is exceeded, stop draining from queues, that are more than {@code maxSkew}
-         * ahead.
+         * Stop draining the queues that are more than {@code maxSkew} ahead of the
+         * least advanced queue.
          * <p>
-         * Ensures the skew never exceeds {@code maxSkew} and decreases throughput
-         * by waiting for stalled queues. Useful, if the memory needed to store and snapshot
-         * additional open frames is large and we strictly need to limit it. Increases latency.
+         * This ensures that the skew never exceeds {@code maxSkew}, thereby
+         * limiting memory consumption, but degrading throughput and latency.
          * <p>
-         * Might cause deadlock, if the drained and the not-drained queues are populated
-         * from single upstream source.
+         * Might cause a deadlock if the drained and the not-drained queues are
+         * being populated from a single upstream source.
          */
         WAIT,
 
         /**
-         * We'll emit punctuation with time (topPunct - maxSkew), despite the fact, that
-         * some queues did not yet arrive at it.
+         * Never cease draining any queues, but force the punctuation to stay
+         * within {@code (topPunc - maxSkew)}. Data from the queues that fall too
+         * much behind will be dropped as "late events".
          * <p>
          * Causes incorrectness, but guarantees minimum latency and bounded skew.
          */
         SKIP,
 
         /**
-         * No special action is taken, just continue draining with priority.
+         * Don't cease draining any queues and don't force-advance the punctuation
+         * either; instead let the stream skew exceed the configured limit. Even
+         * though all the data is processed as soon as possible, latency can grow
+         * without bounds due to the lagging punctuation. This will also cause
+         * memory consumption to rise as the system keeps buffering all the data
+         * ahead of the punctuation.
          */
         NO_ACTION
     }
 
     // package-visible for tests
-    final long[] observedPuncSeqs;
-    final int[] orderedQueues;
+    final long[] queuePuncSeqs;
+    final int[] drainOrderToQIdx;
 
     private final long maxSkew;
-    private final long applyPriorityThreshold;
+    private final long priorityDrainingThreshold;
     private final SkewExceededAction skewExceededAction;
 
-    public SkewReductionPolicy(int numQueues, long maxSkew, long applyPriorityThreshold,
-            @Nonnull SkewExceededAction skewExceededAction) {
-        checkNotNegative(maxSkew, "maxSkew must be >= 0");
-        checkNotNegative(applyPriorityThreshold, "applyPriorityThreshold must be >= 0");
-        checkTrue(applyPriorityThreshold <= maxSkew, "applyPriorityThreshold must be less than maxSkew");
+    public SkewReductionPolicy(int numQueues, long maxSkew, long priorityDrainingThreshold,
+            @Nonnull SkewExceededAction skewExceededAction
+    ) {
+        checkNotNegative(maxSkew, "maxSkew must not be a negative number");
+        checkNotNegative(priorityDrainingThreshold, "priorityDrainingThreshold must not be a negative number");
+        checkTrue(priorityDrainingThreshold <= maxSkew, "priorityDrainingThreshold must be less than maxSkew");
 
         this.maxSkew = maxSkew;
-        this.applyPriorityThreshold = applyPriorityThreshold;
+        this.priorityDrainingThreshold = priorityDrainingThreshold;
         this.skewExceededAction = skewExceededAction;
 
-        observedPuncSeqs = new long[numQueues];
-        Arrays.fill(observedPuncSeqs, Long.MIN_VALUE);
+        queuePuncSeqs = new long[numQueues];
+        Arrays.fill(queuePuncSeqs, Long.MIN_VALUE);
 
-        orderedQueues = new int[numQueues];
-        Arrays.setAll(orderedQueues, i -> i);
+        drainOrderToQIdx = new int[numQueues];
+        Arrays.setAll(drainOrderToQIdx, i -> i);
     }
 
     /**
-     * Process {@link com.hazelcast.jet.Punctuation} from queue at {@code realQueueIndex}.
-     *
-     * @return true, if the queues were reordered by this punctuation.
+     * Given the (variable) position of a queue in the draining order, returns
+     * the (fixed) index of that queue in the array of all queues. Queues are
+     * ordered for draining by their punctuation (lowest first) so that the
+     * least advanced queue is drained first.
      */
-    public boolean observePunc(int realQueueIndex, final long puncSeq) {
-        if (observedPuncSeqs[realQueueIndex] >= puncSeq) {
-            // this is possible with SKIP scenario, where we increase observedPuncSeqs value
-            // without receiving punct from that queue
-            if (skewExceededAction != SkewExceededAction.SKIP) {
+    public int toQueueIndex(int drainOrderIdx) {
+        return drainOrderToQIdx[drainOrderIdx];
+    }
+
+    /**
+     * Called to report the value of punctuation observed on the queue at
+     * {@code queueIndex}.
+     *
+     * @return {@code true} if the queues were reordered by this punctuation
+     */
+    public boolean observePunc(int queueIndex, final long puncSeq) {
+        if (queuePuncSeqs[queueIndex] >= puncSeq) {
+            // this is possible with SKIP scenario, where we increase observedPuncSeqs
+            // without receiving punctuation from that queue
+            if (skewExceededAction != SKIP) {
                 throw new AssertionError("Punctuations not monotonically increasing on queue");
             }
             return false;
         }
-
-        boolean res = reorderQueues(realQueueIndex, puncSeq);
-        observedPuncSeqs[realQueueIndex] = puncSeq;
-
-        // if action is SKIP, let's advance queues, that are too much behind, to topQueuePunc - maxSkew
-        if (skewExceededAction == SkewExceededAction.SKIP) {
-            long topQueuePunc = topObservedPunc();
-            // this is to avoid integer overflow at the beginning
-            if (topQueuePunc > Long.MIN_VALUE + maxSkew) {
-                long newBottomQueuePunc = topQueuePunc - maxSkew;
-                for (int i = 0; i < orderedQueues.length && observedPuncSeqs[orderedQueues[i]] < newBottomQueuePunc; i++) {
-                    observedPuncSeqs[orderedQueues[i]] = newBottomQueuePunc;
-                }
-            }
+        boolean res = reorderQueues(queueIndex, puncSeq);
+        queuePuncSeqs[queueIndex] = puncSeq;
+        if (skewExceededAction != SKIP) {
+            return res;
         }
-
+        // The configured action is SKIP, so ensure that all queues' punctuation is
+        // at least topObservedPunc - maxSkew
+        long topPunc = topObservedPunc();
+        // prevent possible integer overflow
+        if (topPunc <= Long.MIN_VALUE + maxSkew) {
+            return res;
+        }
+        long newBottomPunc = topPunc - maxSkew;
+        for (int i = 0; i < drainOrderToQIdx.length && queuePuncSeqs[drainOrderToQIdx[i]] < newBottomPunc; i++) {
+            queuePuncSeqs[drainOrderToQIdx[i]] = newBottomPunc;
+        }
         return res;
     }
 
     /**
-     * Returns queue index for queue, that should be drained as n-th.
-     * For example, {@code orderedQueueIndex==0} returns the queue, that is most behind etc.
+     * The queue-draining loop drains the queues in the drain order specified
+     * by this class and consults this method before going on to drain
+     * the next queue. To determine the response, we determine the skew of the
+     * queue the loop is about to drain: it is the difference between its
+     * punctuation and the bottom punctuation (i.e., that of the first queue in
+     * the draining order). The policy will signal to stop draining if:
+     * <ol><li>
+     *     some data was already drained and the queue's skew is above the
+     *     configured "priority draining" threshold, or
+     * </li><li>
+     *     the queue's skew is above the configured {@code maxSkew} and the
+     *     action to take on exceeding the limit is {@link
+     *     SkewExceededAction#WAIT WAIT}.
+     * </li></ol>
+     *
+     * @param drainOrderIdx the current position in the draining order
+     * @param madeProgress whether any queue was drained so far
+     * @return {@code false} if the draining should now stop; {@code true} otherwise
      */
-    public int realQueueIndex(int orderedQueueIndex) {
-        return orderedQueues[orderedQueueIndex];
-    }
-
-    public boolean shouldDrainQueue(int orderedQueueIndex, boolean madeProgress) {
-        // always drain the first queue
-        if (orderedQueueIndex == 0) {
-            return true;
-        }
-
-        long thisQueuePunc = observedPuncSeqs[orderedQueues[orderedQueueIndex]];
-        long bottomQueuePunc = observedPuncSeqs[orderedQueues[0]];
-
-        // always drain queues, that are less than applyPriorityThreshold ahead
-        if (thisQueuePunc <= bottomQueuePunc + applyPriorityThreshold) {
-            return true;
-        }
-
-        // next queue is too much ahead. If we made progress so far, let's stop draining
-        if (madeProgress) {
-            return false;
-        }
-
-        // if policy is to WAIT and the next queue is more than maxSkew ahead, don't drain it
-        if (skewExceededAction == SkewExceededAction.WAIT && skewIsMoreThanMax(bottomQueuePunc, thisQueuePunc)) {
-            return false;
-        }
-
-        // otherwise return true
-        return true;
+    public boolean shouldStopDraining(int drainOrderIdx, boolean madeProgress) {
+        // Don't calculade the punc difference directly to avoid integer overflow
+        long thisQueuePunc = queuePuncSeqs[drainOrderToQIdx[drainOrderIdx]];
+        long bottomPunc = queuePuncSeqs[drainOrderToQIdx[0]];
+        return (madeProgress && thisQueuePunc > bottomPunc + priorityDrainingThreshold)
+                || (skewExceededAction == WAIT && thisQueuePunc > bottomPunc + maxSkew);
     }
 
     public long bottomObservedPunc() {
-        return observedPuncSeqs[orderedQueues[0]];
+        return queuePuncSeqs[drainOrderToQIdx[0]];
     }
 
-    public long topObservedPunc() {
-        return observedPuncSeqs[orderedQueues[orderedQueues.length - 1]];
+    private long topObservedPunc() {
+        return queuePuncSeqs[drainOrderToQIdx[drainOrderToQIdx.length - 1]];
     }
 
     private boolean reorderQueues(int queueIndex, long puncSeq) {
-        // Reorder the queues from the most behind one to the most ahead one. They are ordered now,
-        // and the one at queueIndex just has advanced.
-        int currentPos = indexOf(orderedQueues, queueIndex);
+        // Reorder the queues from the least to the most advanced one in terms of
+        // their punctuation. They are ordered now, and the one at `queueIndex` has
+        // just advanced to `puncSeq`.
+        int currentPos = indexOf(drainOrderToQIdx, queueIndex);
         int newPos = lowerBoundQueuePosition(puncSeq) - 1;
         // the queue position must always go closer to the end, as it's current punc is higher
         assert newPos >= currentPos;
-        if (newPos > currentPos && currentPos < orderedQueues.length - 1) {
-            System.arraycopy(orderedQueues, currentPos + 1, orderedQueues, currentPos, newPos - currentPos);
-            orderedQueues[newPos] = queueIndex;
+        if (newPos > currentPos && currentPos < drainOrderToQIdx.length - 1) {
+            System.arraycopy(drainOrderToQIdx, currentPos + 1, drainOrderToQIdx, currentPos, newPos - currentPos);
+            drainOrderToQIdx[newPos] = queueIndex;
             return true;
         } else {
             return false;
@@ -198,11 +240,11 @@ public class SkewReductionPolicy {
 
     private int lowerBoundQueuePosition(long key) {
         int low = 0;
-        int high = observedPuncSeqs.length - 1;
+        int high = queuePuncSeqs.length - 1;
 
         while (low <= high) {
             int mid = (low + high) >>> 1;
-            long midVal = observedPuncSeqs[orderedQueues[mid]];
+            long midVal = queuePuncSeqs[drainOrderToQIdx[mid]];
 
             if (midVal < key) {
                 low = mid + 1;
@@ -213,17 +255,6 @@ public class SkewReductionPolicy {
             }
         }
         return low;  // key not found.
-    }
-
-    boolean skewIsMoreThanMax(long behindPunc, long aheadPunc) {
-        assert behindPunc <= aheadPunc;
-        // We don't expect the behindPunc to get close to Long.MAX_VALUE (a.k.a. the end of history),
-        // however, we expect the behindPunc to be Long.MIN_VALUE.
-        return aheadPunc > behindPunc + maxSkew;
-    }
-
-    long getMaxSkew() {
-        return maxSkew;
     }
 
     private static int indexOf(int[] haystack, int needle) {
