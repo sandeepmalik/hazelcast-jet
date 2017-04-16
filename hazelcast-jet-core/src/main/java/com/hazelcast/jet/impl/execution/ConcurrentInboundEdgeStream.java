@@ -22,7 +22,6 @@ import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.impl.util.ProgressState;
 import com.hazelcast.jet.impl.util.ProgressTracker;
 import com.hazelcast.jet.impl.util.SkewReductionPolicy;
-import com.hazelcast.jet.impl.util.SkewReductionPolicy.SkewExceededAction;
 import com.hazelcast.util.function.Predicate;
 
 import java.util.Collection;
@@ -45,12 +44,12 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
     private final SkewReductionPolicy skewReductionPolicy;
 
     public ConcurrentInboundEdgeStream(ConcurrentConveyor<Object> conveyor, int ordinal, int priority,
-            long maxSkew, long applyPriorityThreshold, SkewExceededAction skewExceededAction) {
+            long maxSkew, long applyPriorityThreshold, boolean forceAdvancePunctuation) {
         this.conveyor = conveyor;
         this.ordinal = ordinal;
         this.priority = priority;
         this.skewReductionPolicy = new SkewReductionPolicy(
-                conveyor.queueCount(), maxSkew, applyPriorityThreshold, skewExceededAction);
+                conveyor.queueCount(), maxSkew, applyPriorityThreshold, forceAdvancePunctuation);
     }
 
     @Override
@@ -71,10 +70,10 @@ public class ConcurrentInboundEdgeStream implements InboundEdgeStream {
     public ProgressState drainTo(Collection<Object> dest) {
         tracker.reset();
         for (int drainOrderIdx = 0; drainOrderIdx < conveyor.queueCount(); drainOrderIdx++) {
-            if (skewReductionPolicy.shouldStopDraining(drainOrderIdx, tracker.isMadeProgress())) {
+            int queueIndex = skewReductionPolicy.toQueueIndex(drainOrderIdx);
+            if (skewReductionPolicy.shouldStopDraining(queueIndex, tracker.isMadeProgress())) {
                 break;
             }
-            int queueIndex = skewReductionPolicy.toQueueIndex(drainOrderIdx);
             final Pipe<Object> q = conveyor.queue(queueIndex);
             if (q == null) {
                 continue;

@@ -16,7 +16,6 @@
 
 package com.hazelcast.jet.impl.util;
 
-import com.hazelcast.jet.impl.util.SkewReductionPolicy.SkewExceededAction;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -34,49 +33,49 @@ public class SkewReductionPolicyTest {
     @Rule
     public ExpectedException exception = ExpectedException.none();
 
-    private SkewReductionPolicy srd = new SkewReductionPolicy(4, 1000, 500, SkewExceededAction.NO_ACTION);
+    private SkewReductionPolicy srp = new SkewReductionPolicy(4, 1000, 500, false);
 
     @Test
     public void test_queuesKeptInOrder() {
-        srd.observePunc(1, 2);
+        srp.observePunc(1, 2);
         assertQueuesOrdered();
-        srd.observePunc(2, 0);
+        srp.observePunc(2, 0);
         assertQueuesOrdered();
-        srd.observePunc(3, 3);
+        srp.observePunc(3, 3);
         assertQueuesOrdered();
-        srd.observePunc(0, 4);
+        srp.observePunc(0, 4);
         assertQueuesOrdered();
         // the most ahead becomes even more ahead
-        srd.observePunc(0, 5);
+        srp.observePunc(0, 5);
         assertQueuesOrdered();
 
         // the most behind advances, but still the most behind
-        srd.observePunc(2, 1);
+        srp.observePunc(2, 1);
         assertQueuesOrdered();
 
         // all queues become equally ahead
-        for (int i = 0; i<srd.drainOrderToQIdx.length; i++) {
-            srd.observePunc(i, 6);
+        for (int i = 0; i< srp.drainOrderToQIdx.length; i++) {
+            srp.observePunc(i, 6);
             assertQueuesOrdered();
         }
     }
 
     private void assertQueuesOrdered() {
         long lastValue = Long.MIN_VALUE;
-        for (int i = 1; i<srd.queuePuncSeqs.length; i++) {
-            long thisValue = srd.queuePuncSeqs[srd.drainOrderToQIdx[i]];
+        for (int i = 1; i < srp.queuePuncSeqs.length; i++) {
+            long thisValue = srp.queuePuncSeqs[srp.drainOrderToQIdx[i]];
             assertTrue("Queues not ordered\nobservedPuncSeqs="
-                            + Arrays.toString(srd.queuePuncSeqs) + "\norderedQueues="
-                    + Arrays.toString(srd.drainOrderToQIdx),
+                            + Arrays.toString(srp.queuePuncSeqs) + "\norderedQueues="
+                    + Arrays.toString(srp.drainOrderToQIdx),
                     lastValue <= thisValue);
             lastValue = thisValue;
         }
 
         // assert, that each queue index is unique in orderedQueues
         Set<Integer> set = new HashSet<>();
-        for (int i : srd.drainOrderToQIdx)
+        for (int i : srp.drainOrderToQIdx)
             set.add(i);
 
-        assertEquals(srd.drainOrderToQIdx.length, set.size());
+        assertEquals(srp.drainOrderToQIdx.length, set.size());
     }
 }

@@ -39,7 +39,6 @@ import com.hazelcast.jet.impl.execution.SenderTasklet;
 import com.hazelcast.jet.impl.execution.Tasklet;
 import com.hazelcast.jet.impl.execution.init.Contexts.ProcCtx;
 import com.hazelcast.jet.impl.execution.init.Contexts.ProcSupplierCtx;
-import com.hazelcast.jet.impl.util.SkewReductionPolicy.SkewExceededAction;
 import com.hazelcast.logging.ILogger;
 import com.hazelcast.nio.Address;
 import com.hazelcast.nio.ObjectDataInput;
@@ -383,13 +382,12 @@ public class ExecutionPlan implements IdentifiedDataSerializable {
         return inboundStreams;
     }
 
-    @SuppressWarnings("checkstyle:magicnumber")
     private static ConcurrentInboundEdgeStream createInboundEdgeStream(
             int ordinal, int priority, ConcurrentConveyor<Object> conveyor
     ) {
         // TODO set these params through Edge
-        return new ConcurrentInboundEdgeStream(conveyor, ordinal, priority, 6000, 1500,
-                SkewExceededAction.NO_ACTION);
+        return new ConcurrentInboundEdgeStream(conveyor, ordinal, priority,
+                Long.MAX_VALUE, Long.MAX_VALUE, false);
     }
 }
 
