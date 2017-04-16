@@ -27,13 +27,13 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 /**
- * Utility class with several punctuation keepers.
+ * Utility class with factories of several useful punctuation policies.
  */
-public final class PunctuationKeepers {
+public final class PunctuationPolicies {
 
     private static final int DEFAULT_NUM_STORED_SAMPLES = 16;
 
-    private PunctuationKeepers() {
+    private PunctuationPolicies() {
     }
 
     private abstract static class PunctuationPolicyBase implements PunctuationPolicy {
@@ -59,7 +59,8 @@ public final class PunctuationKeepers {
     /**
      * Maintains punctuation that lags behind the top observed event seq by the
      * given amount. In the case of a stream lull the punctuation does not
-     * advance and stays lagged.
+     * advance towards the top observed event seq and the lag remains
+     * indefinitely.
      *
      * @param eventSeqLag the desired difference between the top observed event seq
      *                    and the punctuation
@@ -128,10 +129,10 @@ public final class PunctuationKeepers {
      * correlate {@code eventSeq} with wall-clock time acquired from the
      * underlying OS. Note that wall-clock time is non-monotonic and sudden
      * jumps that may occur in it will cause temporary disruptions in the
-     * functioning of this punctuation keeper.
+     * functioning of this policy.
      * <p>
      * In most cases the {@link #cappingEventSeqLagAndLull(long, long)
-     * cappingEventSeqLagAndLull} keeper should be preferred; this is a
+     * cappingEventSeqLagAndLull} policy should be preferred; this is a
      * backup option for cases where some substreams may never see an event.
      *
      * @param eventSeqLag maximum difference between the top observed event seq
@@ -177,7 +178,7 @@ public final class PunctuationKeepers {
      * acquired from the underlying OS's monotonic clock.
      * <p>
      * If no event is ever observed, punctuation will advance from the initial
-     * value of {@code Long.MIN_VALUE}. Therefore this keeper can be used only
+     * value of {@code Long.MIN_VALUE}. Therefore this policy can be used only
      * when there is a guarantee that each substream will emit at least one
      * event that will initialize the {@code eventSeq}. Otherwise the empty
      * substream will hold back the processing of all other substreams by

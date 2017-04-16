@@ -19,14 +19,14 @@ package com.hazelcast.jet.windowing;
 import com.hazelcast.jet.stream.DistributedCollector;
 
 /**
- * A strategy object that "keeps the event time" for a single data
- * (sub)stream. The event seq of every observed item should be reported to
- * this object and it will respond with the current value of the
+ * A policy object that decides on the punctuation in a single data
+ * (sub)stream. The event seq of every observed item should be reported
+ * to this object and it will respond with the current value of the
  * punctuation. Punctuation may also advance even in the absence of
  * observed events; {@link #getCurrentPunctuation()} can be called at any
  * time to see this change.
  */
-public interface PunctuationKeeper {
+public interface PunctuationPolicy {
 
     /**
      * Called to report the observation of an event with the given {@code
@@ -47,27 +47,27 @@ public interface PunctuationKeeper {
     long getCurrentPunctuation();
 
     /**
-     * Returns a new punctuation keeper that throttles this keeper's output
-     * by suppressing advancement by less than the supplied {@code minStep}.
-     * Punctuation returned from the wrapped keeper that is less than {@code
-     * minStep} ahead of the top punctuation returned from this keeper is
-     * ignored.
+     * Returns a new punctuation policy that throttles this policy's output
+     * by suppressing advancement of punctuation by less than the supplied
+     * {@code minStep}. The throttling policy will ignore any punctuation
+     * returned from this policy that is less than {@code minStep} ahead of
+     * the top punctuation returned from the throttling policy.
      */
-    default PunctuationKeeper throttleByMinStep(long minStep) {
-        return new PunctuationKeeper() {
+    default PunctuationPolicy throttleByMinStep(long minStep) {
+        return new PunctuationPolicy() {
 
             private long nextPunc = Long.MIN_VALUE;
             private long currPunc = Long.MIN_VALUE;
 
             @Override
             public long reportEvent(long eventSeq) {
-                long newPunc = PunctuationKeeper.this.reportEvent(eventSeq);
+                long newPunc = PunctuationPolicy.this.reportEvent(eventSeq);
                 return advanceThrottled(newPunc);
             }
 
             @Override
             public long getCurrentPunctuation() {
-                long newPunc = PunctuationKeeper.this.getCurrentPunctuation();
+                long newPunc = PunctuationPolicy.this.getCurrentPunctuation();
                 return advanceThrottled(newPunc);
             }
 
@@ -83,28 +83,28 @@ public interface PunctuationKeeper {
     }
 
     /**
-     * Returns a new punctuation keeper that throttles this keeper's output by
-     * suppressing advancement within the same frame, as defined by the {@code
-     * winDef} parameter. The window definition should match the one supplied to
-     * the downstream {@link WindowingProcessors#groupByFrame(
-     * com.hazelcast.jet.Distributed.Function,
+     * Returns a new punctuation policy that throttles this policy's output by
+     * suppressing redundant advancement of punctuation within the same frame,
+     * as defined by the {@code winDef} parameter. The window definition should
+     * match the one supplied to the downstream {@link
+     * WindowingProcessors#groupByFrame(com.hazelcast.jet.Distributed.Function,
      * com.hazelcast.jet.Distributed.ToLongFunction, WindowDefinition,
      * DistributedCollector) groupByFrame} processor.
      */
-    default PunctuationKeeper throttleByFrame(WindowDefinition winDef) {
-        return new PunctuationKeeper() {
+    default PunctuationPolicy throttleByFrame(WindowDefinition winDef) {
+        return new PunctuationPolicy() {
             private long lastFrameSeq = Long.MIN_VALUE;
             private long lastPunc = Long.MIN_VALUE;
 
             @Override
             public long reportEvent(long eventSeq) {
-                long newPunc = PunctuationKeeper.this.reportEvent(eventSeq);
+                long newPunc = PunctuationPolicy.this.reportEvent(eventSeq);
                 return advanceThrottled(newPunc);
             }
 
             @Override
             public long getCurrentPunctuation() {
-                long newPunc = PunctuationKeeper.this.getCurrentPunctuation();
+                long newPunc = PunctuationPolicy.this.getCurrentPunctuation();
                 return advanceThrottled(newPunc);
             }
 
