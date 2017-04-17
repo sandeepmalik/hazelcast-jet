@@ -16,7 +16,6 @@
 
 package com.hazelcast.jet.windowing;
 
-import com.hazelcast.jet.Distributed;
 import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.StreamingProcessorBase;
 import com.hazelcast.jet.Traverser;
@@ -37,8 +36,8 @@ import static com.hazelcast.jet.Traversers.traverseIterable;
 
 /**
  * Group-by-frame processor. See {@link
- * WindowingProcessors#groupByFrame(Distributed.Function,
- * Distributed.ToLongFunction, WindowDefinition, DistributedCollector)
+ * WindowingProcessors#groupByFrame(com.hazelcast.jet.Distributed.Function,
+ * com.hazelcast.jet.Distributed.ToLongFunction, WindowDefinition, DistributedCollector)
  * groupByFrame(extractKeyF, extractEventSeqF, frameLength, frameOffset,
  * collector)} for documentation.
  *

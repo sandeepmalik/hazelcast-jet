@@ -41,6 +41,10 @@ import static java.util.function.Function.identity;
  * WindowingProcessors#slidingWindow(WindowDefinition, WindowOperation)
  * slidingWindow(frameLength, framesPerWindow, windowToolkit)} for
  * documentation.
+ *
+ * @param <K> type of the grouping key
+ * @param <F> type of the frame accumulator object
+ * @param <R> type of the finished result
  */
 public class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
     private final WindowDefinition wDef;

@@ -61,8 +61,10 @@ public final class WriteFileP {
         };
     }
 
-    static String createFileName(@Nonnull String fileNamePrefix, @Nullable String fileNameSuffix, String sAddress, int index) {
-        return fileNamePrefix + "-" + sAddress + "#" + index + fileNameSuffix;
+    static String createFileName(
+            @Nonnull String fileNamePrefix, @Nullable String fileNameSuffix, String sAddress, int index
+    ) {
+        return fileNamePrefix + '-' + sAddress + '#' + index + fileNameSuffix;
     }
 
     static String sanitizeAddressForFilename(String str) {

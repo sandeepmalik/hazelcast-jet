@@ -17,7 +17,6 @@
 package com.hazelcast.jet.windowing;
 
 import com.hazelcast.jet.AbstractProcessor;
-import com.hazelcast.jet.Distributed.Supplier;
 import com.hazelcast.jet.Distributed.ToLongFunction;
 import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.Traverser;
@@ -28,7 +27,7 @@ import javax.annotation.Nonnull;
 
 /**
  * A processor that inserts punctuation into a data stream. See
- * {@link WindowingProcessors#insertPunctuation(ToLongFunction, Supplier)
+ * {@link WindowingProcessors#insertPunctuation(ToLongFunction, com.hazelcast.jet.Distributed.Supplier)
  * WindowingProcessors.insertPunctuation()} for documentation.
  *
  * @param <T> input event type

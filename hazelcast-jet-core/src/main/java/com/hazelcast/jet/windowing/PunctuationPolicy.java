@@ -16,8 +16,6 @@
 
 package com.hazelcast.jet.windowing;
 
-import com.hazelcast.jet.stream.DistributedCollector;
-
 /**
  * A policy object that decides on the punctuation in a single data
  * (sub)stream. The event seq of every observed item should be reported
@@ -89,7 +87,7 @@ public interface PunctuationPolicy {
      * match the one supplied to the downstream {@link
      * WindowingProcessors#groupByFrame(com.hazelcast.jet.Distributed.Function,
      * com.hazelcast.jet.Distributed.ToLongFunction, WindowDefinition,
-     * DistributedCollector) groupByFrame} processor.
+     * com.hazelcast.jet.stream.DistributedCollector) groupByFrame} processor.
      */
     default PunctuationPolicy throttleByFrame(WindowDefinition winDef) {
         return new PunctuationPolicy() {

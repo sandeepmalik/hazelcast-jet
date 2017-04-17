@@ -410,8 +410,9 @@ public final class Processors {
             fileNameSuffix = fileNameWithoutPath.substring(lastDot);
             fileNamePrefix = fileNamePrefix.substring(0, fileNamePrefix.length() - fileNameSuffix.length());
         }
-
-        return WriteFileP.supplier(fileNamePrefix, fileNameSuffix, charset == null ? null : charset.name(), append, flushEarly);
+        return WriteFileP.supplier(fileNamePrefix, fileNameSuffix,
+                charset == null ? null : charset.name(),
+                append, flushEarly);
     }
 
     /**

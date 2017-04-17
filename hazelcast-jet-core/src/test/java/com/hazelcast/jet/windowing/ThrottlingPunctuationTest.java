@@ -51,7 +51,7 @@ public class ThrottlingPunctuationTest {
 
     @Test
     public void when_puncIncreasing_then_throttleByFrame() {
-        WindowDefinition winDef = new WindowDefinition(3, 1);
+        WindowDefinition winDef = new WindowDefinition(3, 0, 1);
         p = p.throttleByFrame(winDef);
         assertPunc(2, 2);
         assertPunc(3, 3);

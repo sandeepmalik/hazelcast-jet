@@ -47,6 +47,11 @@ import static java.lang.System.arraycopy;
  * WindowingProcessors#sessionWindow(long, ToLongFunction, Function,
  * DistributedCollector) sessionWindow(maxSeqGap, extractEventSeqF,
  * extractKeyF, collector)} for documentation.
+ *
+ * @param <T> type of the stream item
+ * @param <K> type of the extracted grouping key
+ * @param <A> type of the accumulator object
+ * @param <R> type of the finished result
  */
 public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
 

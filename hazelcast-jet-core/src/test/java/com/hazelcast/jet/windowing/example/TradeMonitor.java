@@ -42,6 +42,7 @@ import static com.hazelcast.jet.Partitioner.HASH_CODE;
 import static com.hazelcast.jet.Processors.readMap;
 import static com.hazelcast.jet.stream.DistributedCollectors.counting;
 import static com.hazelcast.jet.windowing.PunctuationPolicies.cappingEventSeqLagAndLull;
+import static com.hazelcast.jet.windowing.WindowDefinition.slidingWindowDef;
 import static com.hazelcast.jet.windowing.WindowOperation.fromCollector;
 import static com.hazelcast.jet.windowing.WindowingProcessors.groupByFrame;
 import static com.hazelcast.jet.windowing.WindowingProcessors.insertPunctuation;
@@ -96,11 +97,12 @@ public class TradeMonitor {
             Vertex insertPunctuation = slow(dag.newVertex("insert-punctuation",
                     insertPunctuation(Trade::getTime, () -> cappingEventSeqLagAndLull(3000, 2000))));
 //            Vertex peek = dag.newVertex("peek", PeekP::new).localParallelism(1);
-            WindowDefinition windowDef = new WindowDefinition(1_000, 0, 3);
+            WindowDefinition windowDef = slidingWindowDef(1_000, 3);
             Vertex groupByFrame = slow(dag.newVertex("group-by-frame",
                     groupByFrame(Trade::getTicker, Trade::getTime, windowDef, counting())
             ));
-            Vertex slidingWindow = slow(dag.newVertex("sliding-window", slidingWindow(windowDef, fromCollector(counting()))));
+            Vertex slidingWindow = slow(dag.newVertex("sliding-window",
+                    slidingWindow(windowDef, fromCollector(counting()))));
             Vertex sink = dag.newVertex("sink", Processors.writeMap("sink")).localParallelism(1);
 
             dag.edge(between(tickerSource, generateEvents).broadcast().distributed())

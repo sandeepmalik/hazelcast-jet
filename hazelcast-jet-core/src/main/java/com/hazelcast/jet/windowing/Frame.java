@@ -32,6 +32,9 @@ public final class Frame<K, V> implements Map.Entry<K, V> {
     private final K key;
     private final V value;
 
+    /**
+     * Constructs a frame with the supplied field values.
+     */
     public Frame(long seq, K key, V value) {
         this.seq = seq;
         this.key = key;
