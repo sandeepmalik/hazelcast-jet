@@ -29,19 +29,11 @@ import static com.hazelcast.jet.impl.util.ExceptionUtil.rethrow;
 import static com.hazelcast.util.Preconditions.checkNotNull;
 
 /**
- * Job specific configuration options
+ * Job-specific configuration options.
  */
 public class JobConfig implements Serializable {
 
-    private static final int DEFAULT_RESOURCE_PART_SIZE = 1 << 14;
     private final Set<ResourceConfig> resourceConfigs = new HashSet<>();
-
-    /**
-     * Chunk size for resources when transmitting them over the wire
-     */
-    public int getResourcePartSize() {
-        return DEFAULT_RESOURCE_PART_SIZE;
-    }
 
     /**
      * The given classes will be deployed to all the nodes before job execution
@@ -63,7 +55,7 @@ public class JobConfig implements Serializable {
      * The filename will be used as the ID of the resource.
      */
     public JobConfig addJar(URL url) {
-        return addJar(url, getFileName(url));
+        return addJar(url, toFilename(url));
     }
 
     /**
@@ -135,18 +127,18 @@ public class JobConfig implements Serializable {
 
 
     /**
-     * The given resource will be deployed to all the nodes before job execution
-     * and available for the job specific class loader.
+     * The given resource will be deployed to all the nodes before job
+     * execution and available for the job specific class loader.
      *
      * The filename will be used as the ID of the resource.
      */
     public JobConfig addResource(URL url) {
-        return addResource(url, getFileName(url));
+        return addResource(url, toFilename(url));
     }
 
     /**
-     * The given resource will be deployed to all the nodes before job execution
-     * and available for the job specific class loader.
+     * The given resource will be deployed to all the nodes before job
+     * execution and available for the job specific class loader.
      *
      * The provided ID will be assigned to the resource file.
      */
@@ -227,9 +219,8 @@ public class JobConfig implements Serializable {
         return this;
     }
 
-    private String getFileName(URL url) {
+    private static String toFilename(URL url) {
         String urlFile = url.getFile();
         return urlFile.substring(urlFile.lastIndexOf('/') + 1, urlFile.length());
     }
-
 }

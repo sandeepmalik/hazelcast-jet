@@ -80,7 +80,7 @@ public class ResourceIteratorTest {
 
             // create the ResourceIterator
             int partSize = 5;
-            try (ResourceIterator ri = new ResourceIterator(new LinkedHashSet<>(Arrays.asList(configs)), partSize)) {
+            try (ResourceIterator ri = new ResourceIterator(new LinkedHashSet<>(Arrays.asList(configs)))) {
                 // iterate it and check, that the contents match
                 int lastIndex = -1;
                 int lastOffset = 0;
