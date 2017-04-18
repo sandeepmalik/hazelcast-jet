@@ -82,9 +82,9 @@ public interface PunctuationPolicy {
 
     /**
      * Returns a new punctuation policy that throttles this policy's output by
-     * suppressing redundant advancement of punctuation within the same frame,
-     * as defined by the {@code winDef} parameter. The window definition should
-     * match the one supplied to the downstream {@link
+     * adjusting it to its {@link WindowDefinition#floorFrameSeq(long)
+     * floorFrameSeq} as returned from the supplied {@code WindowDefinition}.
+     * This throttling policy should be employed to drive a downstream {@link
      * WindowingProcessors#groupByFrame(com.hazelcast.jet.Distributed.Function,
      * com.hazelcast.jet.Distributed.ToLongFunction, WindowDefinition,
      * com.hazelcast.jet.stream.DistributedCollector) groupByFrame} processor.
@@ -107,10 +107,7 @@ public interface PunctuationPolicy {
             }
 
             private long advanceThrottled(long newPunc) {
-                if (newPunc <= lastPunc) {
-                    return lastPunc;
-                }
-                return (lastPunc = winDef.floorFrameSeq(newPunc));
+                return newPunc <= lastPunc ? lastPunc : (lastPunc = winDef.floorFrameSeq(newPunc));
             }
         };
     }
