@@ -128,4 +128,32 @@ public final class Util {
         }
         return list;
     }
+
+    public static long sumOrMaxVal(long a, long b) {
+        long sum = a + b;
+        return sumHadOverflow(a, b, sum) ? Long.MAX_VALUE : sum;
+    }
+
+    public static long diffOrMaxVal(long a, long b) {
+        long diff = a - b;
+        return diffHadOverflow(a, b, diff) ? Long.MAX_VALUE : diff;
+    }
+
+    public static long diffOrMinVal(long a, long b) {
+        long diff = a - b;
+        return diffHadOverflow(a, b, diff) ? Long.MIN_VALUE : diff;
+    }
+
+    // Hacker's Delight, 2nd Ed, 2-13: overflow has occured iff
+    // operands have the same sign which is opposite of the result
+    private static boolean sumHadOverflow(long a, long b, long sum) {
+        return ((a ^ sum) & (b ^ sum)) < 0;
+    }
+
+    // Hacker's Delight, 2nd Ed, 2-13: overflow has occured iff operands have
+    // opposite signs and result has opposite sign of left-hand operand
+    private static boolean diffHadOverflow(long a, long b, long diff) {
+        return ((a ^ b) & (a ^ diff)) < 0;
+    }
+
 }

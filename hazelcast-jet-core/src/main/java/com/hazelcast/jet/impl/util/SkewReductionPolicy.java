@@ -18,6 +18,8 @@ package com.hazelcast.jet.impl.util;
 
 import java.util.Arrays;
 
+import static com.hazelcast.jet.impl.util.Util.diffOrMaxVal;
+import static com.hazelcast.jet.impl.util.Util.diffOrMinVal;
 import static com.hazelcast.util.Preconditions.checkNotNegative;
 import static com.hazelcast.util.Preconditions.checkTrue;
 
@@ -81,9 +83,7 @@ public class SkewReductionPolicy {
     private final long priorityDrainingThreshold;
     private final boolean forceAdvancePunc;
 
-    public SkewReductionPolicy(
-            int numQueues, long maxSkew, long priorityDrainingThreshold, boolean forceAdvancePunc
-    ) {
+    public SkewReductionPolicy(int numQueues, long maxSkew, long priorityDrainingThreshold, boolean forceAdvancePunc) {
         checkNotNegative(maxSkew, "maxSkew must not be a negative number");
         checkNotNegative(priorityDrainingThreshold, "priorityDrainingThreshold must not be a negative number");
         checkTrue(priorityDrainingThreshold <= maxSkew, "priorityDrainingThreshold must be less than maxSkew");
@@ -134,12 +134,7 @@ public class SkewReductionPolicy {
         if (!forceAdvancePunc) {
             return;
         }
-        long topPunc = topObservedPunc();
-        // prevent possible integer overflow
-        if (topPunc <= Long.MIN_VALUE + maxSkew) {
-            return;
-        }
-        long newBottomPunc = topPunc - maxSkew;
+        long newBottomPunc = diffOrMinVal(topObservedPunc(), maxSkew);
         for (int i = 0; i < drainOrderToQIdx.length && queuePuncSeqs[drainOrderToQIdx[i]] < newBottomPunc; i++) {
             queuePuncSeqs[drainOrderToQIdx[i]] = newBottomPunc;
         }
@@ -165,11 +160,8 @@ public class SkewReductionPolicy {
      * @return {@code false} if the draining should now stop; {@code true} otherwise
      */
     public boolean shouldStopDraining(int queueIndex, boolean madeProgress) {
-        // Don't calculate the punc difference directly to avoid integer overflow
-        long thisQueuePunc = queuePuncSeqs[queueIndex];
-        long bottomPunc = queuePuncSeqs[drainOrderToQIdx[0]];
-        return (madeProgress && thisQueuePunc > bottomPunc + priorityDrainingThreshold)
-                || (!forceAdvancePunc && thisQueuePunc > bottomPunc + maxSkew);
+        long skew = diffOrMaxVal(queuePuncSeqs[queueIndex], queuePuncSeqs[drainOrderToQIdx[0]]);
+        return (madeProgress && skew > priorityDrainingThreshold) || (!forceAdvancePunc && skew > maxSkew);
     }
 
     public long bottomObservedPunc() {

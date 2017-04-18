@@ -33,10 +33,12 @@ public class SkewReductionPolicyTest {
     @Rule
     public ExpectedException exception = ExpectedException.none();
 
-    private SkewReductionPolicy srp = new SkewReductionPolicy(4, 1000, 500, false);
+    private SkewReductionPolicy srp;
 
     @Test
-    public void test_queuesKeptInOrder() {
+    public void when_skewedPunc_then_drainOrderCorrect() {
+        srp = new SkewReductionPolicy(4, 1000, 500, false);
+
         srp.observePunc(1, 2);
         assertQueuesOrdered();
         srp.observePunc(2, 0);
@@ -45,37 +47,120 @@ public class SkewReductionPolicyTest {
         assertQueuesOrdered();
         srp.observePunc(0, 4);
         assertQueuesOrdered();
-        // the most ahead becomes even more ahead
+        // the most advanced becomes even more advanced
         srp.observePunc(0, 5);
         assertQueuesOrdered();
-
-        // the most behind advances, but still the most behind
+        // the least advanced advances, but still the least advanced
         srp.observePunc(2, 1);
         assertQueuesOrdered();
-
-        // all queues become equally ahead
+        // all queue puncs become equal
         for (int i = 0; i< srp.drainOrderToQIdx.length; i++) {
             srp.observePunc(i, 6);
             assertQueuesOrdered();
         }
     }
 
+    @Test
+    public void when_maxSkewIsMaxVal_and_forceAdvancing_then_correctnessMaintained() {
+        // Given
+        long maxSkew = Long.MAX_VALUE;
+        srp = new SkewReductionPolicy(2, maxSkew, 10, true);
+        long[] puncSeqs = srp.queuePuncSeqs;
+
+        // When
+        srp.observePunc(0, 10);
+
+        // Then
+        assertEquals(maxSkew, puncSeqs[0] - puncSeqs[1]);
+        assertFalse(srp.shouldStopDraining(0, false));
+    }
+
+    @Test
+    public void when_maxSkewIsMaxVal_and_notForceAdvancing_then_correctnessMaintained() {
+        // Given
+        srp = new SkewReductionPolicy(2, Long.MAX_VALUE, 10, false);
+        long[] puncSeqs = srp.queuePuncSeqs;
+
+        // When
+        srp.observePunc(0, 10);
+
+        // Then
+        assertEquals(Long.MIN_VALUE, puncSeqs[1]);
+        assertFalse(srp.shouldStopDraining(0, false));
+    }
+
+    @Test
+    public void when_maxSkewAlmostMaxVal_and_notForceAdvancing_then_correctnessMaintained() {
+        // Given
+        srp = new SkewReductionPolicy(2, Long.MAX_VALUE - 1, 10, false);
+        long[] puncSeqs = srp.queuePuncSeqs;
+
+        // When
+        srp.observePunc(0, 10);
+
+        // Then
+        assertEquals(Long.MIN_VALUE, puncSeqs[1]);
+        assertTrue(srp.shouldStopDraining(0, false));
+    }
+
+    @Test
+    public void when_maxSkewAlmostMaxVal_and_forceAdvancing_then_correctnessMaintained() {
+        // Given
+        long maxSkew = Long.MAX_VALUE - 1;
+        srp = new SkewReductionPolicy(2, maxSkew, 10, true);
+        long[] puncSeqs = srp.queuePuncSeqs;
+
+        // When
+        srp.observePunc(0, 10);
+
+        // Then
+        assertEquals(maxSkew, puncSeqs[0] - puncSeqs[1]);
+        assertFalse(srp.shouldStopDraining(0, false));
+    }
+
+    @Test
+    public void when_priorityThresholdIsMaxVal_then_correctnessMaintained() {
+        // Given
+        srp = new SkewReductionPolicy(2, Long.MAX_VALUE, Long.MAX_VALUE, false);
+        long[] puncSeqs = srp.queuePuncSeqs;
+
+        // When
+        srp.observePunc(0, 10);
+
+        // Then
+        assertEquals(Long.MIN_VALUE, puncSeqs[1]);
+        assertFalse(srp.shouldStopDraining(0, true));
+    }
+
+    @Test
+    public void when_skewBeyondMaxVal_then_correctnessMaintained() {
+        // Given
+        srp = new SkewReductionPolicy(2, 20, 10, false);
+        long[] puncSeqs = srp.queuePuncSeqs;
+
+        // When
+        srp.observePunc(0, 10);
+
+        // Then
+        assertEquals(Long.MIN_VALUE, puncSeqs[1]);
+        assertTrue(srp.shouldStopDraining(0, true));
+    }
+
+
     private void assertQueuesOrdered() {
         long lastValue = Long.MIN_VALUE;
         for (int i = 1; i < srp.queuePuncSeqs.length; i++) {
             long thisValue = srp.queuePuncSeqs[srp.drainOrderToQIdx[i]];
-            assertTrue("Queues not ordered\nobservedPuncSeqs="
-                            + Arrays.toString(srp.queuePuncSeqs) + "\norderedQueues="
-                    + Arrays.toString(srp.drainOrderToQIdx),
+            assertTrue("Queues not ordered"
+                            + "\nobservedPuncSeqs=" + Arrays.toString(srp.queuePuncSeqs)
+                            + "\norderedQueues=" + Arrays.toString(srp.drainOrderToQIdx),
                     lastValue <= thisValue);
             lastValue = thisValue;
         }
-
-        // assert, that each queue index is unique in orderedQueues
         Set<Integer> set = new HashSet<>();
-        for (int i : srp.drainOrderToQIdx)
+        for (int i : srp.drainOrderToQIdx) {
             set.add(i);
-
+        }
         assertEquals(srp.drainOrderToQIdx.length, set.size());
     }
 }
