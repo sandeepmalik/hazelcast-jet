@@ -32,7 +32,6 @@ public class WindowDefinitionTest {
     @Test
     public void when_noOffset() throws Exception {
         definition = new WindowDefinition(4, 0, 10);
-
         assertSeq(-5, -8, -4);
         assertSeq(-4, -4, 0);
         assertSeq(-3, -4, 0);
@@ -89,6 +88,17 @@ public class WindowDefinitionTest {
         assertSeq(9, 6, 10);
     }
 
+    @Test(expected = ArithmeticException.class)
+    public void when_floorOverflow() {
+        definition = new WindowDefinition(4, 1, 10);
+        definition.floorFrameSeq(Long.MIN_VALUE);
+    }
+
+    @Test(expected = ArithmeticException.class)
+    public void when_higherOverflow() {
+        definition = new WindowDefinition(4, 1, 10);
+        definition.higherFrameSeq(Long.MAX_VALUE);
+    }
 
     private void assertSeq(long seq, long floor, long higher) {
         assertEquals(floor, definition.floorFrameSeq(seq));

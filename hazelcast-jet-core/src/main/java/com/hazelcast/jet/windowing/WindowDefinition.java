@@ -118,7 +118,7 @@ public class WindowDefinition implements Serializable {
      * {@code eventSeq}.
      */
     long floorFrameSeq(long seq) {
-        return seq -  Math.floorMod(seq - frameOffset, frameLength);
+        return Math.subtractExact(seq, Math.floorMod(seq - frameOffset, frameLength));
     }
 
     /**
@@ -126,7 +126,7 @@ public class WindowDefinition implements Serializable {
      * eventSeq}.
      */
     long higherFrameSeq(long seq) {
-        return floorFrameSeq(seq) + frameLength;
+        return Math.addExact(floorFrameSeq(seq), frameLength);
     }
 
     /**

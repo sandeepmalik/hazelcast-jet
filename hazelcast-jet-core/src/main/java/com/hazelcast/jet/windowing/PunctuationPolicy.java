@@ -91,7 +91,7 @@ public interface PunctuationPolicy {
      */
     default PunctuationPolicy throttleByFrame(WindowDefinition winDef) {
         return new PunctuationPolicy() {
-            private long lastFrameSeq = Long.MIN_VALUE;
+
             private long lastPunc = Long.MIN_VALUE;
 
             @Override
@@ -107,13 +107,10 @@ public interface PunctuationPolicy {
             }
 
             private long advanceThrottled(long newPunc) {
-                long frameSeq = winDef.floorFrameSeq(newPunc);
-                if (frameSeq <= lastFrameSeq) {
+                if (newPunc <= lastPunc) {
                     return lastPunc;
                 }
-                lastFrameSeq = frameSeq;
-                lastPunc = newPunc;
-                return newPunc;
+                return (lastPunc = winDef.floorFrameSeq(newPunc));
             }
         };
     }
