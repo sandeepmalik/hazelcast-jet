@@ -40,10 +40,9 @@ import java.util.stream.Stream;
 import static com.hazelcast.jet.Edge.between;
 import static com.hazelcast.jet.Partitioner.HASH_CODE;
 import static com.hazelcast.jet.Processors.readMap;
-import static com.hazelcast.jet.stream.DistributedCollectors.counting;
 import static com.hazelcast.jet.windowing.PunctuationPolicies.cappingEventSeqLagAndLull;
 import static com.hazelcast.jet.windowing.WindowDefinition.slidingWindowDef;
-import static com.hazelcast.jet.windowing.WindowOperation.fromCollector;
+import static com.hazelcast.jet.windowing.WindowOperations.counting;
 import static com.hazelcast.jet.windowing.WindowingProcessors.groupByFrame;
 import static com.hazelcast.jet.windowing.WindowingProcessors.insertPunctuation;
 import static com.hazelcast.jet.windowing.WindowingProcessors.slidingWindow;
@@ -91,7 +90,7 @@ public class TradeMonitor {
                 lines.skip(1).map(l -> l.split("\\|")[0]).forEach(t -> initial.put(t, 10000));
             }
 
-            WindowDefinition windowDef = slidingWindowDef(1_000, 3);
+            WindowDefinition windowDef = slidingWindowDef(3_000, 1_000);
 
             DAG dag = new DAG();
             Vertex tickerSource = dag.newVertex("ticker-source", readMap(initial.getName()));
@@ -104,7 +103,7 @@ public class TradeMonitor {
                     groupByFrame(Trade::getTicker, Trade::getTime, windowDef, counting())
             ));
             Vertex slidingWindow = slow(dag.newVertex("sliding-window",
-                    slidingWindow(windowDef, fromCollector(counting()))));
+                    slidingWindow(windowDef, counting(), false)));
             Vertex sink = dag.newVertex("sink", Processors.writeMap("sink")).localParallelism(1);
 
             dag.edge(between(tickerSource, generateEvents).broadcast().distributed())

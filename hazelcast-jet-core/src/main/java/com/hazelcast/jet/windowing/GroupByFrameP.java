@@ -19,7 +19,6 @@ package com.hazelcast.jet.windowing;
 import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.StreamingProcessorBase;
 import com.hazelcast.jet.Traverser;
-import com.hazelcast.jet.stream.DistributedCollector;
 
 import javax.annotation.Nonnull;
 import java.util.HashMap;
@@ -37,7 +36,7 @@ import static com.hazelcast.jet.Traversers.traverseIterable;
 /**
  * Group-by-frame processor. See {@link
  * WindowingProcessors#groupByFrame(com.hazelcast.jet.Distributed.Function,
- * com.hazelcast.jet.Distributed.ToLongFunction, WindowDefinition, DistributedCollector)
+ * com.hazelcast.jet.Distributed.ToLongFunction, WindowDefinition, WindowOperation)
  * groupByFrame(extractKeyF, extractEventSeqF, frameLength, frameOffset,
  * collector)} for documentation.
  *
@@ -58,13 +57,13 @@ public final class GroupByFrameP<T, K, F> extends StreamingProcessorBase {
             Function<? super T, K> extractKeyF,
             ToLongFunction<? super T> extractEventSeqF,
             WindowDefinition windowDefinition,
-            DistributedCollector<? super T, F, ?> collector
+            WindowOperation<? super T, F, ?> collector
     ) {
         this.windowDefinition = windowDefinition;
         this.extractKeyF = extractKeyF;
         this.extractEventSeqF = extractEventSeqF;
-        this.supplier = collector.supplier();
-        this.accumulator = collector.accumulator();
+        this.supplier = collector.createAccumulatorF();
+        this.accumulator = collector.accumulateItemF();
         this.puncFlatMapper = flatMapper(this::closedFrameTraverser);
     }
 

@@ -38,7 +38,7 @@ import static java.util.function.Function.identity;
 
 /**
  * Sliding window processor. See {@link
- * WindowingProcessors#slidingWindow(WindowDefinition, WindowOperation)
+ * WindowingProcessors#slidingWindow(WindowDefinition, WindowOperation, boolean)
  * slidingWindow(frameLength, framesPerWindow, windowToolkit)} for
  * documentation.
  *
@@ -52,6 +52,8 @@ public class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
     private final BinaryOperator<F> combineF;
     private final Distributed.BinaryOperator<F> deductF;
     private final Function<F, R> finishF;
+    private final boolean emitPunctuation;
+
     private final FlatMapper<Punctuation, Object> flatMapper;
     private final F emptyAcc;
     private final NavigableMap<Long, Map<K, F>> seqToKeyToFrame = new TreeMap<>();
@@ -59,7 +61,7 @@ public class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
 
     private long nextFrameSeqToEmit = Long.MIN_VALUE;
 
-    SlidingWindowP(WindowDefinition winDef, @Nonnull WindowOperation<K, F, R> winOp) {
+    SlidingWindowP(WindowDefinition winDef, @Nonnull WindowOperation<K, F, R> winOp, boolean emitPunctuation) {
         this.wDef = winDef;
         this.createF = winOp.createAccumulatorF();
         this.combineF = winOp.combineAccumulatorsF();
@@ -67,6 +69,7 @@ public class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
         this.finishF = winOp.finishAccumulationF();
         this.flatMapper = flatMapper(this::slidingWindowTraverser);
         this.emptyAcc = createF.get();
+        this.emitPunctuation = emitPunctuation;
     }
 
     @Override
@@ -84,7 +87,7 @@ public class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
         if (nextFrameSeqToEmit == Long.MIN_VALUE) {
             if (seqToKeyToFrame.isEmpty()) {
                 // We have no data, just forward the punctuation.
-                return tryEmit(punc);
+                return !emitPunctuation || tryEmit(punc);
             }
             // This is the first punctuation we are acting upon. Find the lowest
             // frameSeq that can be emitted: at most the top existing frameSeq lower
@@ -99,14 +102,18 @@ public class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
     }
 
     private Traverser<Object> slidingWindowTraverser(Punctuation punc) {
-        return Traversers.<Object>traverseStream(
+        Traverser<Object> traverser = Traversers.traverseStream(
                 range(nextFrameSeqToEmit, nextFrameSeqToEmit = wDef.higherFrameSeq(punc.seq()), wDef.frameLength())
                         .mapToObj(frameSeq ->
                                 computeWindow(frameSeq, seqToKeyToFrame.remove(frameSeq - wDef.windowLength()))
                                         .entrySet().stream()
                                         .map(e -> new Frame<>(frameSeq, e.getKey(), finishF.apply(e.getValue()))))
-                        .flatMap(identity()))
-                .append(punc);
+                        .flatMap(identity()));
+
+        if (emitPunctuation) {
+            traverser = traverser.append(punc);
+        }
+        return traverser;
     }
 
     private Map<K, F> computeWindow(long frameSeq, Map<K, F> evictedFrame) {

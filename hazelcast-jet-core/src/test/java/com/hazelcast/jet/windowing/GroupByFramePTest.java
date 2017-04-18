@@ -19,7 +19,6 @@ package com.hazelcast.jet.windowing;
 import com.hazelcast.jet.Processor.Context;
 import com.hazelcast.jet.Punctuation;
 import com.hazelcast.jet.impl.util.ArrayDequeInbox;
-import com.hazelcast.jet.stream.DistributedCollector;
 import com.hazelcast.util.MutableLong;
 import org.junit.Before;
 import org.junit.Test;
@@ -44,10 +43,11 @@ public class GroupByFramePTest extends StreamingTestSupport {
                 (Entry<Long, Long> x) -> KEY,
                 Entry::getKey,
                 new WindowDefinition(4, 0, 4),
-                DistributedCollector.of(
+                WindowOperation.of(
                         MutableLong::new,
                         (acc, e) -> acc.value += e.getValue(),
                         (a, b) -> MutableLong.valueOf(a.value + b.value),
+                        (a, b) -> MutableLong.valueOf(a.value - b.value),
                         a -> a.value
                 )
         ).get();

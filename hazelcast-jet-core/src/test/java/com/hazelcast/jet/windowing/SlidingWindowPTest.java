@@ -38,13 +38,15 @@ public class SlidingWindowPTest extends StreamingTestSupport {
     @Before
     public void before() {
         WindowDefinition windowDef = new WindowDefinition(1, 0, 4);
-        processor = slidingWindow(windowDef, WindowOperation.of(
+        WindowOperation<Object, Long, Long> operation = WindowOperation.of(
                 () -> 0L,
-                (acc, val) -> { throw new UnsupportedOperationException(); },
+                (acc, val) -> {
+                    throw new UnsupportedOperationException();
+                },
                 (acc1, acc2) -> acc1 + acc2,
                 null,
-                acc -> acc)
-        ).get();
+                acc -> acc);
+        processor = slidingWindow(windowDef, operation, true).get();
         processor.init(outbox, mock(Context.class));
     }
 

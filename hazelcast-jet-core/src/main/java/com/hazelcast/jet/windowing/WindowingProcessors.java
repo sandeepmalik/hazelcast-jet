@@ -61,21 +61,21 @@ public final class WindowingProcessors {
             Distributed.Function<? super T, K> extractKeyF,
             Distributed.ToLongFunction<? super T> extractTimestampF,
             WindowDefinition windowDef,
-            DistributedCollector<T, F, ?> collector
+            WindowOperation<T, F, ?> collector
     ) {
         return () -> new GroupByFrameP<>(extractKeyF, extractTimestampF, windowDef, collector);
     }
 
     /**
      * Convenience for {@link #groupByFrame(
-     * Distributed.Function, Distributed.ToLongFunction, WindowDefinition, DistributedCollector)
+     * Distributed.Function, Distributed.ToLongFunction, WindowDefinition, WindowOperation)
      * groupByFrame(extractKeyF, extractTimeStampF, frameLength, frameOffset, collector)}
      * which doesn't group by key.
      */
     public static <T, F> Distributed.Supplier<GroupByFrameP<T, String, F>> groupByFrame(
             Distributed.ToLongFunction<? super T> extractTimestampF,
             WindowDefinition windowDef,
-            DistributedCollector<T, F, ?> collector
+            WindowOperation<T, F, ?> collector
     ) {
         return groupByFrame(t -> "global", extractTimestampF, windowDef, collector);
     }
@@ -89,10 +89,13 @@ public final class WindowingProcessors {
      * @param <K> type of the grouping key
      * @param <F> type of the frame
      * @param <R> type of the result derived from a frame
+     * @param emitPunctuation If {@code true}, punctuation will be emitted when window
+     *                        is closed. Enable, if downstream vertex needs to know,
+     *                        that it has received all keys for a particular window.
      */
     public static <K, F, R> Distributed.Supplier<SlidingWindowP<K, F, R>> slidingWindow(
-            WindowDefinition windowDef, WindowOperation<K, F, R> windowOperation) {
-        return () -> new SlidingWindowP<>(windowDef, windowOperation);
+            WindowDefinition windowDef, WindowOperation<K, F, R> windowOperation, boolean emitPunctuation) {
+        return () -> new SlidingWindowP<>(windowDef, windowOperation, emitPunctuation);
     }
 
     /**
