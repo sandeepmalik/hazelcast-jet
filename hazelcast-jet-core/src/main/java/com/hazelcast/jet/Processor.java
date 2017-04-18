@@ -95,6 +95,9 @@ public interface Processor {
      * <strong>NOTE:</strong> a processor that declares itself {@link
      * #isCooperative() non-cooperative} must strictly return {@code true} from
      * this method.
+     * <p>
+     * In non-cooperative processor, it is required to return {@code true}
+     * from this method.
      */
     default boolean tryProcess() {
         return true;

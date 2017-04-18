@@ -16,6 +16,7 @@
 
 package com.hazelcast.jet.windowing;
 
+import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.Map;
 
@@ -34,8 +35,11 @@ public final class Frame<K, V> implements Map.Entry<K, V> {
 
     /**
      * Constructs a frame with the supplied field values.
+     * @param seq {@link #getSeq()}
+     * @param key {@link #getKey()}
+     * @param value {@link #getValue()}
      */
-    public Frame(long seq, K key, V value) {
+    public Frame(long seq, @Nonnull K key, @Nonnull V value) {
         this.seq = seq;
         this.key = key;
         this.value = value;
@@ -49,11 +53,13 @@ public final class Frame<K, V> implements Map.Entry<K, V> {
     }
 
     @Override
+    @Nonnull
     public K getKey() {
         return key;
     }
 
     @Override
+    @Nonnull
     public V getValue() {
         return value;
     }

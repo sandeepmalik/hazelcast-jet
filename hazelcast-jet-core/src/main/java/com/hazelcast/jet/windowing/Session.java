@@ -16,6 +16,8 @@
 
 package com.hazelcast.jet.windowing;
 
+import javax.annotation.Nonnull;
+
 /**
  * Holds the aggregated result of a session window.
  *
@@ -28,7 +30,13 @@ public class Session<K, R> {
     private final long end;
     private final R result;
 
-    Session(K key, long start, long end, R result) {
+    /**
+     * @param key {@link #getKey()}
+     * @param start {@link #getStart()}
+     * @param end {@link #getEnd()}
+     * @param result {@link #getResult()}
+     */
+    public Session(@Nonnull K key, long start, long end, @Nonnull R result) {
         this.key = key;
         this.start = start;
         this.end = end;
@@ -38,6 +46,7 @@ public class Session<K, R> {
     /**
      * Returns the session's key.
      */
+    @Nonnull
     public K getKey() {
         return key;
     }
@@ -45,6 +54,7 @@ public class Session<K, R> {
     /**
      * Returns the aggregated result for the session.
      */
+    @Nonnull
     public R getResult() {
         return result;
     }

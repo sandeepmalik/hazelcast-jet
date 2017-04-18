@@ -22,6 +22,7 @@ import java.io.Serializable;
 
 import static com.hazelcast.util.Preconditions.checkNotNegative;
 import static com.hazelcast.util.Preconditions.checkPositive;
+import static com.hazelcast.util.Preconditions.checkTrue;
 
 /**
  * Contains parameters that define a sliding/tumbling window over which Jet
@@ -46,32 +47,53 @@ public class WindowDefinition implements Serializable {
     private final long frameOffset;
     private final long windowLength;
 
+    /**
+     * Create a new window definition.
+     * <p>
+     * For example, if we want to aggregate into 10-second windows,
+     * that will slide by one second, and event sequence is in milliseconds, use:
+     * <pre>
+     *     new WindowDefinition(1000, 0, 10);
+     * </pre>
+     *
+     * @param frameLength Length of the frame, i.e. the amount, by which the window slides.
+     * @param frameOffset {@link #frameOffset()}
+     * @param framesPerWindow Number of frames that make up one window.
+     *                        {@code framesPerWindow * frameLength == }{@link #windowLength()}
+     */
     WindowDefinition(long frameLength, long frameOffset, long framesPerWindow) {
         checkPositive(frameLength, "frameLength must be positive");
         checkNotNegative(frameOffset, "frameOffset must not be negative");
         checkPositive(framesPerWindow, "framesPerWindow must be positive");
+
+        // this is not strictly required, however, semantically it's cleaner. If someone, say, decreases
+        // the frameLength and does not decrease frameOffset, he probably didn't realize something.
+        checkTrue(frameOffset < frameLength,
+                "frameOffset must be less than frameLength");
+
         this.frameLength = frameLength;
         this.frameOffset = frameOffset;
         this.windowLength = frameLength * framesPerWindow;
     }
 
     /**
-     * Returns the frame length.
+     * The length of the frame, i.e. the amount, by which the window slides.
      */
     public long frameLength() {
         return frameLength;
     }
 
     /**
-     * Returns the frame offset; more formally, the value of the lowest
-     * non-negative {@code frameSeq}.
+     * The frame offset. For example, if {@code frameLength=10} and
+     * {@code frameOffset=5}, then frames will start at 5, 15, 25...
      */
     public long frameOffset() {
         return frameOffset;
     }
 
     /**
-     * Returns the length of the window.
+     * The length of the window in terms of event sequence. It's an integer multiple of
+     * {@link #frameLength()}.
      */
     public long windowLength() {
         return windowLength;
