@@ -91,16 +91,15 @@ public class TradeMonitor {
                 lines.skip(1).map(l -> l.split("\\|")[0]).forEach(t -> initial.put(t, 10000));
             }
 
-            WindowDefinition windowDef = new WindowDefinition(1_000, 0, 3);
+            WindowDefinition windowDef = slidingWindowDef(1_000, 3);
 
             DAG dag = new DAG();
             Vertex tickerSource = dag.newVertex("ticker-source", readMap(initial.getName()));
             Vertex generateEvents = slow(dag.newVertex("generate-events", () -> new GenerateTradesP(IS_SLOW ? 500 : 0)));
             Vertex insertPunctuation = slow(dag.newVertex("insert-punctuation",
                     insertPunctuation(Trade::getTime,
-                            () -> cappingEventSeqLagAndLull(3000, 2000).throttleForWindow(windowDef))));
+                            () -> cappingEventSeqLagAndLull(3000, 2000).throttleByFrame(windowDef))));
 //            Vertex peek = dag.newVertex("peek", PeekP::new).localParallelism(1);
-            WindowDefinition windowDef = slidingWindowDef(1_000, 3);
             Vertex groupByFrame = slow(dag.newVertex("group-by-frame",
                     groupByFrame(Trade::getTicker, Trade::getTime, windowDef, counting())
             ));
