@@ -20,9 +20,13 @@ import com.hazelcast.util.Preconditions;
 
 import java.io.Serializable;
 
+import static com.hazelcast.jet.impl.util.Util.addClamped;
+import static com.hazelcast.jet.impl.util.Util.subtractClamped;
+import static com.hazelcast.jet.impl.util.Util.sumHadOverflow;
 import static com.hazelcast.util.Preconditions.checkNotNegative;
 import static com.hazelcast.util.Preconditions.checkPositive;
 import static com.hazelcast.util.Preconditions.checkTrue;
+import static java.lang.Math.floorMod;
 
 /**
  * Contains parameters that define a sliding/tumbling window over which Jet
@@ -115,18 +119,27 @@ public class WindowDefinition implements Serializable {
 
     /**
      * Returns the highest {@code frameSeq} less than or equal to the given
-     * {@code eventSeq}.
+     * {@code eventSeq}. If there is no such {@code long} value, returns {@code
+     * Long.MIN_VALUE}.
      */
     long floorFrameSeq(long seq) {
-        return Math.subtractExact(seq, Math.floorMod(Math.subtractExact(seq, frameOffset), frameLength));
+        return subtractClamped(
+                seq,
+                floorMod(
+                        (seq >= Long.MIN_VALUE + frameOffset ? seq : seq + frameLength) - frameOffset,
+                        frameLength
+                ));
     }
 
     /**
-     * Retuns the lowest {@code frameSeq} greater than the given {@code
-     * eventSeq}.
+     * Returns the lowest {@code frameSeq} greater than the given {@code
+     * eventSeq}. If there is no such value, returns {@code Long.MAX_VALUE}.
      */
     long higherFrameSeq(long seq) {
-        return Math.addExact(floorFrameSeq(seq), frameLength);
+        long seqPlusFrame = seq + frameLength;
+        return sumHadOverflow(seq, frameLength, seqPlusFrame)
+                ? addClamped(floorFrameSeq(seq), frameLength)
+                : floorFrameSeq(seqPlusFrame);
     }
 
     /**

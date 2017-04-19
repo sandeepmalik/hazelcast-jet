@@ -45,7 +45,7 @@ public class WindowDefinitionTest {
         assertSeq(5, 4, 8);
         assertSeq(6, 4, 8);
         assertSeq(7, 4, 8);
-        assertSeq(8, 8, 8);
+        assertSeq(8, 8, 12);
     }
 
     @Test
@@ -88,16 +88,24 @@ public class WindowDefinitionTest {
         assertSeq(9, 6, 10);
     }
 
-    @Test(expected = ArithmeticException.class)
-    public void when_floorOverflow() {
-        definition = new WindowDefinition(4, 1, 10);
-        definition.floorFrameSeq(Long.MIN_VALUE);
+    @Test
+    public void when_frameLength3() {
+        definition = new WindowDefinition(3, 0, 10);
+        assertEquals(Long.MIN_VALUE, definition.floorFrameSeq(Long.MIN_VALUE));
     }
 
-    @Test(expected = ArithmeticException.class)
-    public void when_higherOverflow() {
-        definition = new WindowDefinition(4, 1, 10);
-        definition.higherFrameSeq(Long.MAX_VALUE);
+    @Test
+    public void when_floorOutOfRange_then_minValue() {
+        definition = new WindowDefinition(4, 3, 10);
+        assertEquals(Long.MIN_VALUE, definition.floorFrameSeq(Long.MIN_VALUE + 2));
+        assertEquals(Long.MAX_VALUE, definition.floorFrameSeq(Long.MAX_VALUE));
+    }
+
+    @Test
+    public void when_higherOutOfRange_then_maxValue() {
+        definition = new WindowDefinition(4, 2, 10);
+        assertEquals(Long.MAX_VALUE, definition.higherFrameSeq(Long.MAX_VALUE - 1));
+        assertEquals(Long.MIN_VALUE + 2, definition.higherFrameSeq(Long.MIN_VALUE));
     }
 
     private void assertSeq(long seq, long floor, long higher) {
