@@ -92,22 +92,14 @@ public interface PunctuationPolicy {
     default PunctuationPolicy throttleByFrame(WindowDefinition winDef) {
         return new PunctuationPolicy() {
 
-            private long lastPunc = Long.MIN_VALUE;
-
             @Override
             public long reportEvent(long eventSeq) {
-                long newPunc = PunctuationPolicy.this.reportEvent(eventSeq);
-                return advanceThrottled(newPunc);
+                return winDef.floorFrameSeq(PunctuationPolicy.this.reportEvent(eventSeq));
             }
 
             @Override
             public long getCurrentPunctuation() {
-                long newPunc = PunctuationPolicy.this.getCurrentPunctuation();
-                return advanceThrottled(newPunc);
-            }
-
-            private long advanceThrottled(long newPunc) {
-                return newPunc <= lastPunc ? lastPunc : (lastPunc = winDef.floorFrameSeq(newPunc));
+                return winDef.floorFrameSeq(PunctuationPolicy.this.getCurrentPunctuation());
             }
         };
     }
