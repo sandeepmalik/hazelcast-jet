@@ -104,7 +104,9 @@ public interface PunctuationPolicy {
             }
 
             private long advanceThrottled(long proposedPunc) {
-                return proposedPunc == lastPunc ? lastPunc : winDef.floorFrameSeq(proposedPunc);
+                return proposedPunc == lastPunc
+                        ? lastPunc
+                        : (lastPunc = winDef.floorFrameSeq(proposedPunc));
             }
         };
     }
