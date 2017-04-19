@@ -91,15 +91,20 @@ public interface PunctuationPolicy {
      */
     default PunctuationPolicy throttleByFrame(WindowDefinition winDef) {
         return new PunctuationPolicy() {
+            private long lastPunc = Long.MIN_VALUE;
 
             @Override
             public long reportEvent(long eventSeq) {
-                return winDef.floorFrameSeq(PunctuationPolicy.this.reportEvent(eventSeq));
+                return advanceThrottled(PunctuationPolicy.this.reportEvent(eventSeq));
             }
 
             @Override
             public long getCurrentPunctuation() {
-                return winDef.floorFrameSeq(PunctuationPolicy.this.getCurrentPunctuation());
+                return advanceThrottled(PunctuationPolicy.this.getCurrentPunctuation());
+            }
+
+            private long advanceThrottled(long proposedPunc) {
+                return proposedPunc == lastPunc ? lastPunc : winDef.floorFrameSeq(proposedPunc);
             }
         };
     }
