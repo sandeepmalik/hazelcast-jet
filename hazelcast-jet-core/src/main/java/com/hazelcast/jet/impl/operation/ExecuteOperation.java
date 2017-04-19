@@ -43,12 +43,12 @@ class ExecuteOperation extends AsyncExecutionOperation {
     protected void doRun() throws Exception {
         JetService service = getService();
         getLogger().info("Start execution of plan for job " + executionId + " from caller " + getCallerAddress() + '.');
-        executionFuture =
-                service.getExecutionContext(executionId)
-                       .execute(f -> f.handle((r, error) -> error != null ? error : null)
-                                      .thenAccept((value) -> {
-                                          getLogger().fine("Execution of plan for job " + executionId + " completed.");
-                                          doSendResponse(value);
-                                      }));
+        executionFuture = service
+                .getExecutionContext(executionId)
+                .execute(f -> f.handle((r, error) -> error != null ? error : null)
+                               .thenAccept((value) -> {
+                                   getLogger().fine("Execution of plan for job " + executionId + " completed.");
+                                   doSendResponse(value);
+                               }));
     }
 }

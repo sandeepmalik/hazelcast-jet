@@ -109,7 +109,7 @@ public class JetService
         logger.info("Setting number of cooperative threads and default parallelism to "
                 + config.getInstanceConfig().getCooperativeThreadCount());
 
-        logger.info("\n" +
+        logger.info('\n' +
                 "\to   o   o   o---o o---o o     o---o   o   o---o o-o-o        o o---o o-o-o\n" +
                 "\t|   |  / \\     /  |     |     |      / \\  |       |          | |       |  \n" +
                 "\to---o o---o   o   o-o   |     o     o---o o---o   |          | o-o     |  \n" +
@@ -169,11 +169,11 @@ public class JetService
 
     public ResourceStore getResourceStore(long executionId) {
         return resourceStores.computeIfAbsent(executionId,
-                (k) -> new ResourceStore(config.getInstanceConfig().getTempDir()));
+                k -> new ResourceStore(config.getInstanceConfig().getTempDir()));
     }
 
     public ClassLoader getClassLoader(long executionId) {
-        return classLoaders.computeIfAbsent(executionId, (k) -> AccessController.doPrivileged(
+        return classLoaders.computeIfAbsent(executionId, k -> AccessController.doPrivileged(
                 (PrivilegedAction<ClassLoader>) () -> new JetClassLoader(getResourceStore(k))
         ));
     }
@@ -209,11 +209,6 @@ public class JetService
     }
 
     @Override
-    public void memberAdded(MembershipServiceEvent event) {
-        // nop
-    }
-
-    @Override
     public void memberRemoved(MembershipServiceEvent event) {
         Address address = event.getMember().getAddress();
 
@@ -231,7 +226,10 @@ public class JetService
     }
 
     @Override
+    public void memberAdded(MembershipServiceEvent event) {
+    }
+
+    @Override
     public void memberAttributeChanged(MemberAttributeServiceEvent event) {
-        // nop
     }
 }

@@ -219,23 +219,26 @@ public final class ReadHdfsP<K, V, R> extends AbstractProcessor {
          * Some splits may not be on any Jet member; these can be assigned
          * arbitrarily, but overall balance across members must be maintained.
          * </li><li>
-         * Since each split is stored on several machines, usually there are several
-         * candidate members for each split. This results in an NP constraint-
-         * solving problem.
+         * Since each split is stored on several machines, usually there are
+         * several candidate members for each split. This results in an NP
+         * constraint-solving problem.
          * </li></ul>
          * This is a high-level outline of the heuristic algorithm:
          * <ol><li>
-         * Build a mapping from split to the candidate set of members that might read it:
+         * Build a mapping from split to the candidate set of members that might
+         * read it:
          * <ol><li>
-         * for each split, form the candidate set from all members which have it locally;
+         * for each split, form the candidate set from all members which have it
+         * locally;
          * </li><li>
          * for each candidate set that is still empty, replace it with a singleton
          * set containing the member that occurs in the fewest of other candidate
          * sets.
          * </li></ol>
          * </li><li>
-         * Circularly iterate over all candidate sets, removing from each non-singleton
-         * set the member that occurs in the largest number of other candidate sets.
+         * Circularly iterate over all candidate sets, removing from each
+         * non-singleton set the member that occurs in the largest number of other
+         * candidate sets.
          * </li></ol>
          */
         private Map<Address, List<IndexedInputSplit>> assignSplitsToMembers(
