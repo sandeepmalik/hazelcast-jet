@@ -18,8 +18,7 @@ package com.hazelcast.jet.impl.util;
 
 import java.util.Arrays;
 
-import static com.hazelcast.jet.impl.util.Util.diffOrMaxVal;
-import static com.hazelcast.jet.impl.util.Util.diffOrMinVal;
+import static com.hazelcast.jet.impl.util.Util.subtractClamped;
 import static com.hazelcast.util.Preconditions.checkNotNegative;
 import static com.hazelcast.util.Preconditions.checkTrue;
 
@@ -134,7 +133,7 @@ public class SkewReductionPolicy {
         if (!forceAdvancePunc) {
             return;
         }
-        long newBottomPunc = diffOrMinVal(topObservedPunc(), maxSkew);
+        long newBottomPunc = subtractClamped(topObservedPunc(), maxSkew);
         for (int i = 0; i < drainOrderToQIdx.length && queuePuncSeqs[drainOrderToQIdx[i]] < newBottomPunc; i++) {
             queuePuncSeqs[drainOrderToQIdx[i]] = newBottomPunc;
         }
@@ -160,7 +159,7 @@ public class SkewReductionPolicy {
      * @return {@code false} if the draining should now stop; {@code true} otherwise
      */
     public boolean shouldStopDraining(int queueIndex, boolean madeProgress) {
-        long skew = diffOrMaxVal(queuePuncSeqs[queueIndex], queuePuncSeqs[drainOrderToQIdx[0]]);
+        long skew = subtractClamped(queuePuncSeqs[queueIndex], queuePuncSeqs[drainOrderToQIdx[0]]);
         return (madeProgress && skew > priorityDrainingThreshold) || (!forceAdvancePunc && skew > maxSkew);
     }
 
