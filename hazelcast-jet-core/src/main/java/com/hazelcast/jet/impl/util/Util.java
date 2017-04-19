@@ -144,13 +144,13 @@ public final class Util {
         return diffHadOverflow(a, b, diff) ? Long.MIN_VALUE : diff;
     }
 
-    // Hacker's Delight, 2nd Ed, 2-13: overflow has occured iff
+    // Hacker's Delight, 2nd Ed, 2-13: overflow has occurred iff
     // operands have the same sign which is opposite of the result
     private static boolean sumHadOverflow(long a, long b, long sum) {
         return ((a ^ sum) & (b ^ sum)) < 0;
     }
 
-    // Hacker's Delight, 2nd Ed, 2-13: overflow has occured iff operands have
+    // Hacker's Delight, 2nd Ed, 2-13: overflow has occurred iff operands have
     // opposite signs and result has opposite sign of left-hand operand
     private static boolean diffHadOverflow(long a, long b, long diff) {
         return ((a ^ b) & (a ^ diff)) < 0;

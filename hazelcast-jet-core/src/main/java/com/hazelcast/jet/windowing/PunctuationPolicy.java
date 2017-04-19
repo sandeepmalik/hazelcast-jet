@@ -87,7 +87,7 @@ public interface PunctuationPolicy {
      * This throttling policy should be employed to drive a downstream {@link
      * WindowingProcessors#groupByFrame(com.hazelcast.jet.Distributed.Function,
      * com.hazelcast.jet.Distributed.ToLongFunction, WindowDefinition,
-     * com.hazelcast.jet.stream.DistributedCollector) groupByFrame} processor.
+     * WindowOperation) groupByFrame} processor.
      */
     default PunctuationPolicy throttleByFrame(WindowDefinition winDef) {
         return new PunctuationPolicy() {
