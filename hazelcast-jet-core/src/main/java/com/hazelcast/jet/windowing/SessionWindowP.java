@@ -16,12 +16,12 @@
 
 package com.hazelcast.jet.windowing;
 
+import com.hazelcast.jet.AbstractProcessor;
 import com.hazelcast.jet.Distributed.BinaryOperator;
 import com.hazelcast.jet.Distributed.Function;
 import com.hazelcast.jet.Distributed.Supplier;
 import com.hazelcast.jet.Distributed.ToLongFunction;
 import com.hazelcast.jet.Punctuation;
-import com.hazelcast.jet.StreamingProcessorBase;
 import com.hazelcast.jet.Traverser;
 import com.hazelcast.jet.stream.DistributedCollector;
 
@@ -53,7 +53,7 @@ import static java.lang.System.arraycopy;
  * @param <A> type of the accumulator object
  * @param <R> type of the finished result
  */
-public class SessionWindowP<T, K, A, R> extends StreamingProcessorBase {
+public class SessionWindowP<T, K, A, R> extends AbstractProcessor {
 
     // exposed for testing, to check for memory leaks
     final Map<K, Windows> keyToWindows = new HashMap<>();

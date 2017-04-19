@@ -409,7 +409,7 @@ public class ConcurrentConveyor<E> {
         }
     }
 
-    private void propagateDrainerFailure(Throwable cause) {
+    private static void propagateDrainerFailure(Throwable cause) {
         if (cause != null && cause != REGULAR_DEPARTURE) {
             throw new ConcurrentConveyorException("Queue drainer failed", cause);
         }

@@ -16,9 +16,9 @@
 
 package com.hazelcast.jet.windowing;
 
+import com.hazelcast.jet.AbstractProcessor;
 import com.hazelcast.jet.Distributed;
 import com.hazelcast.jet.Punctuation;
-import com.hazelcast.jet.StreamingProcessorBase;
 import com.hazelcast.jet.Traverser;
 import com.hazelcast.jet.Traversers;
 
@@ -46,7 +46,7 @@ import static java.util.function.Function.identity;
  * @param <F> type of the frame accumulator object
  * @param <R> type of the finished result
  */
-public class SlidingWindowP<K, F, R> extends StreamingProcessorBase {
+public class SlidingWindowP<K, F, R> extends AbstractProcessor {
     private final WindowDefinition wDef;
     private final Supplier<F> createF;
     private final BinaryOperator<F> combineF;

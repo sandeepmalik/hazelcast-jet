@@ -32,7 +32,8 @@ import static com.hazelcast.jet.impl.util.ExceptionUtil.sneakyThrow;
  *     logger retrieved from the context.
  * </li><li>
  *     {@link #process(int, Inbox) process(n, inbox)} delegates to the matching
- *     {@code tryProcessN} with each item received in the inbox.
+ *     {@code tryProcessN()} with each item received in the inbox. If the item
+ *     is a punctuation, routes it to {@code tryProcessPuncN()} instead.
  * </li><li>
  *     There is also the catch-all {@link #tryProcess(int, Object)} to which
  *     the {@code tryProcessN} methods delegate by default. It must be used
@@ -247,6 +248,31 @@ public abstract class AbstractProcessor implements Processor {
     @SuppressWarnings("checkstyle:magicnumber")
     protected boolean tryProcess4(@Nonnull Object item) throws Exception {
         return tryProcess(4, item);
+    }
+
+    protected boolean tryProcessPunc0(@Nonnull Punctuation punc) {
+        return tryProcessPunc(0, punc);
+    }
+
+    protected boolean tryProcessPunc1(@Nonnull Punctuation punc) {
+        return tryProcessPunc(1, punc);
+    }
+
+    protected boolean tryProcessPunc2(@Nonnull Punctuation punc) {
+        return tryProcessPunc(2, punc);
+    }
+
+    protected boolean tryProcessPunc3(@Nonnull Punctuation punc) {
+        return tryProcessPunc(3, punc);
+    }
+
+    @SuppressWarnings("checkstyle:magicnumber")
+    protected boolean tryProcessPunc4(@Nonnull Punctuation punc) {
+        return tryProcessPunc(4, punc);
+    }
+
+    protected boolean tryProcessPunc(int ordinal, @Nonnull Punctuation punc) {
+        throw new UnsupportedOperationException("Missing implementation");
     }
 
     /**
@@ -494,9 +520,13 @@ public abstract class AbstractProcessor implements Processor {
     // compiler will be able to independently optimize and avoid the cost
     // of the megamorphic call site of tryProcessN here.
 
+
     protected void process0(@Nonnull Inbox inbox) throws Exception {
         for (Object item; (item = inbox.peek()) != null; ) {
-            if (!tryProcess0(item)) {
+            final boolean doneWithItem = item instanceof Punctuation
+                    ? tryProcessPunc0((Punctuation) item)
+                    : tryProcess0(item);
+            if (!doneWithItem) {
                 return;
             }
             inbox.remove();
@@ -505,7 +535,10 @@ public abstract class AbstractProcessor implements Processor {
 
     protected void process1(@Nonnull Inbox inbox) throws Exception {
         for (Object item; (item = inbox.peek()) != null; ) {
-            if (!tryProcess1(item)) {
+            final boolean doneWithItem = item instanceof Punctuation
+                    ? tryProcessPunc1((Punctuation) item)
+                    : tryProcess1(item);
+            if (!doneWithItem) {
                 return;
             }
             inbox.remove();
@@ -514,7 +547,10 @@ public abstract class AbstractProcessor implements Processor {
 
     protected void process2(@Nonnull Inbox inbox) throws Exception {
         for (Object item; (item = inbox.peek()) != null; ) {
-            if (!tryProcess2(item)) {
+            final boolean doneWithItem = item instanceof Punctuation
+                    ? tryProcessPunc2((Punctuation) item)
+                    : tryProcess2(item);
+            if (!doneWithItem) {
                 return;
             }
             inbox.remove();
@@ -523,7 +559,10 @@ public abstract class AbstractProcessor implements Processor {
 
     protected void process3(@Nonnull Inbox inbox) throws Exception {
         for (Object item; (item = inbox.peek()) != null; ) {
-            if (!tryProcess3(item)) {
+            final boolean doneWithItem = item instanceof Punctuation
+                    ? tryProcessPunc3((Punctuation) item)
+                    : tryProcess3(item);
+            if (!doneWithItem) {
                 return;
             }
             inbox.remove();
@@ -532,7 +571,10 @@ public abstract class AbstractProcessor implements Processor {
 
     protected void process4(@Nonnull Inbox inbox) throws Exception {
         for (Object item; (item = inbox.peek()) != null; ) {
-            if (!tryProcess4(item)) {
+            final boolean doneWithItem = item instanceof Punctuation
+                    ? tryProcessPunc4((Punctuation) item)
+                    : tryProcess4(item);
+            if (!doneWithItem) {
                 return;
             }
             inbox.remove();
@@ -541,7 +583,10 @@ public abstract class AbstractProcessor implements Processor {
 
     protected void processAny(int ordinal, @Nonnull Inbox inbox) throws Exception {
         for (Object item; (item = inbox.peek()) != null; ) {
-            if (!tryProcess(ordinal, item)) {
+            final boolean doneWithItem = item instanceof Punctuation
+                    ? tryProcessPunc(ordinal, (Punctuation) item)
+                    : tryProcess(ordinal, item);
+            if (!doneWithItem) {
                 return;
             }
             inbox.remove();
