@@ -30,7 +30,7 @@ import static com.hazelcast.jet.impl.util.Util.uncheckRun;
 
 public final class ResourceIterator implements Iterator<ResourcePart>, AutoCloseable {
 
-    private static final int RESOURCE_PART_SIZE = 1 << 14;
+    static final int RESOURCE_PART_SIZE = 1 << 14;
 
     private final Iterator<ResourceConfig> configIterator;
     private InputStream inputStream;
