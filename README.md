@@ -1,6 +1,6 @@
 ## Hazelcast Jet
 
-[Hazelcast Jet](http://jet.hazelcast.org) is a distributed computing platform built for high-performance stream processing and fast batch processing. It embeds Hazelcast In Memory Data Grid (IMDG) to provide a lightweight package of a processor and a scalable in-memory storage.
+[Hazelcast Jet](http://jet.hazelcast.org) is a distributed computing platform built for high-performance stream processing and fast batch processing. It embeds Hazelcast In Memory Data Grid (IMDG) to provide a lightweight package of a supplier and a scalable in-memory storage.
 
 Visit [jet.hazelcast.org](http://jet.hazelcast.org) to learn more about the architecture and use-cases.
 

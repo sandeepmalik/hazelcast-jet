@@ -10,7 +10,7 @@ The label in the brackets refer to the respective module.
 2. Enhancements
 
 - [core] Improved DAG.toString [310] 
-- [core] Convenience to make any processor non-cooperative [321] 
+- [core] Convenience to make any processor non-cooperative [321]
 - [core] Update Hazelcast version to 3.8 [323] 
 - [core] Add missing functional interfaces to the Distributed class [324] 
 - [java.util.stream] Refactor of Jet collectors into a new type called Reducer [313]
